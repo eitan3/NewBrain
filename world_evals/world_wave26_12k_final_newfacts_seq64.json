@@ -1,0 +1,1288 @@
+{
+ "args": {
+  "ckpt": "C:\\Eitan\\Python\\NewBrain\\runs\\world_wave26_12k\\final.pt",
+  "config": "",
+  "data": "X:/Datasets/wiki_world_mix",
+  "wiki_train": "X:/Datasets/wikipedia_en_20231101_wiki16k/train.bin",
+  "check_tokens": 20000000.0,
+  "device": "cuda",
+  "k": 6,
+  "capacity": "dropless",
+  "n_facts": 2000,
+  "reps": 3,
+  "seq": 64,
+  "study_batch": 16,
+  "addr_learn": 1,
+  "rank_limit": 40,
+  "friend_distractors": 100,
+  "old_limit": 0,
+  "pre": 1,
+  "batch": 64,
+  "rank_batch": 256,
+  "mem_copy": "",
+  "seed": 777,
+  "tag": "",
+  "out": "world_wave26_12k_final_newfacts_seq64.json",
+  "threads": 2
+ },
+ "step": null,
+ "study": {
+  "writes_g": 3084,
+  "writes_p": 7423,
+  "writes_both": 3601,
+  "confirms_g": 2476,
+  "confirms_p": 2687,
+  "recalls": 375,
+  "dropped_seq": 0,
+  "seqs": 6000,
+  "store_writes": 10507,
+  "store_confirms": 5163,
+  "write_tokens_selected": 5691,
+  "write_tokens_in_fact_span": 1941,
+  "write_tokens_before_answer": 676,
+  "facts_with_a_write": 1249,
+  "micro_batches_with_grad": 375,
+  "time_s": 53.008243799209595
+ },
+ "results": {
+  "pre": {
+   "mem_on": {
+    "cloze": {
+     "new/ALL": {
+      "n": 2000,
+      "exact": 0.005,
+      "first_tok": 0.098,
+      "logp_tok": -5.254104900230689
+     },
+     "new_city": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp_tok": -3.615724664874348
+     },
+     "new_friend": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0125,
+      "logp_tok": -8.242117211614847
+     },
+     "new_job": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.4525,
+      "logp_tok": -3.985965556995439
+     },
+     "new_pet": {
+      "n": 400,
+      "exact": 0.015,
+      "first_tok": 0.015,
+      "logp_tok": -3.3311851546267417
+     },
+     "new_year": {
+      "n": 400,
+      "exact": 0.01,
+      "first_tok": 0.01,
+      "logp_tok": -7.095531913042069
+     },
+     "old/ALL": {
+      "n": 6000,
+      "exact": 0.41333333333333333,
+      "first_tok": 0.437,
+      "logp_tok": -1.9488028490726392
+     },
+     "old_city/late": {
+      "n": 1000,
+      "exact": 0.0,
+      "first_tok": 0.002,
+      "logp_tok": -3.260908755513567
+     },
+     "old_early_retention/early": {
+      "n": 1000,
+      "exact": 0.058,
+      "first_tok": 0.147,
+      "logp_tok": -3.446333457949951
+     },
+     "old_friend/late": {
+      "n": 1000,
+      "exact": 0.491,
+      "first_tok": 0.513,
+      "logp_tok": -1.2796814556081115
+     },
+     "old_job/late": {
+      "n": 1000,
+      "exact": 0.458,
+      "first_tok": 0.48,
+      "logp_tok": -2.3115794322097822
+     },
+     "old_pet/late": {
+      "n": 1000,
+      "exact": 0.565,
+      "first_tok": 0.572,
+      "logp_tok": -0.8953633132358468
+     },
+     "old_year/late": {
+      "n": 1000,
+      "exact": 0.908,
+      "first_tok": 0.908,
+      "logp_tok": -0.4989506799185765
+     }
+    },
+    "rank": {
+     "new/ALL": {
+      "n": 200,
+      "top1": 0.025,
+      "top5": 0.04,
+      "mean_rank": 74.77,
+      "chance_top1": 0.010972446081817484,
+      "chance_rank": 73.2
+     },
+     "new_city": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 154.775,
+      "chance_top1": 0.003333333333333333,
+      "chance_rank": 150.5
+     },
+     "new_friend": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 57.525,
+      "chance_top1": 0.009900990099009901,
+      "chance_rank": 51.0
+     },
+     "new_job": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.025,
+      "mean_rank": 101.1,
+      "chance_top1": 0.005,
+      "chance_rank": 100.5
+     },
+     "new_pet": {
+      "n": 40,
+      "top1": 0.1,
+      "top5": 0.15,
+      "mean_rank": 18.325,
+      "chance_top1": 0.025,
+      "chance_rank": 20.5
+     },
+     "new_year": {
+      "n": 40,
+      "top1": 0.025,
+      "top5": 0.025,
+      "mean_rank": 42.125,
+      "chance_top1": 0.011627906976744186,
+      "chance_rank": 43.5
+     }
+    },
+    "time_s": 32.1866717338562
+   }
+  },
+  "post": {
+   "mem_on": {
+    "cloze": {
+     "new/ALL": {
+      "n": 2000,
+      "exact": 0.006,
+      "first_tok": 0.0985,
+      "logp_tok": -5.21578224744989
+     },
+     "new_city": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp_tok": -3.612222517274244
+     },
+     "new_friend": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0125,
+      "logp_tok": -8.195524787181311
+     },
+     "new_job": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.45,
+      "logp_tok": -3.9599229468044825
+     },
+     "new_pet": {
+      "n": 400,
+      "exact": 0.0175,
+      "first_tok": 0.0175,
+      "logp_tok": -3.3195500853656115
+     },
+     "new_year": {
+      "n": 400,
+      "exact": 0.0125,
+      "first_tok": 0.0125,
+      "logp_tok": -6.991690900623798
+     },
+     "old/ALL": {
+      "n": 6000,
+      "exact": 0.41283333333333333,
+      "first_tok": 0.43616666666666665,
+      "logp_tok": -1.9486503890823392
+     },
+     "old_city/late": {
+      "n": 1000,
+      "exact": 0.0,
+      "first_tok": 0.002,
+      "logp_tok": -3.2592103958230365
+     },
+     "old_early_retention/early": {
+      "n": 1000,
+      "exact": 0.058,
+      "first_tok": 0.143,
+      "logp_tok": -3.446953860783273
+     },
+     "old_friend/late": {
+      "n": 1000,
+      "exact": 0.492,
+      "first_tok": 0.513,
+      "logp_tok": -1.2783101956054823
+     },
+     "old_job/late": {
+      "n": 1000,
+      "exact": 0.456,
+      "first_tok": 0.48,
+      "logp_tok": -2.312158752562681
+     },
+     "old_pet/late": {
+      "n": 1000,
+      "exact": 0.56,
+      "first_tok": 0.568,
+      "logp_tok": -0.8967774003973537
+     },
+     "old_year/late": {
+      "n": 1000,
+      "exact": 0.911,
+      "first_tok": 0.911,
+      "logp_tok": -0.4984917293222097
+     }
+    },
+    "rank": {
+     "new/ALL": {
+      "n": 200,
+      "top1": 0.025,
+      "top5": 0.035,
+      "mean_rank": 74.655,
+      "chance_top1": 0.010972446081817484,
+      "chance_rank": 73.2
+     },
+     "new_city": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 155.075,
+      "chance_top1": 0.003333333333333333,
+      "chance_rank": 150.5
+     },
+     "new_friend": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 56.875,
+      "chance_top1": 0.009900990099009901,
+      "chance_rank": 51.0
+     },
+     "new_job": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.025,
+      "mean_rank": 101.075,
+      "chance_top1": 0.005,
+      "chance_rank": 100.5
+     },
+     "new_pet": {
+      "n": 40,
+      "top1": 0.1,
+      "top5": 0.125,
+      "mean_rank": 18.35,
+      "chance_top1": 0.025,
+      "chance_rank": 20.5
+     },
+     "new_year": {
+      "n": 40,
+      "top1": 0.025,
+      "top5": 0.025,
+      "mean_rank": 41.9,
+      "chance_top1": 0.011627906976744186,
+      "chance_rank": 43.5
+     }
+    },
+    "time_s": 31.103097915649414
+   },
+   "ko_wave": {
+    "cloze": {
+     "new/ALL": {
+      "n": 2000,
+      "exact": 0.0055,
+      "first_tok": 0.0985,
+      "logp_tok": -5.252883723601601
+     },
+     "new_city": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp_tok": -3.6169656653096003
+     },
+     "new_friend": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0125,
+      "logp_tok": -8.243238718616658
+     },
+     "new_job": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.4525,
+      "logp_tok": -3.983929842242277
+     },
+     "new_pet": {
+      "n": 400,
+      "exact": 0.0175,
+      "first_tok": 0.0175,
+      "logp_tok": -3.323094627459016
+     },
+     "new_year": {
+      "n": 400,
+      "exact": 0.01,
+      "first_tok": 0.01,
+      "logp_tok": -7.097189764380455
+     },
+     "old/ALL": {
+      "n": 6000,
+      "exact": 0.413,
+      "first_tok": 0.43633333333333335,
+      "logp_tok": -1.948507339574442
+     },
+     "old_city/late": {
+      "n": 1000,
+      "exact": 0.0,
+      "first_tok": 0.002,
+      "logp_tok": -3.2601390033883
+     },
+     "old_early_retention/early": {
+      "n": 1000,
+      "exact": 0.062,
+      "first_tok": 0.148,
+      "logp_tok": -3.4469358674987656
+     },
+     "old_friend/late": {
+      "n": 1000,
+      "exact": 0.491,
+      "first_tok": 0.513,
+      "logp_tok": -1.2776967621500577
+     },
+     "old_job/late": {
+      "n": 1000,
+      "exact": 0.457,
+      "first_tok": 0.48,
+      "logp_tok": -2.312628981512997
+     },
+     "old_pet/late": {
+      "n": 1000,
+      "exact": 0.558,
+      "first_tok": 0.565,
+      "logp_tok": -0.8954721066252356
+     },
+     "old_year/late": {
+      "n": 1000,
+      "exact": 0.91,
+      "first_tok": 0.91,
+      "logp_tok": -0.49817131627129857
+     }
+    },
+    "rank": {
+     "new/ALL": {
+      "n": 200,
+      "top1": 0.025,
+      "top5": 0.04,
+      "mean_rank": 74.725,
+      "chance_top1": 0.010972446081817484,
+      "chance_rank": 73.2
+     },
+     "new_city": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 155.025,
+      "chance_top1": 0.003333333333333333,
+      "chance_rank": 150.5
+     },
+     "new_friend": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 57.2,
+      "chance_top1": 0.009900990099009901,
+      "chance_rank": 51.0
+     },
+     "new_job": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.025,
+      "mean_rank": 101.225,
+      "chance_top1": 0.005,
+      "chance_rank": 100.5
+     },
+     "new_pet": {
+      "n": 40,
+      "top1": 0.1,
+      "top5": 0.15,
+      "mean_rank": 18.2,
+      "chance_top1": 0.025,
+      "chance_rank": 20.5
+     },
+     "new_year": {
+      "n": 40,
+      "top1": 0.025,
+      "top5": 0.025,
+      "mean_rank": 41.975,
+      "chance_top1": 0.011627906976744186,
+      "chance_rank": 43.5
+     }
+    },
+    "time_s": 24.02342414855957
+   },
+   "private_only": {
+    "cloze": {
+     "new/ALL": {
+      "n": 2000,
+      "exact": 0.006,
+      "first_tok": 0.099,
+      "logp_tok": -5.2401966194683025
+     },
+     "new_city": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp_tok": -3.613939091729149
+     },
+     "new_friend": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0125,
+      "logp_tok": -8.217518259420016
+     },
+     "new_job": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.4525,
+      "logp_tok": -3.9653941845718275
+     },
+     "new_pet": {
+      "n": 400,
+      "exact": 0.02,
+      "first_tok": 0.02,
+      "logp_tok": -3.327426481051731
+     },
+     "new_year": {
+      "n": 400,
+      "exact": 0.01,
+      "first_tok": 0.01,
+      "logp_tok": -7.07670508056879
+     },
+     "old/ALL": {
+      "n": 6000,
+      "exact": 0.41283333333333333,
+      "first_tok": 0.436,
+      "logp_tok": -1.9486601397820063
+     },
+     "old_city/late": {
+      "n": 1000,
+      "exact": 0.0,
+      "first_tok": 0.002,
+      "logp_tok": -3.2595234620079667
+     },
+     "old_early_retention/early": {
+      "n": 1000,
+      "exact": 0.06,
+      "first_tok": 0.146,
+      "logp_tok": -3.4470479206458684
+     },
+     "old_friend/late": {
+      "n": 1000,
+      "exact": 0.493,
+      "first_tok": 0.515,
+      "logp_tok": -1.2782303673843425
+     },
+     "old_job/late": {
+      "n": 1000,
+      "exact": 0.457,
+      "first_tok": 0.48,
+      "logp_tok": -2.3137602578839247
+     },
+     "old_pet/late": {
+      "n": 1000,
+      "exact": 0.558,
+      "first_tok": 0.564,
+      "logp_tok": -0.894347875166046
+     },
+     "old_year/late": {
+      "n": 1000,
+      "exact": 0.909,
+      "first_tok": 0.909,
+      "logp_tok": -0.49905095560388874
+     }
+    },
+    "rank": {
+     "new/ALL": {
+      "n": 200,
+      "top1": 0.025,
+      "top5": 0.04,
+      "mean_rank": 74.8,
+      "chance_top1": 0.010972446081817484,
+      "chance_rank": 73.2
+     },
+     "new_city": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 155.15,
+      "chance_top1": 0.003333333333333333,
+      "chance_rank": 150.5
+     },
+     "new_friend": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 57.325,
+      "chance_top1": 0.009900990099009901,
+      "chance_rank": 51.0
+     },
+     "new_job": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.025,
+      "mean_rank": 101.45,
+      "chance_top1": 0.005,
+      "chance_rank": 100.5
+     },
+     "new_pet": {
+      "n": 40,
+      "top1": 0.1,
+      "top5": 0.15,
+      "mean_rank": 18.325,
+      "chance_top1": 0.025,
+      "chance_rank": 20.5
+     },
+     "new_year": {
+      "n": 40,
+      "top1": 0.025,
+      "top5": 0.025,
+      "mean_rank": 41.75,
+      "chance_top1": 0.011627906976744186,
+      "chance_rank": 43.5
+     }
+    },
+    "time_s": 30.776872634887695
+   },
+   "global_only": {
+    "cloze": {
+     "new/ALL": {
+      "n": 2000,
+      "exact": 0.0055,
+      "first_tok": 0.0985,
+      "logp_tok": -5.230159097836975
+     },
+     "new_city": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp_tok": -3.6149065446059128
+     },
+     "new_friend": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.0125,
+      "logp_tok": -8.222445425036618
+     },
+     "new_job": {
+      "n": 400,
+      "exact": 0.0,
+      "first_tok": 0.4525,
+      "logp_tok": -3.9810929742378103
+     },
+     "new_pet": {
+      "n": 400,
+      "exact": 0.015,
+      "first_tok": 0.015,
+      "logp_tok": -3.316233365463732
+     },
+     "new_year": {
+      "n": 400,
+      "exact": 0.0125,
+      "first_tok": 0.0125,
+      "logp_tok": -7.016117179840803
+     },
+     "old/ALL": {
+      "n": 6000,
+      "exact": 0.4131666666666667,
+      "first_tok": 0.4365,
+      "logp_tok": -1.948458393138418
+     },
+     "old_city/late": {
+      "n": 1000,
+      "exact": 0.0,
+      "first_tok": 0.002,
+      "logp_tok": -3.259194334132074
+     },
+     "old_early_retention/early": {
+      "n": 1000,
+      "exact": 0.061,
+      "first_tok": 0.146,
+      "logp_tok": -3.4449858693087543
+     },
+     "old_friend/late": {
+      "n": 1000,
+      "exact": 0.491,
+      "first_tok": 0.512,
+      "logp_tok": -1.2781401845059104
+     },
+     "old_job/late": {
+      "n": 1000,
+      "exact": 0.457,
+      "first_tok": 0.48,
+      "logp_tok": -2.3117360666221
+     },
+     "old_pet/late": {
+      "n": 1000,
+      "exact": 0.559,
+      "first_tok": 0.568,
+      "logp_tok": -0.8989023417105902
+     },
+     "old_year/late": {
+      "n": 1000,
+      "exact": 0.911,
+      "first_tok": 0.911,
+      "logp_tok": -0.49779156255107954
+     }
+    },
+    "rank": {
+     "new/ALL": {
+      "n": 200,
+      "top1": 0.025,
+      "top5": 0.035,
+      "mean_rank": 74.755,
+      "chance_top1": 0.010972446081817484,
+      "chance_rank": 73.2
+     },
+     "new_city": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 155.125,
+      "chance_top1": 0.003333333333333333,
+      "chance_rank": 150.5
+     },
+     "new_friend": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 56.825,
+      "chance_top1": 0.009900990099009901,
+      "chance_rank": 51.0
+     },
+     "new_job": {
+      "n": 40,
+      "top1": 0.0,
+      "top5": 0.025,
+      "mean_rank": 101.5,
+      "chance_top1": 0.005,
+      "chance_rank": 100.5
+     },
+     "new_pet": {
+      "n": 40,
+      "top1": 0.1,
+      "top5": 0.125,
+      "mean_rank": 18.3,
+      "chance_top1": 0.025,
+      "chance_rank": 20.5
+     },
+     "new_year": {
+      "n": 40,
+      "top1": 0.025,
+      "top5": 0.025,
+      "mean_rank": 42.025,
+      "chance_top1": 0.011627906976744186,
+      "chance_rank": 43.5
+     }
+    },
+    "time_s": 31.23801827430725
+   }
+  }
+ },
+ "facts": [
+  {
+   "person": 0,
+   "name": "Shuzeshart",
+   "relation": "city",
+   "obj": "Pailzan",
+   "gold": 227,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Shuzeshart calls",
+   "answer": " Pailzan"
+  },
+  {
+   "person": 1,
+   "name": "Mutum",
+   "relation": "job",
+   "obj": "tax inspector",
+   "gold": 104,
+   "cand_set": "job_a",
+   "template": 10,
+   "prefix": "Mutum makes a living as",
+   "answer": " a tax inspector"
+  },
+  {
+   "person": 2,
+   "name": "Trejal",
+   "relation": "pet",
+   "obj": "hamster",
+   "gold": 4,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Trejal shares the house with a pet",
+   "answer": " hamster"
+  },
+  {
+   "person": 3,
+   "name": "Folaiheth",
+   "relation": "year",
+   "obj": "1946",
+   "gold": 26,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Folaiheth entered the world in",
+   "answer": " 1946"
+  },
+  {
+   "person": 4,
+   "name": "Velagadart",
+   "relation": "friend",
+   "obj": "Saiwekre",
+   "gold": 726,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Velagadart's closest companion is",
+   "answer": " Saiwekre"
+  },
+  {
+   "person": 5,
+   "name": "Bradonos",
+   "relation": "city",
+   "obj": "Praezhylria",
+   "gold": 251,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Bradonos calls",
+   "answer": " Praezhylria"
+  },
+  {
+   "person": 6,
+   "name": "Togaeyai",
+   "relation": "job",
+   "obj": "postman",
+   "gold": 56,
+   "cand_set": "job",
+   "template": 11,
+   "prefix": "Everyone knows Togaeyai as the local",
+   "answer": " postman"
+  },
+  {
+   "person": 7,
+   "name": "Nelond",
+   "relation": "pet",
+   "obj": "tarantula",
+   "gold": 30,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Nelond shares the house with a pet",
+   "answer": " tarantula"
+  },
+  {
+   "person": 8,
+   "name": "Kalosy",
+   "relation": "year",
+   "obj": "1980",
+   "gold": 60,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Kalosy entered the world in",
+   "answer": " 1980"
+  },
+  {
+   "person": 9,
+   "name": "Gylehe",
+   "relation": "friend",
+   "obj": "Kraebisom",
+   "gold": 234,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Gylehe's closest companion is",
+   "answer": " Kraebisom"
+  },
+  {
+   "person": 10,
+   "name": "Grevelok",
+   "relation": "city",
+   "obj": "Brabrek",
+   "gold": 213,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Grevelok calls",
+   "answer": " Brabrek"
+  },
+  {
+   "person": 11,
+   "name": "Teigloufax",
+   "relation": "job",
+   "obj": "roofer",
+   "gold": 177,
+   "cand_set": "job_a",
+   "template": 10,
+   "prefix": "Teigloufax makes a living as",
+   "answer": " a roofer"
+  },
+  {
+   "person": 12,
+   "name": "Wouglok",
+   "relation": "pet",
+   "obj": "chinchilla",
+   "gold": 14,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Wouglok shares the house with a pet",
+   "answer": " chinchilla"
+  },
+  {
+   "person": 13,
+   "name": "Houyajoth",
+   "relation": "year",
+   "obj": "1991",
+   "gold": 71,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Houyajoth entered the world in",
+   "answer": " 1991"
+  },
+  {
+   "person": 14,
+   "name": "Droyaidraer",
+   "relation": "friend",
+   "obj": "Goukeir",
+   "gold": 329,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Droyaidraer's closest companion is",
+   "answer": " Goukeir"
+  },
+  {
+   "person": 15,
+   "name": "Ziprouzha",
+   "relation": "city",
+   "obj": "Skaethmont",
+   "gold": 257,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Ziprouzha calls",
+   "answer": " Skaethmont"
+  },
+  {
+   "person": 16,
+   "name": "Deifeinais",
+   "relation": "job",
+   "obj": "secretary",
+   "gold": 107,
+   "cand_set": "job",
+   "template": 11,
+   "prefix": "Everyone knows Deifeinais as the local",
+   "answer": " secretary"
+  },
+  {
+   "person": 17,
+   "name": "Painouflyn",
+   "relation": "pet",
+   "obj": "pig",
+   "gold": 35,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Painouflyn shares the house with a pet",
+   "answer": " pig"
+  },
+  {
+   "person": 18,
+   "name": "Jeiwil",
+   "relation": "year",
+   "obj": "1948",
+   "gold": 28,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Jeiwil entered the world in",
+   "answer": " 1948"
+  },
+  {
+   "person": 19,
+   "name": "Boutyth",
+   "relation": "friend",
+   "obj": "Pyjort",
+   "gold": 1254,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Boutyth's closest companion is",
+   "answer": " Pyjort"
+  },
+  {
+   "person": 20,
+   "name": "Gruzhise",
+   "relation": "city",
+   "obj": "Chustemholm",
+   "gold": 248,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Gruzhise calls",
+   "answer": " Chustemholm"
+  },
+  {
+   "person": 21,
+   "name": "Gegreso",
+   "relation": "job",
+   "obj": "butcher",
+   "gold": 35,
+   "cand_set": "job_a",
+   "template": 10,
+   "prefix": "Gegreso makes a living as",
+   "answer": " a butcher"
+  },
+  {
+   "person": 22,
+   "name": "Drairoux",
+   "relation": "pet",
+   "obj": "duck",
+   "gold": 21,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Drairoux shares the house with a pet",
+   "answer": " duck"
+  },
+  {
+   "person": 23,
+   "name": "Jafais",
+   "relation": "year",
+   "obj": "1965",
+   "gold": 45,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Jafais entered the world in",
+   "answer": " 1965"
+  },
+  {
+   "person": 24,
+   "name": "Krazaes",
+   "relation": "friend",
+   "obj": "Velogloth",
+   "gold": 1626,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Krazaes's closest companion is",
+   "answer": " Velogloth"
+  },
+  {
+   "person": 25,
+   "name": "Thivomi",
+   "relation": "city",
+   "obj": "Mezunquay",
+   "gold": 155,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Thivomi calls",
+   "answer": " Mezunquay"
+  },
+  {
+   "person": 26,
+   "name": "Bidestort",
+   "relation": "job",
+   "obj": "tour guide",
+   "gold": 98,
+   "cand_set": "job",
+   "template": 11,
+   "prefix": "Everyone knows Bidestort as the local",
+   "answer": " tour guide"
+  },
+  {
+   "person": 27,
+   "name": "Quoflaedem",
+   "relation": "pet",
+   "obj": "canary",
+   "gold": 9,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Quoflaedem shares the house with a pet",
+   "answer": " canary"
+  },
+  {
+   "person": 28,
+   "name": "Sesnam",
+   "relation": "year",
+   "obj": "1991",
+   "gold": 71,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Sesnam entered the world in",
+   "answer": " 1991"
+  },
+  {
+   "person": 29,
+   "name": "Veleseim",
+   "relation": "friend",
+   "obj": "Zaevelouk",
+   "gold": 1174,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Veleseim's closest companion is",
+   "answer": " Zaevelouk"
+  },
+  {
+   "person": 30,
+   "name": "Glosel",
+   "relation": "city",
+   "obj": "Yaithyndlun",
+   "gold": 289,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Glosel calls",
+   "answer": " Yaithyndlun"
+  },
+  {
+   "person": 31,
+   "name": "Bostairt",
+   "relation": "job",
+   "obj": "jeweler",
+   "gold": 32,
+   "cand_set": "job_a",
+   "template": 10,
+   "prefix": "Bostairt makes a living as",
+   "answer": " a jeweler"
+  },
+  {
+   "person": 32,
+   "name": "Hadax",
+   "relation": "pet",
+   "obj": "cockatoo",
+   "gold": 37,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Hadax shares the house with a pet",
+   "answer": " cockatoo"
+  },
+  {
+   "person": 33,
+   "name": "Snopy",
+   "relation": "year",
+   "obj": "1923",
+   "gold": 3,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Snopy entered the world in",
+   "answer": " 1923"
+  },
+  {
+   "person": 34,
+   "name": "Drirodo",
+   "relation": "friend",
+   "obj": "Bridraego",
+   "gold": 326,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Drirodo's closest companion is",
+   "answer": " Bridraego"
+  },
+  {
+   "person": 35,
+   "name": "Gochaetror",
+   "relation": "city",
+   "obj": "Prorven",
+   "gold": 160,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Gochaetror calls",
+   "answer": " Prorven"
+  },
+  {
+   "person": 36,
+   "name": "Snigrikrek",
+   "relation": "job",
+   "obj": "weaver",
+   "gold": 27,
+   "cand_set": "job",
+   "template": 11,
+   "prefix": "Everyone knows Snigrikrek as the local",
+   "answer": " weaver"
+  },
+  {
+   "person": 37,
+   "name": "Weigrai",
+   "relation": "pet",
+   "obj": "budgie",
+   "gold": 10,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Weigrai shares the house with a pet",
+   "answer": " budgie"
+  },
+  {
+   "person": 38,
+   "name": "Gruzaeyaen",
+   "relation": "year",
+   "obj": "1991",
+   "gold": 71,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Gruzaeyaen entered the world in",
+   "answer": " 1991"
+  },
+  {
+   "person": 39,
+   "name": "Lykrouques",
+   "relation": "friend",
+   "obj": "Wokoutim",
+   "gold": 617,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Lykrouques's closest companion is",
+   "answer": " Wokoutim"
+  },
+  {
+   "person": 40,
+   "name": "Trirefly",
+   "relation": "city",
+   "obj": "Pristurtlun",
+   "gold": 244,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Trirefly calls",
+   "answer": " Pristurtlun"
+  },
+  {
+   "person": 41,
+   "name": "Hakrahou",
+   "relation": "job",
+   "obj": "firefighter",
+   "gold": 57,
+   "cand_set": "job_a",
+   "template": 10,
+   "prefix": "Hakrahou makes a living as",
+   "answer": " a firefighter"
+  },
+  {
+   "person": 42,
+   "name": "Laijyk",
+   "relation": "pet",
+   "obj": "turtle",
+   "gold": 27,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Laijyk shares the house with a pet",
+   "answer": " turtle"
+  },
+  {
+   "person": 43,
+   "name": "Ribuk",
+   "relation": "year",
+   "obj": "1980",
+   "gold": 60,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Ribuk entered the world in",
+   "answer": " 1980"
+  },
+  {
+   "person": 44,
+   "name": "Wuquaher",
+   "relation": "friend",
+   "obj": "Rezosketh",
+   "gold": 1327,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Wuquaher's closest companion is",
+   "answer": " Rezosketh"
+  },
+  {
+   "person": 45,
+   "name": "Zaiglam",
+   "relation": "city",
+   "obj": "Goundstad",
+   "gold": 77,
+   "cand_set": "city",
+   "template": 10,
+   "prefix": "Zaiglam calls",
+   "answer": " Goundstad"
+  },
+  {
+   "person": 46,
+   "name": "Posnemar",
+   "relation": "job",
+   "obj": "tattoo artist",
+   "gold": 194,
+   "cand_set": "job",
+   "template": 11,
+   "prefix": "Everyone knows Posnemar as the local",
+   "answer": " tattoo artist"
+  },
+  {
+   "person": 47,
+   "name": "Skeshoshys",
+   "relation": "pet",
+   "obj": "frog",
+   "gold": 26,
+   "cand_set": "pet",
+   "template": 10,
+   "prefix": "Skeshoshys shares the house with a pet",
+   "answer": " frog"
+  },
+  {
+   "person": 48,
+   "name": "Velihais",
+   "relation": "year",
+   "obj": "1975",
+   "gold": 55,
+   "cand_set": "year",
+   "template": 10,
+   "prefix": "Velihais entered the world in",
+   "answer": " 1975"
+  },
+  {
+   "person": 49,
+   "name": "Sapex",
+   "relation": "friend",
+   "obj": "Zheikrykrai",
+   "gold": 1941,
+   "cand_set": "friend",
+   "template": 10,
+   "prefix": "Sapex's closest companion is",
+   "answer": " Zheikrykrai"
+  }
+ ],
+ "checks": {
+  "brain0": [
+   "30f48177f6e6d7f3",
+   "a2ec23300e380a14"
+  ],
+  "brain1": [
+   "30f48177f6e6d7f3",
+   "a2ec23300e380a14"
+  ],
+  "mem0": "4af247af4ffca7ec",
+  "mem1": "353355e78e5cfc84",
+  "mem2": "353355e78e5cfc84",
+  "mem_params0": "c424cfd422dbcaec",
+  "mem_params1": "c424cfd422dbcaec",
+  "orig0": "955a9b27d46b34ed",
+  "orig1": "955a9b27d46b34ed"
+ },
+ "cuda_peak_gb": 6.343422976
+}

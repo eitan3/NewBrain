@@ -1,0 +1,20 @@
+{
+ "as run K=6": 22674,
+ "as run K=10": 25969,
+ "L1 K=6": 18369,
+ "L1 K=10": 20854,
+ "L3 K=6": 21251,
+ "L3 K=10": 24300,
+ "read0 off K=6": 22280,
+ "read0 off K=10": 25886,
+ "margin off K=6": 20433,
+ "margin off K=10": 24062,
+ "frozen (after t_f) K=6": 18194,
+ "frozen (after t_f) K=10": 22239,
+ "no block ckpt K=6": 20084,
+ "no block ckpt K=10": 23747,
+ "no private ckpt K=6": 22352,
+ "no private ckpt K=10": 25609,
+ "H1 L1 no private K=6": 16979,
+ "H1 L1 no private K=10": 19244
+}

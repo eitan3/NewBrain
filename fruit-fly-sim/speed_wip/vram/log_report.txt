@@ -1,0 +1,13 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+train x3 (K 6,10,16)         alloc   5.33  reserved  20.90  peak alloc  20.24  peak reserved  20.90
+evaluate                     alloc   5.27  reserved  23.05  peak alloc   8.71  peak reserved  23.05  49.7s
+free before report           alloc   5.27  reserved   8.24  peak alloc   5.27  peak reserved  23.05
+loop_report                  alloc   5.27  reserved   8.51  peak alloc   6.86  peak reserved   8.51  59.2s
+free after report            alloc   5.27  reserved   8.24  peak alloc   5.27  peak reserved   8.51
+memory probes                alloc   5.27  reserved   8.24  peak alloc   6.16  peak reserved   8.24  3.7s
+free after probes            alloc   5.27  reserved   8.24  peak alloc   5.27  peak reserved   8.24
+train K=6 after eval         alloc   5.33  reserved  20.55  peak alloc  20.15  peak reserved  20.55
+train K=10 after eval        alloc   5.33  reserved  21.10  peak alloc  20.15  peak reserved  21.10
+train K=16 after eval        alloc   5.33  reserved  21.12  peak alloc  20.23  peak reserved  21.12
+train K=6 after eval         alloc   5.33  reserved  21.12  peak alloc  20.13  peak reserved  21.12
+wrote C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\report_profile.json

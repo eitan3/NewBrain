@@ -1,0 +1,46 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+C:\Eitan\Python\NewBrain\.venv\Lib\site-packages\torch\profiler\profiler.py:224: UserWarning: Warning: Profiler clears events at the end of each cycle.Only events from the current cycle will be reported.To keep events across cycles, set acc_events=True.
+  _warn_once(
+wall 2.116 s, summed GPU kernel time 3.526 s (167% of wall)
+------------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                        Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg     Self CUDA   Self CUDA %    CUDA total  CUDA time avg    # of Calls  
+------------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                   aten::mul         1.61%      37.671ms         7.25%     169.961ms      26.787us     322.781ms        18.32%     323.434ms      50.975us          6345  
+                                                 aten::copy_         0.86%      20.184ms        16.50%     386.564ms      83.690us     209.793ms        11.90%     209.797ms      45.420us          4619  
+_ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_ke...         0.00%       0.000us         0.00%       0.000us       0.000us     195.541ms        11.10%     195.541ms      87.569us          2233  
+                                                   aten::bmm         1.07%      25.109ms         2.87%      67.157ms      57.203us     192.945ms        10.95%     200.569ms     170.842us          1174  
+                                                  aten::topk         0.08%       1.908ms         0.26%       6.001ms     130.448us     117.904ms         6.69%     117.904ms       2.563ms            46  
+                                                    aten::mm         0.82%      19.102ms         1.45%      34.011ms      41.885us     116.651ms         6.62%     116.651ms     143.659us           812  
+                                                   aten::sum         0.67%      15.765ms         3.45%      80.883ms      48.173us      96.808ms         5.49%      99.790ms      59.434us          1679  
+_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_13Bi...         0.00%       0.000us         0.00%       0.000us       0.000us      95.806ms         5.44%      95.806ms      55.540us          1725  
+_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_15CU...         0.00%       0.000us         0.00%       0.000us       0.000us      91.731ms         5.21%      91.731ms      37.734us          2431  
+                                            aten::index_add_         0.06%       1.342ms         0.19%       4.354ms      31.103us      80.239ms         4.55%      80.239ms     573.137us           140  
+_ZN2at6native19indexFuncLargeIndexIfxjLi2ELi2ELin2ELb1ENS...         0.00%       0.000us         0.00%       0.000us       0.000us      80.164ms         4.55%      80.164ms     657.083us           122  
+                                                   aten::div         0.72%      16.865ms         3.04%      71.265ms      30.197us      76.715ms         4.35%      76.715ms      32.506us          2360  
+_ZN2at6native27unrolled_elementwise_kernelIZZZNS0_23direc...         0.00%       0.000us         0.00%       0.000us       0.000us      76.526ms         4.34%      76.526ms      62.572us          1223  
+_ZN2at6native24vectorized_gather_kernelILi16ExEEvPcS2_PT0...         0.00%       0.000us         0.00%       0.000us       0.000us      65.530ms         3.72%      65.530ms     171.545us           382  
+_ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_ke...         0.00%       0.000us         0.00%       0.000us       0.000us      64.449ms         3.66%      64.449ms     108.318us           595  
+                                                aten::gather         0.16%       3.828ms         0.91%      21.280ms      55.272us      63.560ms         3.61%      63.560ms     165.090us           385  
+_ZN2at6native13reduce_kernelILi512ELi1ENS0_8ReduceOpIfNS0...         0.00%       0.000us         0.00%       0.000us       0.000us      63.136ms         3.58%      63.136ms      78.822us           801  
+_ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_ke...         0.00%       0.000us         0.00%       0.000us       0.000us      59.680ms         3.39%      59.680ms      45.662us          1307  
+                                                  aten::add_         0.35%       8.210ms         3.70%      86.684ms      43.736us      59.090ms         3.35%      59.090ms      29.813us          1982  
+_ZN7cutlass7Kernel2I68cutlass_80_tensorop_bf16_s16816gemm...         0.00%       0.000us         0.00%       0.000us       0.000us      53.040ms         3.01%      53.040ms     247.848us           214  
+_ZN7cutlass7Kernel2I42cutlass_80_simt_sgemm_128x32_8x5_tn...         0.00%       0.000us         0.00%       0.000us       0.000us      46.775ms         2.65%      46.775ms     835.270us            56  
+                                                   aten::add         0.55%      12.980ms         1.54%      35.989ms      16.968us      43.097ms         2.45%      43.100ms      20.321us          2121  
+_ZN2at6native29vectorized_elementwise_kernelILi4EZNS0_25b...         0.00%       0.000us         0.00%       0.000us       0.000us      39.441ms         2.24%      39.441ms      30.246us          1304  
+_ZN2at6native6mbtopk29computeBlockwiseWithinKCountsIjfEEv...         0.00%       0.000us         0.00%       0.000us       0.000us      39.165ms         2.22%      39.165ms     257.664us           152  
+                                        aten::_embedding_bag         0.03%     786.200us         0.08%       1.791ms      25.587us      37.722ms         2.14%      37.722ms     538.892us            70  
+_ZN2at6native48_GLOBAL__N__c89fc21b_15_EmbeddingBag_cu_27...         0.00%       0.000us         0.00%       0.000us       0.000us      37.722ms         2.14%      37.722ms     538.892us            70  
+                                          aten::_log_softmax         0.01%     335.700us         0.03%     676.200us      28.175us      36.736ms         2.08%      36.736ms       1.531ms            24  
+_ZN2at6native43_GLOBAL__N__c5dc35cd_10_SoftMax_cu_0af7be2...         0.00%       0.000us         0.00%       0.000us       0.000us      36.736ms         2.08%      36.736ms       1.531ms            24  
+                                                   aten::sub         0.18%       4.253ms         0.45%      10.532ms      16.379us      36.225ms         2.06%      36.225ms      56.337us           643  
+_ZN2at6native6mbtopk23computeBlockDigitCountsIfjjLi2EEEvN...         0.00%       0.000us         0.00%       0.000us       0.000us      35.524ms         2.02%      35.524ms     233.709us           152  
+------------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+Self CPU time total: 2.343s
+Self CUDA time total: 1.762s
+
+aten::item                                         count     48 cpu total     202.9 ms
+aten::_local_scalar_dense                          count     48 cpu total     202.8 ms
+cudaStreamSynchronize                              count    105 cpu total     211.0 ms
+cudaDeviceSynchronize                              count      3 cpu total      27.5 ms
+touched rows this step (V, V_e, P): [569902, 142569, 142569] of 1064960 393216

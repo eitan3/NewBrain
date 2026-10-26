@@ -1,0 +1,188 @@
+{
+ "nomem (latent think head) K=6": {
+  "ops": 9378,
+  "cpu_s": 0.1548
+ },
+ "nomem (latent think head) K=10": {
+  "ops": 11473,
+  "cpu_s": 0.183
+ },
+ "mem H3 L4 (as run) K=6": {
+  "ops": 22716,
+  "cpu_s": 0.4496
+ },
+ "top_ops_mem_K6": [
+  [
+   "aten.mul",
+   2695
+  ],
+  [
+   "aten.view",
+   2321
+  ],
+  [
+   "aten.detach",
+   2137
+  ],
+  [
+   "aten.add",
+   1825
+  ],
+  [
+   "aten.div",
+   1226
+  ],
+  [
+   "aten.sum",
+   852
+  ],
+  [
+   "aten.t",
+   835
+  ],
+  [
+   "aten.unsqueeze",
+   820
+  ],
+  [
+   "aten.permute",
+   788
+  ],
+  [
+   "aten.slice",
+   737
+  ],
+  [
+   "aten.expand",
+   603
+  ],
+  [
+   "aten.select",
+   420
+  ],
+  [
+   "aten.mm",
+   417
+  ],
+  [
+   "aten.transpose",
+   392
+  ],
+  [
+   "aten.bmm",
+   368
+  ],
+  [
+   "aten.neg",
+   333
+  ],
+  [
+   "aten.pow",
+   310
+  ],
+  [
+   "aten.squeeze",
+   281
+  ],
+  [
+   "aten.cat",
+   270
+  ],
+  [
+   "aten._unsafe_view",
+   259
+  ],
+  [
+   "aten.sub",
+   256
+  ],
+  [
+   "aten.mean",
+   235
+  ],
+  [
+   "aten.index",
+   234
+  ],
+  [
+   "aten.linalg_vector_norm",
+   228
+  ],
+  [
+   "aten.new_zeros",
+   190
+  ],
+  [
+   "aten.clamp_min",
+   181
+  ],
+  [
+   "aten.index_put",
+   148
+  ],
+  [
+   "aten.clamp",
+   146
+  ],
+  [
+   "aten.where",
+   141
+  ],
+  [
+   "aten.scalar_tensor",
+   131
+  ]
+ ],
+ "mem H3 L4 (as run) K=10": {
+  "ops": 25993,
+  "cpu_s": 0.5027
+ },
+ "mem H1 L4 K=6": {
+  "ops": 22724,
+  "cpu_s": 0.3712
+ },
+ "mem H1 L4 K=10": {
+  "ops": 25974,
+  "cpu_s": 0.4429
+ },
+ "mem H2 L4 K=6": {
+  "ops": 22702,
+  "cpu_s": 0.5106
+ },
+ "mem H2 L4 K=10": {
+  "ops": 26007,
+  "cpu_s": 0.5586
+ },
+ "mem H3 L2 K=6": {
+  "ops": 19842,
+  "cpu_s": 0.4346
+ },
+ "mem H3 L2 K=10": {
+  "ops": 22545,
+  "cpu_s": 0.5433
+ },
+ "mem H3 L4 no private K=6": {
+  "ops": 21310,
+  "cpu_s": 0.5612
+ },
+ "mem H3 L4 no private K=10": {
+  "ops": 24407,
+  "cpu_s": 0.7273
+ },
+ "mem H3 L4 no shared K=6": {
+  "ops": 15986,
+  "cpu_s": 0.3661
+ },
+ "mem H3 L4 no shared K=10": {
+  "ops": 18542,
+  "cpu_s": 0.4568
+ },
+ "concepts only (no mem) K=6": {
+  "ops": 13072,
+  "cpu_s": 0.275
+ },
+ "concepts only (no mem) K=10": {
+  "ops": 15559,
+  "cpu_s": 0.2757
+ }
+}

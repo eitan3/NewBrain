@@ -1,0 +1,13 @@
+{
+ "peak_allocated_gb": 19.062970368,
+ "peak_reserved_gb": 19.74468608,
+ "cap_gb": 22.983166918656003,
+ "margin_gb": 2.0,
+ "K": 16,
+ "worst_route": 1,
+ "steps": 20,
+ "minutes": 1.8544050494829813,
+ "error": null,
+ "workdir": "C:\\Eitan\\Python\\NewBrain\\runs\\_gpu_check_fastmem_c\\worst",
+ "verdict": "OK"
+}

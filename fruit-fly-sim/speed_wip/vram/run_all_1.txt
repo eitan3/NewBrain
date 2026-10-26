@@ -1,0 +1,64 @@
+=== ckpt: profile_step.py --variant chunk_ce,ckpt_pass --ks 2,6,10,16 --time 2,6,10,16 --snapshot 10 --out step_profile_ckpt.json
+saved metadata: {'shape': torch.Size([45792]), 'dtype': torch.int64, 'device': device(type='cuda', index=0)}
+recomputed metadata: {'shape': torch.Size([45791]), 'dtype': torch.int64, 'device': device(type='cuda', index=0)}
+tensor at position 173:
+saved metadata: {'shape': torch.Size([45792, 384]), 'dtype': torch.float32, 'device': device(type='cuda', index=0)}
+recomputed metadata: {'shape': torch.Size([45791, 384]), 'dtype': torch.float32, 'device': device(type='cuda', index=0)}
+.
+
+Tip: To see a more detailed error message, either pass `debug=True` to
+`torch.utils.checkpoint.checkpoint(...)` or wrap the code block
+with `with torch.utils.checkpoint.set_checkpoint_debug_enabled(True):` to
+enable checkpoint\u2011debug mode globally.
+
+=== mb8: profile_step.py --batch 8 --accum 4 --ks 6,10 --time 2,6,10,16 --out step_profile_mb8.json
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+after load {'tag': 'after_load', 'alloc': 4.697853952, 'reserved': 5.57842432, 'peak_alloc': 7.19821312, 'peak_reserved': 7.69654784}
+after warmup {'tag': 'after_warmup', 'alloc': 5.298414592, 'reserved': 13.50565888, 'peak_alloc': 13.144528384, 'peak_reserved': 13.50565888}
+K=6: peak alloc 13.15 GB, peak reserved 13.51 GB, 2.34 s; by phase fwd0:12.59/13.51 bwd0:12.38/13.51 fwd1:13.14/13.51 bwd1:12.92/13.51 fwd2:13.12/13.51 bwd2:12.91/13.51 fwd3:13.15/13.51 bwd3:12.94/13.51 clip:5.43/13.51 opt:7.47/13.51 write_counts:5.31/13.51 mem_after_step:5.98/13.51
+K=10: peak alloc 13.16 GB, peak reserved 13.51 GB, 2.82 s; by phase fwd0:12.58/13.51 bwd0:12.35/13.51 fwd1:13.16/13.51 bwd1:12.93/13.51 fwd2:13.14/13.51 bwd2:12.91/13.51 fwd3:13.14/13.51 bwd3:12.92/13.51 clip:5.43/13.51 opt:7.47/13.51 write_counts:5.31/13.51 mem_after_step:5.98/13.51
+time K=2: 0.793 s (median of 3) peak reserved 13.51
+time K=6: 2.250 s (median of 3) peak reserved 13.78
+time K=10: 2.752 s (median of 3) peak reserved 13.78
+time K=16: 3.523 s (median of 3) peak reserved 13.78
+expected step 2.049 s -> 8.0k tok/s
+wrote C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\step_profile_mb8.json
+=== report: profile_report.py --out report_profile.json
+train x3 (K 6,10,16)         alloc   5.33  reserved  20.90  peak alloc  20.24  peak reserved  20.90
+evaluate                     alloc   5.27  reserved  23.05  peak alloc   8.71  peak reserved  23.05  49.7s
+free before report           alloc   5.27  reserved   8.24  peak alloc   5.27  peak reserved  23.05
+loop_report                  alloc   5.27  reserved   8.51  peak alloc   6.86  peak reserved   8.51  59.2s
+free after report            alloc   5.27  reserved   8.24  peak alloc   5.27  peak reserved   8.51
+memory probes                alloc   5.27  reserved   8.24  peak alloc   6.16  peak reserved   8.24  3.7s
+free after probes            alloc   5.27  reserved   8.24  peak alloc   5.27  peak reserved   8.24
+train K=6 after eval         alloc   5.33  reserved  20.55  peak alloc  20.15  peak reserved  20.55
+train K=10 after eval        alloc   5.33  reserved  21.10  peak alloc  20.15  peak reserved  21.10
+train K=16 after eval        alloc   5.33  reserved  21.12  peak alloc  20.23  peak reserved  21.12
+train K=6 after eval         alloc   5.33  reserved  21.12  peak alloc  20.13  peak reserved  21.12
+wrote C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\report_profile.json
+=== ckpt32: profile_step.py --variant chunk_ce,ckpt_pass --batch 32 --accum 1 --ks 6,10,16 --time 2,6,10,16 --out step_profile_ckpt32.json
+variant ckpt_pass applied
+after load {'tag': 'after_load', 'alloc': 4.697853952, 'reserved': 5.57842432, 'peak_alloc': 7.19821312, 'peak_reserved': 7.69654784}
+after warmup {'tag': 'after_warmup', 'alloc': 7.185896448, 'reserved': 14.768144384, 'peak_alloc': 14.181409792, 'peak_reserved': 14.768144384}
+K=6: peak alloc 14.19 GB, peak reserved 14.77 GB, 2.52 s; by phase fwd0:12.31/14.77 bwd0:14.19/14.77 clip:7.22/14.77 opt:9.37/14.77 write_counts:7.20/14.77 mem_after_step:7.87/14.77
+K=10: peak alloc 14.23 GB, peak reserved 14.78 GB, 3.05 s; by phase fwd0:12.40/14.77 bwd0:14.23/14.78 clip:7.24/14.78 opt:9.39/14.78 write_counts:7.23/14.78 mem_after_step:7.90/14.78
+K=16: peak alloc 14.34 GB, peak reserved 15.08 GB, 3.85 s; by phase fwd0:12.58/14.78 bwd0:14.34/15.08 clip:7.25/15.08 opt:9.39/15.08 write_counts:7.23/15.08 mem_after_step:7.90/15.08
+time K=2: 0.891 s (median of 3) peak reserved 15.08
+time K=6: 2.469 s (median of 3) peak reserved 15.08
+time K=10: 3.014 s (median of 3) peak reserved 15.08
+time K=16: 3.818 s (median of 3) peak reserved 15.08
+expected step 2.250 s -> 7.3k tok/s
+wrote C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\step_profile_ckpt32.json
+=== mb8ce: profile_step.py --variant chunk_ce --batch 8 --accum 4 --ks 6,10 --time 2,6,10,16 --out step_profile_mb8ce.json
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+after load {'tag': 'after_load', 'alloc': 4.697853952, 'reserved': 5.57842432, 'peak_alloc': 7.19821312, 'peak_reserved': 7.69654784}
+after warmup {'tag': 'after_warmup', 'alloc': 5.296012288, 'reserved': 15.177089024, 'peak_alloc': 12.812032512, 'peak_reserved': 15.177089024}
+K=6: peak alloc 12.80 GB, peak reserved 15.18 GB, 2.35 s; by phase fwd0:12.24/15.18 bwd0:12.05/15.18 fwd1:12.80/15.18 bwd1:12.61/15.18 fwd2:12.77/15.18 bwd2:12.58/15.18 fwd3:12.80/15.18 bwd3:12.61/15.18 clip:5.30/15.18 opt:7.47/15.18 write_counts:5.31/15.18 mem_after_step:5.98/15.18
+K=10: peak alloc 12.81 GB, peak reserved 15.18 GB, 2.99 s; by phase fwd0:12.26/15.18 bwd0:12.06/15.18 fwd1:12.81/15.18 bwd1:12.60/15.18 fwd2:12.79/15.18 bwd2:12.58/15.18 fwd3:12.80/15.18 bwd3:12.59/15.18 clip:5.30/15.18 opt:7.47/15.18 write_counts:5.31/15.18 mem_after_step:5.98/15.18
+time K=2: 0.812 s (median of 3) peak reserved 15.18
+time K=6: 2.239 s (median of 3) peak reserved 15.18
+time K=10: 2.830 s (median of 3) peak reserved 15.18
+time K=16: 3.661 s (median of 3) peak reserved 15.19
+expected step 2.076 s -> 7.9k tok/s
+wrote C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\step_profile_mb8ce.json

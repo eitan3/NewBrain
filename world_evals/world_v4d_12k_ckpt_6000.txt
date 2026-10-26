@@ -1,0 +1,39 @@
+PRIMARY: cloze (held-out templates, after <|endoftext|>); ranking by the summed answer log-prob
+type/group                         n  exact   tok1  lp/tok | n_rk     C   top1 chance   top5 chance    rank  chance
+cloze_city/late                 1000  0.000  0.001  -4.131 |  200   300  0.015  0.003  0.040  0.017   139.5   150.5
+cloze_friend/late               1000  0.089  0.148  -1.612 |  200   101  0.415  0.010  0.740  0.050     6.7    51.0
+cloze_job/late                  1000  0.165  0.446  -2.164 |  200   200  0.145  0.005  0.295  0.025    52.8   100.5
+cloze_pet/late                  1000  0.045  0.050  -1.951 |  200    40  0.025  0.025  0.210  0.125    18.1    20.5
+cloze_year/late                 1000  0.097  0.097  -4.077 |  200    86  0.045  0.012  0.230  0.058    26.2    43.5
+geo_country/geo                  300  0.227  0.243  -1.000 |  200    40  0.235  0.025  0.510  0.125     9.7    20.5
+cloze_early_city/early           200  0.000  0.000  -4.303 | 
+cloze_early_friend/early         200  0.005  0.020  -3.074 | 
+cloze_early_job/early            200  0.010  0.465  -2.862 | 
+cloze_early_pet/early            200  0.025  0.025  -2.140 | 
+cloze_early_retention/early     1000  0.013  0.107  -3.355 |  200   145  0.020  0.011  0.085  0.055    76.8    73.2
+cloze_early_year/early           200  0.025  0.025  -4.881 | 
+cloze_single_all/late           5000  0.079  0.148  -2.662 | 
+ALL/early                       1000  0.013  0.107  -3.355 | 
+ALL/late                        5000  0.079  0.148  -2.662 | 
+
+SECONDARY: Q: ... A: questions (choice = compare: log p(older) > log p(other), chance 0.5)
+type/group                         n  exact   tok1  lp/tok     logp choice
+compare/all                     1000  0.000  0.003  -1.816   -7.256  0.489
+single_city/all                 1000  0.000  0.001  -5.559  -22.079    nan
+single_friend/all               1000  0.000  0.007  -4.970  -19.870    nan
+single_job/all                  1000  0.000  0.000  -7.276  -16.459    nan
+single_pet/all                  1000  0.000  0.000  -6.740  -15.900    nan
+single_year/all                 1000  0.000  0.000  -9.593   -9.593    nan
+two_hop/all                     1000  0.000  0.001  -5.928  -21.152    nan
+single_all/late                 5000  0.000  0.002  -6.173  -16.780    nan
+early_retention/early           1000  0.000  0.002  -6.312  -17.244    nan
+ALL/late                        7000  0.000  0.002  -5.309  -16.044    nan
+ALL/early                       1000  0.000  0.002  -6.312  -17.244    nan
+q_two_hop/late (40 countries)                              | n_rk     C   top1 chance   top5 chance    rank  chance
+                                                           |  200    40  0.015  0.025  0.135  0.125    20.1    20.5
+cloze vs exposure (at 200000000 tokens; single-hop + retention): n exact tok1 lp/tok
+  exposure_1-10                    5  0.000  0.000  -2.546
+  exposure_10-30                 987  0.013  0.108  -3.358
+  exposure_30-100                398  0.083  0.141  -2.769
+  exposure_100-300              4610  0.079  0.149  -2.654
+val loss: world 3.2867  wikipedia 4.0916  (gap -0.8048)

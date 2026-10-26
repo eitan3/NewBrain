@@ -1,0 +1,170 @@
+--- fruit-fly-sim (launch) /spiking_lm.py
++++ fruit-fly-sim (edited) /spiking_lm.py
+@@ -24,4 +24,70 @@
+           "ngc": (0, 7), "ngc4": (0, 4)}  # ngc = normalised graded count (0..7 spikes per token)
+ ALPHA0 = {"graded": 0.5, "binary": 2.0, "ternary": 2.5}  # ~10-40% of N(0,1) inputs fire at init
++
++
++# ---------------------------------------------------------------- VRAM savers (activation checkpointing; all off by default)
++# A segment run by ck_run keeps only its inputs for backward and is re-run (recomputed) in backward. Same maths:
++# the recompute repeats the same ops on the same inputs (non-reentrant checkpoint, RNG state restored), and
++#   * every spike threshold the segment reads is the value its FIRST run saw (homeostasis edits alpha.data in place
++#     during the forward, so later passes / the end of the step would otherwise leak into the recompute): ck_param;
++#   * side effects (homeostasis EMA / alpha nudges) run on the first run only: ck_recompute() is True in the recompute.
++_CK = None   # the box of the checkpointed segment being run (None = not inside one)
++
++
++class _AsValue(torch.autograd.Function):
++    """The value v (a first-run snapshot) in place of the parameter p. Only its forward matters: a non-reentrant
++    checkpoint's backward runs the ORIGINAL graph (the recomputed graph only supplies the saved tensors), so this node
++    only makes the recompute save the same tensors as the first run (an output that requires grad, like p)."""
++
++    @staticmethod
++    def forward(ctx, p, v):
++        return v.clone()
++
++    @staticmethod
++    def backward(ctx, g):
++        return g, None
++
++
++def ck_param(mod, p):
++    """p as the first run of the current checkpointed segment saw it (p itself outside a segment)."""
++    box = _CK
++    if box is None:
++        return p
++    snap = box.setdefault("snap", {})
++    if box["n"] == 1:
++        snap.setdefault(id(mod), []).append(p.detach().clone())
++        return p
++    i = box.setdefault("used", {}).get(id(mod), 0)
++    box["used"][id(mod)] = i + 1
++    return _AsValue.apply(p, snap[id(mod)][i])
++
++
++def ck_recompute():
++    """True inside the recompute of a checkpointed segment (skip side effects)."""
++    return _CK is not None and _CK["n"] > 1
++
++
++def ck_ready(*spikes):
++    """A segment may be checkpointed: grad on, not nested in another segment, its spikes calibrated (the one-time
++    calibration draws from the global RNG and must not be re-run or skipped by a recompute)."""
++    return torch.is_grad_enabled() and _CK is None and all(s.is_calibrated() for s in spikes)
++
++
++def ck_run(fn, *args):
++    """fn(*args) as an activation-checkpointed segment (non-reentrant, RNG state preserved). fn's tensor inputs
++    must be passed in args (positional); everything else is bound by the caller."""
++    box = {"n": 0}
++
++    def seg(*a):
++        global _CK
++        prev = _CK
++        box["n"] += 1
++        box["used"] = {}
++        _CK = box
++        try:
++            return fn(*a)
++        finally:
++            _CK = prev
++    return torch.utils.checkpoint.checkpoint(seg, *args, use_reentrant=False, preserve_rng_state=True)
+ 
+ 
+@@ -102,4 +168,6 @@
+ 
+ class RMSNorm(nn.Module):
++    ckpt = False   # (VRAM saver --vram-ckpt-norm: the fp32 intermediates are recomputed in backward; same maths)
++
+     def __init__(self, d, eps=1e-6):
+         super().__init__()
+@@ -108,4 +176,9 @@
+ 
+     def forward(self, x):
++        if self.ckpt and ck_ready():
++            return ck_run(self._forward, x)
++        return self._forward(x)
++
++    def _forward(self, x):
+         xf = x.float()
+         return (xf * torch.rsqrt(xf.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight).to(x.dtype)
+@@ -185,5 +258,6 @@
+         if self.training and not self.is_calibrated():
+             self.calibrate(u, lo < 0, ch=ch)
+-        alpha = (self.alpha if ch is None else self.alpha[ch]).abs() + 1e-4
++        a_p = ck_param(self, self.alpha)   # (= self.alpha outside a checkpointed segment)
++        alpha = (a_p if ch is None else a_p[ch]).abs() + 1e-4
+         if self.homeo and self.homeo_mode == "full":
+             alpha = alpha.detach()
+@@ -206,5 +280,5 @@
+         if self.track:
+             self.rate = (q.detach() != 0).float().flatten(0, -2).mean(0)
+-        if self.homeo and self.training:
++        if self.homeo and self.training and not ck_recompute():
+             with torch.no_grad():
+                 r = (q.detach() != 0).to(self.ema_rate.dtype).flatten(0, -2).mean(0)
+@@ -314,7 +388,16 @@
+         return per_head * routed * (1 - 1 / self.n_groups)
+ 
++    ckpt = False   # (VRAM saver --vram-ckpt-mixer: the whole mixer recomputed in backward; same maths)
++
+     def forward(self, x, write=None, group=None):
+         """write: optional (B, T) weights in [0, 1]; 0 = this token is not integrated into the membranes.
+         group: routed head group computed on this pass (with group 0); None = all heads (see class doc)."""
++        if self.ckpt and ck_ready(self.spike):
++            if write is None:
++                return ck_run(lambda x_, _g=group: self._forward(x_, None, _g), x)
++            return ck_run(lambda x_, w_, _g=group: self._forward(x_, w_, _g), x, write)
++        return self._forward(x, write, group)
++
++    def _forward(self, x, write=None, group=None):
+         if write is not None:  # unselected tokens also must not leak in through the short causal convs
+             x = x * write[..., None].to(x.dtype)
+@@ -489,13 +572,13 @@
+                 self.alpha.copy_((2 * th).flatten().clamp(min=1e-3))
+                 self.calibrated.fill_(True)
+-        alpha = (self.alpha.abs() + 1e-4).view(self.E, 1, self.hd)
++        alpha = (ck_param(self, self.alpha).abs() + 1e-4).view(self.E, 1, self.hd)
+         c = torch.clamp(x / alpha, lo, hi)
+         q = c + (torch.round(c) - c).detach()
+         s = (q * alpha).to(x.dtype)
+-        if self.track or (self.homeo and self.training):
++        if self.track or (self.homeo and self.training and not ck_recompute()):
+             r, used = self._rates(q.detach() != 0, v, per_expert=True)
+             if self.track:
+                 self.rate = r[used][nmask[used] > 0] if nmask is not None else r[used].flatten()
+-            if self.homeo and self.training:
++            if self.homeo and self.training and not ck_recompute():
+                 with torch.no_grad():  # (torch.where, not boolean indexing: no host sync)
+                     ema = self.ema_rate.view(self.E, self.hd)
+@@ -676,10 +759,13 @@
+         if bmem is not None:  # (plan_v2/25d) search + read + inject on the input side
+             buf, xs = bmem(xf, buf, x, side, e_k, p_k, t_k, kept(order) % k, counts, N, E, C, n_keep)
+-        h = self.spike_e(torch.bmm(buf, self.w_up.to(buf.dtype)), valid, self.nmask if self.hetero else None)
+-        if self.hetero:
+-            h = h * self.nmask[:, None, :].to(h.dtype)
+-        out = torch.bmm(h, self.w_down.to(h.dtype))
+         y = torch.zeros(N, D, device=x.device, dtype=acc)
+-        y.index_add_(0, t_k, out[e_k, p_k].to(acc) * kept(gate.flatten()[order])[:, None])
++        if getattr(self, "ckpt_experts", False) and ck_ready(self.spike_e):
++            # (VRAM saver --vram-ckpt-experts: the expert hidden layer (E, C, h), its spike intermediates and the
++            # gated (n_keep, D) fp32 rows are recomputed in backward; same ops, same maths)
++            seg = lambda b_, v_, g_, e_, p_: self._experts(b_, v_)[e_, p_].to(acc) * g_[:, None]
++            y.index_add_(0, t_k, ck_run(seg, buf, valid, kept(gate.flatten()[order]), e_k, p_k))
++        else:
++            out = self._experts(buf, valid)
++            y.index_add_(0, t_k, out[e_k, p_k].to(acc) * kept(gate.flatten()[order])[:, None])
+         if pmem is not None:
+             y = y + pmem(e_k, p_k, t_k, kept(gate.flatten()[order]), kept(order), N, k, E, C).to(acc)
+@@ -704,4 +790,11 @@
+         y = y.to(x.dtype).view(B, T, D)
+         return y + self.shared(xs) if self.shared is not None else y
++
++    def _experts(self, buf, valid):
++        """The routed experts on their capacity layout buf (E, C, D): up, spike, down."""
++        h = self.spike_e(torch.bmm(buf, self.w_up.to(buf.dtype)), valid, self.nmask if self.hetero else None)
++        if self.hetero:
++            h = h * self.nmask[:, None, :].to(h.dtype)
++        return torch.bmm(h, self.w_down.to(h.dtype))
+ 
+     @torch.no_grad()

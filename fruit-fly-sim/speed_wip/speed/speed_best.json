@@ -1,0 +1,18 @@
+{
+ "tag": "best",
+ "variant": "rms_fused,spike_fn,topk_nosync2,route_nosync0",
+ "batch": 8,
+ "accum": 4,
+ "first_loss": 3.322286605834961,
+ "syncs_K6": 26,
+ "times": {
+  "2": 0.7943315505981445,
+  "6": 2.2193663120269775,
+  "10": 2.767415761947632,
+  "16": 3.3988118171691895
+ },
+ "expected_step_s": 2.0363886402712925,
+ "tok_s": 8045.615495977862,
+ "peak_alloc_gb": 12.572191232,
+ "peak_reserved_gb": 13.069451264
+}

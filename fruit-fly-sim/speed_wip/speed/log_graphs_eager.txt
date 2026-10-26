@@ -1,0 +1,19 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+step 0 loss 3.20460 2.039 s
+step 1 loss 3.36575 2.043 s
+step 2 loss 2.94566 2.043 s
+step 3 loss 3.48848 2.048 s
+step 4 loss 3.52881 2.011 s
+step 5 loss 3.07240 2.045 s
+step 6 loss 3.31529 2.110 s
+step 7 loss 3.03944 2.042 s
+{
+ "mode": "eager",
+ "K": 6,
+ "batch": 8,
+ "accum": 4,
+ "nohomeo": false,
+ "median_s": 2.045161485671997,
+ "tok_s": 8011.103335742978,
+ "peak_alloc_gb": 13.15514368
+}

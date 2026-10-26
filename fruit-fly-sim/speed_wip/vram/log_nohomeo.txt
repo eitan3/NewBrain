@@ -1,0 +1,12 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant nohomeo applied
+after load {'tag': 'after_load', 'alloc': 4.697853952, 'reserved': 5.57842432, 'peak_alloc': 7.19821312, 'peak_reserved': 7.69654784}
+{'params': 0.551, 'grads': 0.0, 'opt_state': 0.602, 'opt_state_by_key': {'m': 0.055, 'v': 0.055, 'n': 0.003, 'mom': 0.489}, 'mem_buffers': 3.535, 'mem_buffers_top': {'V': 1.091, 'G': 1.091, 'V_e': 0.403, 'G_e': 0.403, 'P': 0.101, 'P_ema': 0.101, 'P_m': 0.101, 'P_v': 0.101, 'G_P': 0.101, 'qres': 0.006, 'S_acc': 0.004, 'wcount': 0.004, 'lam_r': 0.004, 'psi_r': 0.004, 'wq_ema': 0.003, 'qres_c': 0.002}, 'other_buffers': 0.004, 'mem_params': 0.011, 'emb_head_params': 0.05, 'expert_params': 0.453}
+after warmup {'tag': 'after_warmup', 'alloc': 5.32989952, 'reserved': 21.051211776, 'peak_alloc': 20.1332352, 'peak_reserved': 21.051211776}
+K=10: peak alloc 20.13 GB, peak reserved 21.06 GB, 2.70 s; by phase fwd0:19.61/21.06 bwd0:19.17/21.06 fwd1:20.13/21.06 bwd1:19.69/21.06 clip:5.60/21.06 opt:7.50/21.06 write_counts:5.34/21.06 mem_after_step:6.01/21.06
+time K=2: 0.811 s (median of 3) peak reserved 21.06
+time K=6: 2.317 s (median of 3) peak reserved 21.06
+time K=10: 2.511 s (median of 3) peak reserved 21.06
+time K=16: 3.227 s (median of 3) peak reserved 21.08
+expected step 2.004 s -> 8.2k tok/s
+wrote C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\step_profile_nohomeo.json

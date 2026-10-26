@@ -1,0 +1,6046 @@
+{
+ "ckpt": "runs\\world_mem_life_12k\\last.pt",
+ "step": 7000,
+ "k": 6,
+ "device": "cuda",
+ "limit": 0,
+ "shots": 0,
+ "capacity": "dropless",
+ "data": "X:\\Datasets\\wiki_world_mix",
+ "n_questions": 8000,
+ "n_cloze": 6300,
+ "rank_limit": 200,
+ "rank_budget": 3000,
+ "friend_distractors": 100,
+ "results": {
+  "mem_on": {
+   "cloze": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.016,
+     "first_tok": 0.12,
+     "logp": -9.685797383115005,
+     "logp_tok": -3.420126194602756
+    },
+    "ALL/geo": {
+     "n": 300,
+     "exact": 0.5966666666666667,
+     "first_tok": 0.61,
+     "logp": -1.8071709701173362,
+     "logp_tok": -0.5081080515793822
+    },
+    "ALL/late": {
+     "n": 5000,
+     "exact": 0.2798,
+     "first_tok": 0.3358,
+     "logp": -5.754320393636091,
+     "logp_tok": -2.041842450371191
+    },
+    "cloze_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -13.68997532476076,
+     "logp_tok": -3.4466201723969685
+    },
+    "cloze_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -13.68997532476076,
+     "logp_tok": -3.4466201723969685
+    },
+    "cloze_early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.462680808524244,
+     "logp_tok": -3.6021620942775203
+    },
+    "cloze_early_friend/early": {
+     "n": 200,
+     "exact": 0.005,
+     "first_tok": 0.07,
+     "logp": -12.594400465003575,
+     "logp_tok": -3.1564913446124248
+    },
+    "cloze_early_job/early": {
+     "n": 200,
+     "exact": 0.005,
+     "first_tok": 0.455,
+     "logp": -8.919505697832983,
+     "logp_tok": -3.140671020363727
+    },
+    "cloze_early_pet/early": {
+     "n": 200,
+     "exact": 0.05,
+     "first_tok": 0.055,
+     "logp": -6.4914512437564005,
+     "logp_tok": -2.80408261069391
+    },
+    "cloze_early_retention/all": {
+     "n": 1000,
+     "exact": 0.016,
+     "first_tok": 0.12,
+     "logp": -9.685797383115005,
+     "logp_tok": -3.420126194602756
+    },
+    "cloze_early_retention/early": {
+     "n": 1000,
+     "exact": 0.016,
+     "first_tok": 0.12,
+     "logp": -9.685797383115005,
+     "logp_tok": -3.420126194602756
+    },
+    "cloze_early_year/early": {
+     "n": 200,
+     "exact": 0.02,
+     "first_tok": 0.02,
+     "logp": -5.960948700457811,
+     "logp_tok": -5.960948700457811
+    },
+    "cloze_friend/all": {
+     "n": 1000,
+     "exact": 0.283,
+     "first_tok": 0.374,
+     "logp": -4.142723976343042,
+     "logp_tok": -1.036199093632577
+    },
+    "cloze_friend/late": {
+     "n": 1000,
+     "exact": 0.283,
+     "first_tok": 0.374,
+     "logp": -4.142723976343042,
+     "logp_tok": -1.036199093632577
+    },
+    "cloze_job/all": {
+     "n": 1000,
+     "exact": 0.269,
+     "first_tok": 0.444,
+     "logp": -5.908454076906622,
+     "logp_tok": -2.139194090118256
+    },
+    "cloze_job/late": {
+     "n": 1000,
+     "exact": 0.269,
+     "first_tok": 0.444,
+     "logp": -5.908454076906622,
+     "logp_tok": -2.139194090118256
+    },
+    "cloze_pet/all": {
+     "n": 1000,
+     "exact": 0.308,
+     "first_tok": 0.32,
+     "logp": -3.0923023246366266,
+     "logp_tok": -1.3108530413889896
+    },
+    "cloze_pet/late": {
+     "n": 1000,
+     "exact": 0.308,
+     "first_tok": 0.32,
+     "logp": -3.0923023246366266,
+     "logp_tok": -1.3108530413889896
+    },
+    "cloze_single_all/late": {
+     "n": 5000,
+     "exact": 0.2798,
+     "first_tok": 0.3358,
+     "logp": -5.754320393636091,
+     "logp_tok": -2.041842450371191
+    },
+    "cloze_year/all": {
+     "n": 1000,
+     "exact": 0.539,
+     "first_tok": 0.539,
+     "logp": -1.9381462655334034,
+     "logp_tok": -1.9381462655334034
+    },
+    "cloze_year/late": {
+     "n": 1000,
+     "exact": 0.539,
+     "first_tok": 0.539,
+     "logp": -1.9381462655334034,
+     "logp_tok": -1.9381462655334034
+    },
+    "geo_country/all": {
+     "n": 300,
+     "exact": 0.5966666666666667,
+     "first_tok": 0.61,
+     "logp": -1.8071709701173362,
+     "logp_tok": -0.5081080515793822
+    },
+    "geo_country/geo": {
+     "n": 300,
+     "exact": 0.5966666666666667,
+     "first_tok": 0.61,
+     "logp": -1.8071709701173362,
+     "logp_tok": -0.5081080515793822
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.519921780749428,
+     "logp_tok": -3.173307260249809
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.016210739614994935,
+     "first_tok": 0.12158054711246201,
+     "logp": -9.699189186079407,
+     "logp_tok": -3.42385541010743
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.2537688442211055,
+     "first_tok": 0.3065326633165829,
+     "logp": -5.782075469545604,
+     "logp_tok": -2.0455698105592446
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.28156182212581343,
+     "first_tok": 0.33774403470715836,
+     "logp": -5.756059431421298,
+     "logp_tok": -2.043230459602078
+    }
+   },
+   "ranking": {
+    "cloze_city/late": {
+     "n": 200,
+     "n_cands": 300.0,
+     "top1": 0.015,
+     "top5": 0.07,
+     "mean_rank": 123.705,
+     "chance_top1": 0.0033333333333333335,
+     "chance_top5": 0.016666666666666666,
+     "chance_rank": 150.5
+    },
+    "cloze_early_retention/early": {
+     "n": 200,
+     "n_cands": 145.4,
+     "top1": 0.035,
+     "top5": 0.105,
+     "mean_rank": 69.305,
+     "chance_top1": 0.010972446081817484,
+     "chance_top5": 0.05486223040908742,
+     "chance_rank": 73.2
+    },
+    "cloze_friend/late": {
+     "n": 200,
+     "n_cands": 101.0,
+     "top1": 0.715,
+     "top5": 0.915,
+     "mean_rank": 3.255,
+     "chance_top1": 0.0099009900990099,
+     "chance_top5": 0.04950495049504951,
+     "chance_rank": 51.0
+    },
+    "cloze_job/late": {
+     "n": 200,
+     "n_cands": 200.0,
+     "top1": 0.275,
+     "top5": 0.415,
+     "mean_rank": 38.85,
+     "chance_top1": 0.004999999999999999,
+     "chance_top5": 0.025,
+     "chance_rank": 100.5
+    },
+    "cloze_pet/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.285,
+     "top5": 0.65,
+     "mean_rank": 6.89,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "cloze_year/late": {
+     "n": 200,
+     "n_cands": 86.0,
+     "top1": 0.52,
+     "top5": 0.765,
+     "mean_rank": 6.61,
+     "chance_top1": 0.011627906976744184,
+     "chance_top5": 0.05813953488372093,
+     "chance_rank": 43.5
+    },
+    "geo_country/geo": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.59,
+     "top5": 0.82,
+     "mean_rank": 3.785,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "q_two_hop/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.02,
+     "top5": 0.09,
+     "mean_rank": 20.0,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    }
+   },
+   "questions": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.985065478952318,
+     "logp_tok": -5.851048857596017
+    },
+    "ALL/late": {
+     "n": 7000,
+     "exact": 0.0,
+     "first_tok": 0.0012857142857142856,
+     "logp": -14.9699768832277,
+     "logp_tok": -4.9536654147014225
+    },
+    "compare/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.63375475946762,
+     "logp_tok": -1.9108272238967758,
+     "choice": 0.488
+    },
+    "compare/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.63375475946762,
+     "logp_tok": -1.9108272238967758,
+     "choice": 0.488
+    },
+    "early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -19.835361259561033,
+     "logp_tok": -4.940314136876969
+    },
+    "early_friend/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -18.521675639525384,
+     "logp_tok": -4.6420239698058605
+    },
+    "early_job/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.42418404482305,
+     "logp_tok": -7.0188820704372015
+    },
+    "early_pet/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.76546130257484,
+     "logp_tok": -6.378169029189996
+    },
+    "early_retention/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.985065478952318,
+     "logp_tok": -5.851048857596017
+    },
+    "early_retention/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.985065478952318,
+     "logp_tok": -5.851048857596017
+    },
+    "early_year/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.378645148277283,
+     "logp_tok": -10.378645148277283
+    },
+    "single_all/late": {
+     "n": 5000,
+     "exact": 0.0,
+     "first_tok": 0.0012,
+     "logp": -15.402159294158176,
+     "logp_tok": -5.666308326892126
+    },
+    "single_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -19.582115152632557,
+     "logp_tok": -4.930039061589264
+    },
+    "single_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -19.582115152632557,
+     "logp_tok": -4.930039061589264
+    },
+    "single_friend/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -16.301470641183712,
+     "logp_tok": -4.077406363477667
+    },
+    "single_friend/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -16.301470641183712,
+     "logp_tok": -4.077406363477667
+    },
+    "single_job/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.11117458461318,
+     "logp_tok": -7.122535183294952
+    },
+    "single_job/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.11117458461318,
+     "logp_tok": -7.122535183294952
+    },
+    "single_pet/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.734951804241165,
+     "logp_tok": -6.246270370598205
+    },
+    "single_pet/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.734951804241165,
+     "logp_tok": -6.246270370598205
+    },
+    "single_year/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.28108428812027,
+     "logp_tok": -10.28108428812027
+    },
+    "single_year/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.28108428812027,
+     "logp_tok": -10.28108428812027
+    },
+    "two_hop/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.145286952335386,
+     "logp_tok": -5.6461006032330125
+    },
+    "two_hop/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.145286952335386,
+     "logp_tok": -5.6461006032330125
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.64831458479166,
+     "logp_tok": -4.882771528263887
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.998903640918336,
+     "logp_tok": -5.857165390796141
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.0,
+     "first_tok": 0.005025125628140704,
+     "logp": -15.521639989307717,
+     "logp_tok": -5.730624040579287
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.0,
+     "first_tok": 0.0008676789587852494,
+     "logp": -15.39134268275236,
+     "logp_tok": -5.660929453286132
+    }
+   },
+   "val_world": 3.1909476220607758,
+   "val_wiki": 4.001492410898209,
+   "time_s": 193.2532992362976,
+   "time_cloze_s": 9.402964115142822,
+   "time_rank_s": 162.1848497390747
+  },
+  "ko_shared": {
+   "cloze": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.013,
+     "first_tok": 0.11,
+     "logp": -9.710643443415712,
+     "logp_tok": -3.4288995209801247
+    },
+    "ALL/geo": {
+     "n": 300,
+     "exact": 0.25666666666666665,
+     "first_tok": 0.28,
+     "logp": -4.0339443548917275,
+     "logp_tok": -1.13419241468371
+    },
+    "ALL/late": {
+     "n": 5000,
+     "exact": 0.1822,
+     "first_tok": 0.232,
+     "logp": -6.995011953155437,
+     "logp_tok": -2.4820850021841734
+    },
+    "cloze_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -14.689699498869308,
+     "logp_tok": -3.698313066180591
+    },
+    "cloze_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -14.689699498869308,
+     "logp_tok": -3.698313066180591
+    },
+    "cloze_early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.23487019950468,
+     "logp_tok": -3.794488219054715
+    },
+    "cloze_early_friend/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.03,
+     "logp": -12.478419129998775,
+     "logp_tok": -3.127423340851823
+    },
+    "cloze_early_job/early": {
+     "n": 200,
+     "exact": 0.005,
+     "first_tok": 0.455,
+     "logp": -8.943577823150298,
+     "logp_tok": -3.1491471208275694
+    },
+    "cloze_early_pet/early": {
+     "n": 200,
+     "exact": 0.04,
+     "first_tok": 0.045,
+     "logp": -6.374678929297264,
+     "logp_tok": -2.753641006175924
+    },
+    "cloze_early_retention/all": {
+     "n": 1000,
+     "exact": 0.013,
+     "first_tok": 0.11,
+     "logp": -9.710643443415712,
+     "logp_tok": -3.4288995209801247
+    },
+    "cloze_early_retention/early": {
+     "n": 1000,
+     "exact": 0.013,
+     "first_tok": 0.11,
+     "logp": -9.710643443415712,
+     "logp_tok": -3.4288995209801247
+    },
+    "cloze_early_year/early": {
+     "n": 200,
+     "exact": 0.02,
+     "first_tok": 0.02,
+     "logp": -5.521671135127544,
+     "logp_tok": -5.521671135127544
+    },
+    "cloze_friend/all": {
+     "n": 1000,
+     "exact": 0.008,
+     "first_tok": 0.046,
+     "logp": -8.291202091301518,
+     "logp_tok": -2.0738374415461527
+    },
+    "cloze_friend/late": {
+     "n": 1000,
+     "exact": 0.008,
+     "first_tok": 0.046,
+     "logp": -8.291202091301518,
+     "logp_tok": -2.0738374415461527
+    },
+    "cloze_job/all": {
+     "n": 1000,
+     "exact": 0.247,
+     "first_tok": 0.444,
+     "logp": -5.998943988988739,
+     "logp_tok": -2.1719565492356043
+    },
+    "cloze_job/late": {
+     "n": 1000,
+     "exact": 0.247,
+     "first_tok": 0.444,
+     "logp": -5.998943988988739,
+     "logp_tok": -2.1719565492356043
+    },
+    "cloze_pet/all": {
+     "n": 1000,
+     "exact": 0.254,
+     "first_tok": 0.266,
+     "logp": -3.4699989916765914,
+     "logp_tok": -1.4709618447124169
+    },
+    "cloze_pet/late": {
+     "n": 1000,
+     "exact": 0.254,
+     "first_tok": 0.266,
+     "logp": -3.4699989916765914,
+     "logp_tok": -1.4709618447124169
+    },
+    "cloze_single_all/late": {
+     "n": 5000,
+     "exact": 0.1822,
+     "first_tok": 0.232,
+     "logp": -6.995011953155437,
+     "logp_tok": -2.4820850021841734
+    },
+    "cloze_year/all": {
+     "n": 1000,
+     "exact": 0.402,
+     "first_tok": 0.402,
+     "logp": -2.525215194941033,
+     "logp_tok": -2.525215194941033
+    },
+    "cloze_year/late": {
+     "n": 1000,
+     "exact": 0.402,
+     "first_tok": 0.402,
+     "logp": -2.525215194941033,
+     "logp_tok": -2.525215194941033
+    },
+    "geo_country/all": {
+     "n": 300,
+     "exact": 0.25666666666666665,
+     "first_tok": 0.28,
+     "logp": -4.0339443548917275,
+     "logp_tok": -1.13419241468371
+    },
+    "geo_country/geo": {
+     "n": 300,
+     "exact": 0.25666666666666665,
+     "first_tok": 0.28,
+     "logp": -4.0339443548917275,
+     "logp_tok": -1.13419241468371
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.655864190415013,
+     "logp_tok": -3.2186213968050046
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.013171225937183385,
+     "first_tok": 0.11144883485309018,
+     "logp": -9.717158690761373,
+     "logp_tok": -3.4301987223825017
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.16331658291457288,
+     "first_tok": 0.2185929648241206,
+     "logp": -6.851767922113037,
+     "logp_tok": -2.4240032293342124
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.18351409978308025,
+     "first_tok": 0.23275488069414316,
+     "logp": -7.010755884481206,
+     "logp_tok": -2.488610504924799
+    }
+   },
+   "ranking": {
+    "cloze_city/late": {
+     "n": 200,
+     "n_cands": 300.0,
+     "top1": 0.005,
+     "top5": 0.04,
+     "mean_rank": 128.38,
+     "chance_top1": 0.0033333333333333335,
+     "chance_top5": 0.016666666666666666,
+     "chance_rank": 150.5
+    },
+    "cloze_early_retention/early": {
+     "n": 200,
+     "n_cands": 145.4,
+     "top1": 0.01,
+     "top5": 0.075,
+     "mean_rank": 72.955,
+     "chance_top1": 0.010972446081817484,
+     "chance_top5": 0.05486223040908742,
+     "chance_rank": 73.2
+    },
+    "cloze_friend/late": {
+     "n": 200,
+     "n_cands": 101.0,
+     "top1": 0.33,
+     "top5": 0.59,
+     "mean_rank": 10.385,
+     "chance_top1": 0.0099009900990099,
+     "chance_top5": 0.04950495049504951,
+     "chance_rank": 51.0
+    },
+    "cloze_job/late": {
+     "n": 200,
+     "n_cands": 200.0,
+     "top1": 0.265,
+     "top5": 0.405,
+     "mean_rank": 40.035,
+     "chance_top1": 0.004999999999999999,
+     "chance_top5": 0.025,
+     "chance_rank": 100.5
+    },
+    "cloze_pet/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.275,
+     "top5": 0.54,
+     "mean_rank": 8.135,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "cloze_year/late": {
+     "n": 200,
+     "n_cands": 86.0,
+     "top1": 0.36,
+     "top5": 0.645,
+     "mean_rank": 9.115,
+     "chance_top1": 0.011627906976744184,
+     "chance_top5": 0.05813953488372093,
+     "chance_rank": 43.5
+    },
+    "geo_country/geo": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.28,
+     "top5": 0.53,
+     "mean_rank": 8.68,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "q_two_hop/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.015,
+     "top5": 0.08,
+     "mean_rank": 20.325,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    }
+   },
+   "questions": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.141626745671164,
+     "logp_tok": -5.908355324184175
+    },
+    "ALL/late": {
+     "n": 7000,
+     "exact": 0.0,
+     "first_tok": 0.0008571428571428571,
+     "logp": -15.102537466530237,
+     "logp_tok": -4.997530597792931
+    },
+    "compare/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.650878982781867,
+     "logp_tok": -1.9151136377426452,
+     "choice": 0.497
+    },
+    "compare/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.650878982781867,
+     "logp_tok": -1.9151136377426452,
+     "choice": 0.497
+    },
+    "early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -20.10090660873102,
+     "logp_tok": -5.006452455474725
+    },
+    "early_friend/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -19.09147453681806,
+     "logp_tok": -4.78483071098197
+    },
+    "early_job/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.25894054987468,
+     "logp_tok": -6.948265192254136
+    },
+    "early_pet/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.738251711601043,
+     "logp_tok": -6.366415426177556
+    },
+    "early_retention/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.141626745671164,
+     "logp_tok": -5.908355324184175
+    },
+    "early_retention/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.141626745671164,
+     "logp_tok": -5.908355324184175
+    },
+    "early_year/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.518560321331025,
+     "logp_tok": -10.518560321331025
+    },
+    "single_all/late": {
+     "n": 5000,
+     "exact": 0.0,
+     "first_tok": 0.0006,
+     "logp": -15.567018937517728,
+     "logp_tok": -5.726958626119391
+    },
+    "single_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -19.770336639372474,
+     "logp_tok": -4.977426142843019
+    },
+    "single_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -19.770336639372474,
+     "logp_tok": -4.977426142843019
+    },
+    "single_friend/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -17.02043096349511,
+     "logp_tok": -4.257236359053304
+    },
+    "single_friend/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -17.02043096349511,
+     "logp_tok": -4.257236359053304
+    },
+    "single_job/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.931807785539888,
+     "logp_tok": -7.043239516153797
+    },
+    "single_job/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.931807785539888,
+     "logp_tok": -7.043239516153797
+    },
+    "single_pet/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.706904399069026,
+     "logp_tok": -6.234380838944055
+    },
+    "single_pet/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.706904399069026,
+     "logp_tok": -6.234380838944055
+    },
+    "single_year/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.405614900112152,
+     "logp_tok": -10.405614900112152
+    },
+    "single_year/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.405614900112152,
+     "logp_tok": -10.405614900112152
+    },
+    "two_hop/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.231788595341147,
+     "logp_tok": -5.67034433725929
+    },
+    "two_hop/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.231788595341147,
+     "logp_tok": -5.67034433725929
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.12888955399394,
+     "logp_tok": -5.0429631846646465
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0,
+     "first_tok": 0.0010131712259371835,
+     "logp": -16.153023142413026,
+     "logp_tok": -5.9135882201638195
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.675201772407897,
+     "logp_tok": -5.787319392781394
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.0,
+     "first_tok": 0.0006507592190889371,
+     "logp": -15.557334672127947,
+     "logp_tok": -5.72198123811312
+    }
+   },
+   "val_world": 3.1283898651599884,
+   "val_wiki": 4.009323805570602,
+   "time_s": 177.08585286140442,
+   "time_cloze_s": 8.566542863845825,
+   "time_rank_s": 149.28657126426697,
+   "delta": {
+    "cloze": {
+     "ALL/early": {
+      "exact": -0.003000000000000001,
+      "first_tok": -0.009999999999999995,
+      "logp": -0.024846060300706796,
+      "logp_tok": -0.008773326377368829
+     },
+     "ALL/geo": {
+      "exact": -0.34,
+      "first_tok": -0.32999999999999996,
+      "logp": -2.2267733847743916,
+      "logp_tok": -0.6260843631043277
+     },
+     "ALL/late": {
+      "exact": -0.09759999999999999,
+      "first_tok": -0.10379999999999998,
+      "logp": -1.2406915595193464,
+      "logp_tok": -0.44024255181298244
+     },
+     "cloze_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.9997241741085485,
+      "logp_tok": -0.2516928937836225
+     },
+     "cloze_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.9997241741085485,
+      "logp_tok": -0.2516928937836225
+     },
+     "cloze_early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.7721893909804365,
+      "logp_tok": -0.1923261247771948
+     },
+     "cloze_early_friend/early": {
+      "exact": -0.005,
+      "first_tok": -0.04000000000000001,
+      "logp": 0.11598133500480046,
+      "logp_tok": 0.0290680037606017
+     },
+     "cloze_early_job/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.024072125317314175,
+      "logp_tok": -0.008476100463842506
+     },
+     "cloze_early_pet/early": {
+      "exact": -0.010000000000000002,
+      "first_tok": -0.010000000000000002,
+      "logp": 0.11677231445913616,
+      "logp_tok": 0.05044160451798563
+     },
+     "cloze_early_retention/all": {
+      "exact": -0.003000000000000001,
+      "first_tok": -0.009999999999999995,
+      "logp": -0.024846060300706796,
+      "logp_tok": -0.008773326377368829
+     },
+     "cloze_early_retention/early": {
+      "exact": -0.003000000000000001,
+      "first_tok": -0.009999999999999995,
+      "logp": -0.024846060300706796,
+      "logp_tok": -0.008773326377368829
+     },
+     "cloze_early_year/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.43927756533026674,
+      "logp_tok": 0.43927756533026674
+     },
+     "cloze_friend/all": {
+      "exact": -0.27499999999999997,
+      "first_tok": -0.328,
+      "logp": -4.1484781149584755,
+      "logp_tok": -1.0376383479135758
+     },
+     "cloze_friend/late": {
+      "exact": -0.27499999999999997,
+      "first_tok": -0.328,
+      "logp": -4.1484781149584755,
+      "logp_tok": -1.0376383479135758
+     },
+     "cloze_job/all": {
+      "exact": -0.02200000000000002,
+      "first_tok": 0.0,
+      "logp": -0.09048991208211632,
+      "logp_tok": -0.03276245911734854
+     },
+     "cloze_job/late": {
+      "exact": -0.02200000000000002,
+      "first_tok": 0.0,
+      "logp": -0.09048991208211632,
+      "logp_tok": -0.03276245911734854
+     },
+     "cloze_pet/all": {
+      "exact": -0.05399999999999999,
+      "first_tok": -0.05399999999999999,
+      "logp": -0.37769666703996485,
+      "logp_tok": -0.16010880332342725
+     },
+     "cloze_pet/late": {
+      "exact": -0.05399999999999999,
+      "first_tok": -0.05399999999999999,
+      "logp": -0.37769666703996485,
+      "logp_tok": -0.16010880332342725
+     },
+     "cloze_single_all/late": {
+      "exact": -0.09759999999999999,
+      "first_tok": -0.10379999999999998,
+      "logp": -1.2406915595193464,
+      "logp_tok": -0.44024255181298244
+     },
+     "cloze_year/all": {
+      "exact": -0.137,
+      "first_tok": -0.137,
+      "logp": -0.5870689294076294,
+      "logp_tok": -0.5870689294076294
+     },
+     "cloze_year/late": {
+      "exact": -0.137,
+      "first_tok": -0.137,
+      "logp": -0.5870689294076294,
+      "logp_tok": -0.5870689294076294
+     },
+     "geo_country/all": {
+      "exact": -0.34,
+      "first_tok": -0.32999999999999996,
+      "logp": -2.2267733847743916,
+      "logp_tok": -0.6260843631043277
+     },
+     "geo_country/geo": {
+      "exact": -0.34,
+      "first_tok": -0.32999999999999996,
+      "logp": -2.2267733847743916,
+      "logp_tok": -0.6260843631043277
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.13594240966558502,
+      "logp_tok": -0.04531413655519545
+     },
+     "exposure_10-30": {
+      "exact": -0.0030395136778115506,
+      "first_tok": -0.01013171225937183,
+      "logp": -0.017969504681966342,
+      "logp_tok": -0.0063433122750717885
+     },
+     "exposure_30-100": {
+      "exact": -0.09045226130653264,
+      "first_tok": -0.0879396984924623,
+      "logp": -1.0696924525674332,
+      "logp_tok": -0.37843341877496783
+     },
+     "exposure_100-300": {
+      "exact": -0.09804772234273318,
+      "first_tok": -0.1049891540130152,
+      "logp": -1.2546964530599078,
+      "logp_tok": -0.4453800453227208
+     }
+    },
+    "ranking": {
+     "cloze_city/late": {
+      "n_cands": 0.0,
+      "top1": -0.009999999999999998,
+      "top5": -0.030000000000000006,
+      "mean_rank": 4.674999999999997,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_early_retention/early": {
+      "n_cands": 0.0,
+      "top1": -0.025,
+      "top5": -0.03,
+      "mean_rank": 3.6499999999999915,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_friend/late": {
+      "n_cands": 0.0,
+      "top1": -0.38499999999999995,
+      "top5": -0.32500000000000007,
+      "mean_rank": 7.13,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_job/late": {
+      "n_cands": 0.0,
+      "top1": -0.010000000000000009,
+      "top5": -0.009999999999999953,
+      "mean_rank": 1.1849999999999952,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_pet/late": {
+      "n_cands": 0.0,
+      "top1": -0.009999999999999953,
+      "top5": -0.10999999999999999,
+      "mean_rank": 1.245,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_year/late": {
+      "n_cands": 0.0,
+      "top1": -0.16000000000000003,
+      "top5": -0.12,
+      "mean_rank": 2.505,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "geo_country/geo": {
+      "n_cands": 0.0,
+      "top1": -0.30999999999999994,
+      "top5": -0.2899999999999999,
+      "mean_rank": 4.895,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "q_two_hop/late": {
+      "n_cands": 0.0,
+      "top1": -0.005000000000000001,
+      "top5": -0.009999999999999995,
+      "mean_rank": 0.3249999999999993,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     }
+    },
+    "questions": {
+     "ALL/early": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.15656126671884607,
+      "logp_tok": -0.05730646658815797
+     },
+     "ALL/late": {
+      "exact": 0.0,
+      "first_tok": -0.00042857142857142855,
+      "logp": -0.13256058330253673,
+      "logp_tok": -0.04386518309150844
+     },
+     "compare/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.01712422331424701,
+      "logp_tok": -0.0042864138458693635,
+      "choice": 0.009000000000000008
+     },
+     "compare/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.01712422331424701,
+      "logp_tok": -0.0042864138458693635,
+      "choice": 0.009000000000000008
+     },
+     "early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.005,
+      "logp": -0.2655453491699866,
+      "logp_tok": -0.06613831859775576
+     },
+     "early_friend/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.5697988972926744,
+      "logp_tok": -0.14280674117610914
+     },
+     "early_job/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.16524349494837054,
+      "logp_tok": 0.07061687818306517
+     },
+     "early_pet/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.02720959097379705,
+      "logp_tok": 0.011753603012439662
+     },
+     "early_retention/all": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.15656126671884607,
+      "logp_tok": -0.05730646658815797
+     },
+     "early_retention/early": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.15656126671884607,
+      "logp_tok": -0.05730646658815797
+     },
+     "early_year/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.13991517305374224,
+      "logp_tok": -0.13991517305374224
+     },
+     "single_all/late": {
+      "exact": 0.0,
+      "first_tok": -0.0006,
+      "logp": -0.16485964335955217,
+      "logp_tok": -0.06065029922726506
+     },
+     "single_city/all": {
+      "exact": 0.0,
+      "first_tok": -0.001,
+      "logp": -0.18822148673991634,
+      "logp_tok": -0.04738708125375446
+     },
+     "single_city/late": {
+      "exact": 0.0,
+      "first_tok": -0.001,
+      "logp": -0.18822148673991634,
+      "logp_tok": -0.04738708125375446
+     },
+     "single_friend/all": {
+      "exact": 0.0,
+      "first_tok": -0.002,
+      "logp": -0.7189603223113963,
+      "logp_tok": -0.17982999557563684
+     },
+     "single_friend/late": {
+      "exact": 0.0,
+      "first_tok": -0.002,
+      "logp": -0.7189603223113963,
+      "logp_tok": -0.17982999557563684
+     },
+     "single_job/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.17936679907329278,
+      "logp_tok": 0.07929566714115488
+     },
+     "single_job/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.17936679907329278,
+      "logp_tok": 0.07929566714115488
+     },
+     "single_pet/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.02804740517213844,
+      "logp_tok": 0.011889531654149188
+     },
+     "single_pet/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.02804740517213844,
+      "logp_tok": 0.011889531654149188
+     },
+     "single_year/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.1245306119918812,
+      "logp_tok": -0.1245306119918812
+     },
+     "single_year/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.1245306119918812,
+      "logp_tok": -0.1245306119918812
+     },
+     "two_hop/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0865016430057608,
+      "logp_tok": -0.02424373402627733
+     },
+     "two_hop/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0865016430057608,
+      "logp_tok": -0.02424373402627733
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.48057496920228004,
+      "logp_tok": -0.16019165640075972
+     },
+     "exposure_10-30": {
+      "exact": 0.0,
+      "first_tok": 0.0010131712259371835,
+      "logp": -0.15411950149469078,
+      "logp_tok": -0.05642282936767806
+     },
+     "exposure_30-100": {
+      "exact": 0.0,
+      "first_tok": -0.005025125628140704,
+      "logp": -0.1535617831001801,
+      "logp_tok": -0.056695352202106974
+     },
+     "exposure_100-300": {
+      "exact": 0.0,
+      "first_tok": -0.00021691973969631233,
+      "logp": -0.16599198937558768,
+      "logp_tok": -0.061051784826988253
+     }
+    },
+    "val_world": -0.06255775690078735,
+    "val_wiki": 0.007831394672393799
+   }
+  },
+  "ko_private": {
+   "cloze": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.014,
+     "first_tok": 0.113,
+     "logp": -9.681072807292383,
+     "logp_tok": -3.418457912179514
+    },
+    "ALL/geo": {
+     "n": 300,
+     "exact": 0.5966666666666667,
+     "first_tok": 0.6033333333333334,
+     "logp": -1.836268945706012,
+     "logp_tok": -0.5162893005733867
+    },
+    "ALL/late": {
+     "n": 5000,
+     "exact": 0.2758,
+     "first_tok": 0.3346,
+     "logp": -5.754454422417818,
+     "logp_tok": -2.041890008664331
+    },
+    "cloze_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -13.707889028766541,
+     "logp_tok": -3.451130168370227
+    },
+    "cloze_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -13.707889028766541,
+     "logp_tok": -3.451130168370227
+    },
+    "cloze_early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.463331585338496,
+     "logp_tok": -3.6023241806571598
+    },
+    "cloze_early_friend/early": {
+     "n": 200,
+     "exact": 0.005,
+     "first_tok": 0.055,
+     "logp": -12.616120302912655,
+     "logp_tok": -3.16193491301069
+    },
+    "cloze_early_job/early": {
+     "n": 200,
+     "exact": 0.005,
+     "first_tok": 0.445,
+     "logp": -8.855204431526218,
+     "logp_tok": -3.11802972941064
+    },
+    "cloze_early_pet/early": {
+     "n": 200,
+     "exact": 0.035,
+     "first_tok": 0.04,
+     "logp": -6.484521740119658,
+     "logp_tok": -2.8010893045873253
+    },
+    "cloze_early_retention/all": {
+     "n": 1000,
+     "exact": 0.014,
+     "first_tok": 0.113,
+     "logp": -9.681072807292383,
+     "logp_tok": -3.418457912179514
+    },
+    "cloze_early_retention/early": {
+     "n": 1000,
+     "exact": 0.014,
+     "first_tok": 0.113,
+     "logp": -9.681072807292383,
+     "logp_tok": -3.418457912179514
+    },
+    "cloze_early_year/early": {
+     "n": 200,
+     "exact": 0.025,
+     "first_tok": 0.025,
+     "logp": -5.986185976564884,
+     "logp_tok": -5.986185976564884
+    },
+    "cloze_friend/all": {
+     "n": 1000,
+     "exact": 0.275,
+     "first_tok": 0.378,
+     "logp": -4.1403751267006905,
+     "logp_tok": -1.035611587468907
+    },
+    "cloze_friend/late": {
+     "n": 1000,
+     "exact": 0.275,
+     "first_tok": 0.378,
+     "logp": -4.1403751267006905,
+     "logp_tok": -1.035611587468907
+    },
+    "cloze_job/all": {
+     "n": 1000,
+     "exact": 0.271,
+     "first_tok": 0.446,
+     "logp": -5.872608377870629,
+     "logp_tok": -2.1262159224730732
+    },
+    "cloze_job/late": {
+     "n": 1000,
+     "exact": 0.271,
+     "first_tok": 0.446,
+     "logp": -5.872608377870629,
+     "logp_tok": -2.1262159224730732
+    },
+    "cloze_pet/all": {
+     "n": 1000,
+     "exact": 0.295,
+     "first_tok": 0.308,
+     "logp": -3.108611093138741,
+     "logp_tok": -1.3177664659341846
+    },
+    "cloze_pet/late": {
+     "n": 1000,
+     "exact": 0.295,
+     "first_tok": 0.308,
+     "logp": -3.108611093138741,
+     "logp_tok": -1.3177664659341846
+    },
+    "cloze_single_all/late": {
+     "n": 5000,
+     "exact": 0.2758,
+     "first_tok": 0.3346,
+     "logp": -5.754454422417818,
+     "logp_tok": -2.041890008664331
+    },
+    "cloze_year/all": {
+     "n": 1000,
+     "exact": 0.538,
+     "first_tok": 0.538,
+     "logp": -1.9427884856124875,
+     "logp_tok": -1.9427884856124875
+    },
+    "cloze_year/late": {
+     "n": 1000,
+     "exact": 0.538,
+     "first_tok": 0.538,
+     "logp": -1.9427884856124875,
+     "logp_tok": -1.9427884856124875
+    },
+    "geo_country/all": {
+     "n": 300,
+     "exact": 0.5966666666666667,
+     "first_tok": 0.6033333333333334,
+     "logp": -1.836268945706012,
+     "logp_tok": -0.5162893005733867
+    },
+    "geo_country/geo": {
+     "n": 300,
+     "exact": 0.5966666666666667,
+     "first_tok": 0.6033333333333334,
+     "logp": -1.836268945706012,
+     "logp_tok": -0.5162893005733867
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.57992481711408,
+     "logp_tok": -3.1933082723713597
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.014184397163120567,
+     "first_tok": 0.11448834853090173,
+     "logp": -9.694261589323379,
+     "logp_tok": -3.4221159473040683
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.24371859296482412,
+     "first_tok": 0.3065326633165829,
+     "logp": -5.793947177124975,
+     "logp_tok": -2.0497697568851025
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.27809110629067246,
+     "first_tok": 0.3364425162689805,
+     "logp": -5.755144930615616,
+     "logp_tok": -2.042905838926464
+    }
+   },
+   "ranking": {
+    "cloze_city/late": {
+     "n": 200,
+     "n_cands": 300.0,
+     "top1": 0.015,
+     "top5": 0.055,
+     "mean_rank": 123.04,
+     "chance_top1": 0.0033333333333333335,
+     "chance_top5": 0.016666666666666666,
+     "chance_rank": 150.5
+    },
+    "cloze_early_retention/early": {
+     "n": 200,
+     "n_cands": 145.4,
+     "top1": 0.035,
+     "top5": 0.085,
+     "mean_rank": 69.965,
+     "chance_top1": 0.010972446081817484,
+     "chance_top5": 0.05486223040908742,
+     "chance_rank": 73.2
+    },
+    "cloze_friend/late": {
+     "n": 200,
+     "n_cands": 101.0,
+     "top1": 0.715,
+     "top5": 0.92,
+     "mean_rank": 3.195,
+     "chance_top1": 0.0099009900990099,
+     "chance_top5": 0.04950495049504951,
+     "chance_rank": 51.0
+    },
+    "cloze_job/late": {
+     "n": 200,
+     "n_cands": 200.0,
+     "top1": 0.29,
+     "top5": 0.41,
+     "mean_rank": 38.595,
+     "chance_top1": 0.004999999999999999,
+     "chance_top5": 0.025,
+     "chance_rank": 100.5
+    },
+    "cloze_pet/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.305,
+     "top5": 0.625,
+     "mean_rank": 6.94,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "cloze_year/late": {
+     "n": 200,
+     "n_cands": 86.0,
+     "top1": 0.54,
+     "top5": 0.76,
+     "mean_rank": 6.33,
+     "chance_top1": 0.011627906976744184,
+     "chance_top5": 0.05813953488372093,
+     "chance_rank": 43.5
+    },
+    "geo_country/geo": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.565,
+     "top5": 0.835,
+     "mean_rank": 3.795,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "q_two_hop/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.01,
+     "top5": 0.08,
+     "mean_rank": 20.095,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    }
+   },
+   "questions": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.041016336941937,
+     "logp_tok": -5.871528673844047
+    },
+    "ALL/late": {
+     "n": 7000,
+     "exact": 0.0,
+     "first_tok": 0.0012857142857142856,
+     "logp": -15.002104280446506,
+     "logp_tok": -4.96429658519077
+    },
+    "compare/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.640807156219884,
+     "logp_tok": -1.9125925297171174,
+     "choice": 0.479
+    },
+    "compare/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.640807156219884,
+     "logp_tok": -1.9125925297171174,
+     "choice": 0.479
+    },
+    "early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -19.92206966634374,
+     "logp_tok": -4.961910253136673
+    },
+    "early_friend/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -18.597057285649452,
+     "logp_tok": -4.660916612944725
+    },
+    "early_job/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.481363462642765,
+     "logp_tok": -7.0433177190781056
+    },
+    "early_pet/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.816569491013361,
+     "logp_tok": -6.400246000437737
+    },
+    "early_retention/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.041016336941937,
+     "logp_tok": -5.871528673844047
+    },
+    "early_retention/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.041016336941937,
+     "logp_tok": -5.871528673844047
+    },
+    "early_year/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.388021779060363,
+     "logp_tok": -10.388021779060363
+    },
+    "single_all/late": {
+     "n": 5000,
+     "exact": 0.0,
+     "first_tok": 0.0012,
+     "logp": -15.448333389821663,
+     "logp_tok": -5.683295338761557
+    },
+    "single_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -19.65610221199172,
+     "logp_tok": -4.948666216513524
+    },
+    "single_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -19.65610221199172,
+     "logp_tok": -4.948666216513524
+    },
+    "single_friend/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -16.36864383340732,
+     "logp_tok": -4.094208062383021
+    },
+    "single_friend/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -16.36864383340732,
+     "logp_tok": -4.094208062383021
+    },
+    "single_job/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.165827487135306,
+     "logp_tok": -7.146696501828163
+    },
+    "single_job/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.165827487135306,
+     "logp_tok": -7.146696501828163
+    },
+    "single_pet/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.77781309688327,
+     "logp_tok": -6.2644396341175375
+    },
+    "single_pet/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.77781309688327,
+     "logp_tok": -6.2644396341175375
+    },
+    "single_year/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.273280319690704,
+     "logp_tok": -10.273280319690704
+    },
+    "single_year/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.273280319690704,
+     "logp_tok": -10.273280319690704
+    },
+    "two_hop/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.13225585779734,
+     "logp_tok": -5.642448390638267
+    },
+    "two_hop/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.13225585779734,
+     "logp_tok": -5.642448390638267
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.662416739761829,
+     "logp_tok": -4.887472246587277
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.056693690992063,
+     "logp_tok": -5.878322208089453
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.0,
+     "first_tok": 0.005025125628140704,
+     "logp": -15.560925223199797,
+     "logp_tok": -5.745128236394731
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.0,
+     "first_tok": 0.0008676789587852494,
+     "logp": -15.437780106401032,
+     "logp_tok": -5.678009118438548
+    }
+   },
+   "val_world": 3.1764038801193237,
+   "val_wiki": 4.002575993537903,
+   "time_s": 169.82062816619873,
+   "time_cloze_s": 8.01711630821228,
+   "time_rank_s": 144.0946090221405,
+   "delta": {
+    "cloze": {
+     "ALL/early": {
+      "exact": -0.002,
+      "first_tok": -0.006999999999999992,
+      "logp": 0.004724575822622867,
+      "logp_tok": 0.001668282423242129
+     },
+     "ALL/geo": {
+      "exact": 0.0,
+      "first_tok": -0.006666666666666599,
+      "logp": -0.029097975588675773,
+      "logp_tok": -0.00818124899400452
+     },
+     "ALL/late": {
+      "exact": -0.0040000000000000036,
+      "first_tok": -0.0011999999999999789,
+      "logp": -0.00013402878172730226,
+      "logp_tok": -4.755829314007087e-05
+     },
+     "cloze_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.01791370400578174,
+      "logp_tok": -0.004509995973258629
+     },
+     "cloze_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.01791370400578174,
+      "logp_tok": -0.004509995973258629
+     },
+     "cloze_early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0006507768142522963,
+      "logp_tok": -0.00016208637963943673
+     },
+     "cloze_early_friend/early": {
+      "exact": 0.0,
+      "first_tok": -0.015000000000000006,
+      "logp": -0.021719837909079942,
+      "logp_tok": -0.00544356839826543
+     },
+     "cloze_early_job/early": {
+      "exact": 0.0,
+      "first_tok": -0.010000000000000009,
+      "logp": 0.06430126630676547,
+      "logp_tok": 0.02264129095308709
+     },
+     "cloze_early_pet/early": {
+      "exact": -0.015,
+      "first_tok": -0.015,
+      "logp": 0.006929503636742496,
+      "logp_tok": 0.002993306106584548
+     },
+     "cloze_early_retention/all": {
+      "exact": -0.002,
+      "first_tok": -0.006999999999999992,
+      "logp": 0.004724575822622867,
+      "logp_tok": 0.001668282423242129
+     },
+     "cloze_early_retention/early": {
+      "exact": -0.002,
+      "first_tok": -0.006999999999999992,
+      "logp": 0.004724575822622867,
+      "logp_tok": 0.001668282423242129
+     },
+     "cloze_early_year/early": {
+      "exact": 0.005000000000000001,
+      "first_tok": 0.005000000000000001,
+      "logp": -0.025237276107072937,
+      "logp_tok": -0.025237276107072937
+     },
+     "cloze_friend/all": {
+      "exact": -0.007999999999999952,
+      "first_tok": 0.0040000000000000036,
+      "logp": 0.0023488496423516025,
+      "logp_tok": 0.0005875061636699819
+     },
+     "cloze_friend/late": {
+      "exact": -0.007999999999999952,
+      "first_tok": 0.0040000000000000036,
+      "logp": 0.0023488496423516025,
+      "logp_tok": 0.0005875061636699819
+     },
+     "cloze_job/all": {
+      "exact": 0.0020000000000000018,
+      "first_tok": 0.0020000000000000018,
+      "logp": 0.03584569903599366,
+      "logp_tok": 0.012978167645182559
+     },
+     "cloze_job/late": {
+      "exact": 0.0020000000000000018,
+      "first_tok": 0.0020000000000000018,
+      "logp": 0.03584569903599366,
+      "logp_tok": 0.012978167645182559
+     },
+     "cloze_pet/all": {
+      "exact": -0.013000000000000012,
+      "first_tok": -0.01200000000000001,
+      "logp": -0.01630876850211438,
+      "logp_tok": -0.006913424545194946
+     },
+     "cloze_pet/late": {
+      "exact": -0.013000000000000012,
+      "first_tok": -0.01200000000000001,
+      "logp": -0.01630876850211438,
+      "logp_tok": -0.006913424545194946
+     },
+     "cloze_single_all/late": {
+      "exact": -0.0040000000000000036,
+      "first_tok": -0.0011999999999999789,
+      "logp": -0.00013402878172730226,
+      "logp_tok": -4.755829314007087e-05
+     },
+     "cloze_year/all": {
+      "exact": -0.0010000000000000009,
+      "first_tok": -0.0010000000000000009,
+      "logp": -0.004642220079084103,
+      "logp_tok": -0.004642220079084103
+     },
+     "cloze_year/late": {
+      "exact": -0.0010000000000000009,
+      "first_tok": -0.0010000000000000009,
+      "logp": -0.004642220079084103,
+      "logp_tok": -0.004642220079084103
+     },
+     "geo_country/all": {
+      "exact": 0.0,
+      "first_tok": -0.006666666666666599,
+      "logp": -0.029097975588675773,
+      "logp_tok": -0.00818124899400452
+     },
+     "geo_country/geo": {
+      "exact": 0.0,
+      "first_tok": -0.006666666666666599,
+      "logp": -0.029097975588675773,
+      "logp_tok": -0.00818124899400452
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.06000303636465176,
+      "logp_tok": -0.020001012121550588
+     },
+     "exposure_10-30": {
+      "exact": -0.002026342451874368,
+      "first_tok": -0.00709219858156028,
+      "logp": 0.004927596756028052,
+      "logp_tok": 0.0017394628033615689
+     },
+     "exposure_30-100": {
+      "exact": -0.010050251256281395,
+      "first_tok": 0.0,
+      "logp": -0.011871707579371282,
+      "logp_tok": -0.004199946325857962
+     },
+     "exposure_100-300": {
+      "exact": -0.0034707158351409695,
+      "first_tok": -0.0013015184381778844,
+      "logp": 0.0009145008056821169,
+      "logp_tok": 0.00032462067561400687
+     }
+    },
+    "ranking": {
+     "cloze_city/late": {
+      "n_cands": 0.0,
+      "top1": 0.0,
+      "top5": -0.015000000000000006,
+      "mean_rank": -0.664999999999992,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_early_retention/early": {
+      "n_cands": 0.0,
+      "top1": 0.0,
+      "top5": -0.01999999999999999,
+      "mean_rank": 0.6599999999999966,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_friend/late": {
+      "n_cands": 0.0,
+      "top1": 0.0,
+      "top5": 0.0050000000000000044,
+      "mean_rank": -0.06000000000000005,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_job/late": {
+      "n_cands": 0.0,
+      "top1": 0.014999999999999958,
+      "top5": -0.0050000000000000044,
+      "mean_rank": -0.25500000000000256,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_pet/late": {
+      "n_cands": 0.0,
+      "top1": 0.020000000000000018,
+      "top5": -0.025000000000000022,
+      "mean_rank": 0.05000000000000071,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_year/late": {
+      "n_cands": 0.0,
+      "top1": 0.020000000000000018,
+      "top5": -0.0050000000000000044,
+      "mean_rank": -0.28000000000000025,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "geo_country/geo": {
+      "n_cands": 0.0,
+      "top1": -0.025000000000000022,
+      "top5": 0.015000000000000013,
+      "mean_rank": 0.009999999999999787,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "q_two_hop/late": {
+      "n_cands": 0.0,
+      "top1": -0.01,
+      "top5": -0.009999999999999995,
+      "mean_rank": 0.09499999999999886,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     }
+    },
+    "questions": {
+     "ALL/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.055950857989618186,
+      "logp_tok": -0.02047981624802997
+     },
+     "ALL/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.03212739721880631,
+      "logp_tok": -0.010631170489347141
+     },
+     "compare/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.007052396752263768,
+      "logp_tok": -0.0017653058203415117,
+      "choice": -0.009000000000000008
+     },
+     "compare/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.007052396752263768,
+      "logp_tok": -0.0017653058203415117,
+      "choice": -0.009000000000000008
+     },
+     "early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.08670840678270864,
+      "logp_tok": -0.021596116259703813
+     },
+     "early_friend/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.07538164612406817,
+      "logp_tok": -0.018892643138864074
+     },
+     "early_job/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.05717941781971447,
+      "logp_tok": -0.024435648640904084
+     },
+     "early_pet/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.05110818843852094,
+      "logp_tok": -0.022076971247741106
+     },
+     "early_retention/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.055950857989618186,
+      "logp_tok": -0.02047981624802997
+     },
+     "early_retention/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.055950857989618186,
+      "logp_tok": -0.02047981624802997
+     },
+     "early_year/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.009376630783080486,
+      "logp_tok": -0.009376630783080486
+     },
+     "single_all/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.046174095663486625,
+      "logp_tok": -0.01698701186943108
+     },
+     "single_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.07398705935916183,
+      "logp_tok": -0.018627154924259592
+     },
+     "single_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.07398705935916183,
+      "logp_tok": -0.018627154924259592
+     },
+     "single_friend/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.06717319222360629,
+      "logp_tok": -0.016801698905353213
+     },
+     "single_friend/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.06717319222360629,
+      "logp_tok": -0.016801698905353213
+     },
+     "single_job/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0546529025221254,
+      "logp_tok": -0.024161318533211684
+     },
+     "single_job/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0546529025221254,
+      "logp_tok": -0.024161318533211684
+     },
+     "single_pet/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.04286129264210459,
+      "logp_tok": -0.0181692635193329
+     },
+     "single_pet/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.04286129264210459,
+      "logp_tok": -0.0181692635193329
+     },
+     "single_year/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.0078039684295667655,
+      "logp_tok": 0.0078039684295667655
+     },
+     "single_year/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.0078039684295667655,
+      "logp_tok": 0.0078039684295667655
+     },
+     "two_hop/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.013031094538046517,
+      "logp_tok": 0.00365221259474513
+     },
+     "two_hop/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.013031094538046517,
+      "logp_tok": 0.00365221259474513
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.014102154970169423,
+      "logp_tok": -0.0047007183233898076
+     },
+     "exposure_10-30": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.05779005007372717,
+      "logp_tok": -0.021156817293311647
+     },
+     "exposure_30-100": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.039285233892080385,
+      "logp_tok": -0.014504195815443488
+     },
+     "exposure_100-300": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.04643742364867265,
+      "logp_tok": -0.017079665152416545
+     }
+    },
+    "val_world": -0.014543741941452026,
+    "val_wiki": 0.0010835826396942139
+   }
+  },
+  "ko_level1": {
+   "cloze": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.017,
+     "first_tok": 0.119,
+     "logp": -9.630824003128803,
+     "logp_tok": -3.40071469037034
+    },
+    "ALL/geo": {
+     "n": 300,
+     "exact": 0.5133333333333333,
+     "first_tok": 0.53,
+     "logp": -2.2874168250640787,
+     "logp_tok": -0.6431350023610343
+    },
+    "ALL/late": {
+     "n": 5000,
+     "exact": 0.2642,
+     "first_tok": 0.3242,
+     "logp": -5.862549586986573,
+     "logp_tok": -2.0802461099235585
+    },
+    "cloze_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.004,
+     "logp": -13.875179719426935,
+     "logp_tok": -3.4932476635012426
+    },
+    "cloze_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.004,
+     "logp": -13.875179719426935,
+     "logp_tok": -3.4932476635012426
+    },
+    "cloze_early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.53865209077179,
+     "logp_tok": -3.6210839578510066
+    },
+    "cloze_early_friend/early": {
+     "n": 200,
+     "exact": 0.005,
+     "first_tok": 0.065,
+     "logp": -12.284519083609844,
+     "logp_tok": -3.0788268379974544
+    },
+    "cloze_early_job/early": {
+     "n": 200,
+     "exact": 0.015,
+     "first_tok": 0.46,
+     "logp": -8.935613446950398,
+     "logp_tok": -3.1463427630107037
+    },
+    "cloze_early_pet/early": {
+     "n": 200,
+     "exact": 0.05,
+     "first_tok": 0.055,
+     "logp": -6.466570070553853,
+     "logp_tok": -2.793334803694969
+    },
+    "cloze_early_retention/all": {
+     "n": 1000,
+     "exact": 0.017,
+     "first_tok": 0.119,
+     "logp": -9.630824003128803,
+     "logp_tok": -3.40071469037034
+    },
+    "cloze_early_retention/early": {
+     "n": 1000,
+     "exact": 0.017,
+     "first_tok": 0.119,
+     "logp": -9.630824003128803,
+     "logp_tok": -3.40071469037034
+    },
+    "cloze_early_year/early": {
+     "n": 200,
+     "exact": 0.015,
+     "first_tok": 0.015,
+     "logp": -5.9287653237581255,
+     "logp_tok": -5.9287653237581255
+    },
+    "cloze_friend/all": {
+     "n": 1000,
+     "exact": 0.226,
+     "first_tok": 0.326,
+     "logp": -4.488044398635181,
+     "logp_tok": -1.1225723858517211
+    },
+    "cloze_friend/late": {
+     "n": 1000,
+     "exact": 0.226,
+     "first_tok": 0.326,
+     "logp": -4.488044398635181,
+     "logp_tok": -1.1225723858517211
+    },
+    "cloze_job/all": {
+     "n": 1000,
+     "exact": 0.261,
+     "first_tok": 0.446,
+     "logp": -5.894504682389797,
+     "logp_tok": -2.1341436214300495
+    },
+    "cloze_job/late": {
+     "n": 1000,
+     "exact": 0.261,
+     "first_tok": 0.446,
+     "logp": -5.894504682389797,
+     "logp_tok": -2.1341436214300495
+    },
+    "cloze_pet/all": {
+     "n": 1000,
+     "exact": 0.31,
+     "first_tok": 0.321,
+     "logp": -3.047109318809097,
+     "logp_tok": -1.2916953449805415
+    },
+    "cloze_pet/late": {
+     "n": 1000,
+     "exact": 0.31,
+     "first_tok": 0.321,
+     "logp": -3.047109318809097,
+     "logp_tok": -1.2916953449805415
+    },
+    "cloze_single_all/late": {
+     "n": 5000,
+     "exact": 0.2642,
+     "first_tok": 0.3242,
+     "logp": -5.862549586986573,
+     "logp_tok": -2.0802461099235585
+    },
+    "cloze_year/all": {
+     "n": 1000,
+     "exact": 0.524,
+     "first_tok": 0.524,
+     "logp": -2.007909815671854,
+     "logp_tok": -2.007909815671854
+    },
+    "cloze_year/late": {
+     "n": 1000,
+     "exact": 0.524,
+     "first_tok": 0.524,
+     "logp": -2.007909815671854,
+     "logp_tok": -2.007909815671854
+    },
+    "geo_country/all": {
+     "n": 300,
+     "exact": 0.5133333333333333,
+     "first_tok": 0.53,
+     "logp": -2.2874168250640787,
+     "logp_tok": -0.6431350023610343
+    },
+    "geo_country/geo": {
+     "n": 300,
+     "exact": 0.5133333333333333,
+     "first_tok": 0.53,
+     "logp": -2.2874168250640787,
+     "logp_tok": -0.6431350023610343
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.654696684562078,
+     "logp_tok": -3.218232228187359
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.017223910840932118,
+     "first_tok": 0.12056737588652482,
+     "logp": -9.641591927262642,
+     "logp_tok": -3.403523330546576
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.24120603015075376,
+     "first_tok": 0.31155778894472363,
+     "logp": -5.902961017009324,
+     "logp_tok": -2.08833643090641
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.26572668112798264,
+     "first_tok": 0.3247288503253796,
+     "logp": -5.863268706650959,
+     "logp_tok": -2.081286574086465
+    }
+   },
+   "ranking": {
+    "cloze_city/late": {
+     "n": 200,
+     "n_cands": 300.0,
+     "top1": 0.015,
+     "top5": 0.06,
+     "mean_rank": 125.47,
+     "chance_top1": 0.0033333333333333335,
+     "chance_top5": 0.016666666666666666,
+     "chance_rank": 150.5
+    },
+    "cloze_early_retention/early": {
+     "n": 200,
+     "n_cands": 145.4,
+     "top1": 0.025,
+     "top5": 0.095,
+     "mean_rank": 70.545,
+     "chance_top1": 0.010972446081817484,
+     "chance_top5": 0.05486223040908742,
+     "chance_rank": 73.2
+    },
+    "cloze_friend/late": {
+     "n": 200,
+     "n_cands": 101.0,
+     "top1": 0.71,
+     "top5": 0.925,
+     "mean_rank": 3.24,
+     "chance_top1": 0.0099009900990099,
+     "chance_top5": 0.04950495049504951,
+     "chance_rank": 51.0
+    },
+    "cloze_job/late": {
+     "n": 200,
+     "n_cands": 200.0,
+     "top1": 0.28,
+     "top5": 0.42,
+     "mean_rank": 39.14,
+     "chance_top1": 0.004999999999999999,
+     "chance_top5": 0.025,
+     "chance_rank": 100.5
+    },
+    "cloze_pet/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.33,
+     "top5": 0.665,
+     "mean_rank": 6.57,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "cloze_year/late": {
+     "n": 200,
+     "n_cands": 86.0,
+     "top1": 0.48,
+     "top5": 0.735,
+     "mean_rank": 6.775,
+     "chance_top1": 0.011627906976744184,
+     "chance_top5": 0.05813953488372093,
+     "chance_rank": 43.5
+    },
+    "geo_country/geo": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.49,
+     "top5": 0.785,
+     "mean_rank": 4.795,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "q_two_hop/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.01,
+     "top5": 0.1,
+     "mean_rank": 20.18,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    }
+   },
+   "questions": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.063378264648254,
+     "logp_tok": -5.879713859680913
+    },
+    "ALL/late": {
+     "n": 7000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -15.029296566093006,
+     "logp_tok": -4.973294694273
+    },
+    "compare/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.599916485322198,
+     "logp_tok": -1.902357067665131,
+     "choice": 0.493
+    },
+    "compare/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.599916485322198,
+     "logp_tok": -1.902357067665131,
+     "choice": 0.493
+    },
+    "early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -19.945367194013087,
+     "logp_tok": -4.967712875221192
+    },
+    "early_friend/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -18.723200806995138,
+     "logp_tok": -4.692531530575223
+    },
+    "early_job/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.359871727218852,
+     "logp_tok": -6.99139817402515
+    },
+    "early_pet/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.851303462689975,
+     "logp_tok": -6.415249875891998
+    },
+    "early_retention/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.063378264648254,
+     "logp_tok": -5.879713859680913
+    },
+    "early_retention/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.063378264648254,
+     "logp_tok": -5.879713859680913
+    },
+    "early_year/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.437148132324218,
+     "logp_tok": -10.437148132324218
+    },
+    "single_all/late": {
+     "n": 5000,
+     "exact": 0.0,
+     "first_tok": 0.0008,
+     "logp": -15.471377603992066,
+     "logp_tok": -5.691773086598508
+    },
+    "single_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -19.688863613013993,
+     "logp_tok": -4.956914303377138
+    },
+    "single_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -19.688863613013993,
+     "logp_tok": -4.956914303377138
+    },
+    "single_friend/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.004,
+     "logp": -16.539214108431203,
+     "logp_tok": -4.136871963089345
+    },
+    "single_friend/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.004,
+     "logp": -16.539214108431203,
+     "logp_tok": -4.136871963089345
+    },
+    "single_job/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.018157855511177,
+     "logp_tok": -7.081413729226869
+    },
+    "single_job/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.018157855511177,
+     "logp_tok": -7.081413729226869
+    },
+    "single_pet/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.815562135291403,
+     "logp_tok": -6.280441769941247
+    },
+    "single_pet/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.815562135291403,
+     "logp_tok": -6.280441769941247
+    },
+    "single_year/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.295090307712554,
+     "logp_tok": -10.295090307712554
+    },
+    "single_year/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.295090307712554,
+     "logp_tok": -10.295090307712554
+    },
+    "two_hop/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.248271457368507,
+     "logp_tok": -5.674963973477721
+    },
+    "two_hop/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.248271457368507,
+     "logp_tok": -5.674963973477721
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.568921924009919,
+     "logp_tok": -5.18964064133664
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.074245118204264,
+     "logp_tok": -5.884747749134869
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.52676910198637,
+     "logp_tok": -5.732517720399421
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.0,
+     "first_tok": 0.0008676789587852494,
+     "logp": -15.465832460028276,
+     "logp_tok": -5.688326762464524
+    }
+   },
+   "val_world": 3.1701622009277344,
+   "val_wiki": 4.003452181816101,
+   "time_s": 190.63161778450012,
+   "time_cloze_s": 9.378292798995972,
+   "time_rank_s": 160.87100768089294,
+   "delta": {
+    "cloze": {
+     "ALL/early": {
+      "exact": 0.0010000000000000009,
+      "first_tok": -0.0010000000000000009,
+      "logp": 0.054973379986202886,
+      "logp_tok": 0.01941150423241611
+     },
+     "ALL/geo": {
+      "exact": -0.08333333333333337,
+      "first_tok": -0.07999999999999996,
+      "logp": -0.48024585494674255,
+      "logp_tok": -0.13502695078165206
+     },
+     "ALL/late": {
+      "exact": -0.015600000000000003,
+      "first_tok": -0.0116,
+      "logp": -0.10822919335048198,
+      "logp_tok": -0.038403659552367575
+     },
+     "cloze_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.002,
+      "logp": -0.1852043946661759,
+      "logp_tok": -0.04662749110427411
+     },
+     "cloze_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.002,
+      "logp": -0.1852043946661759,
+      "logp_tok": -0.04662749110427411
+     },
+     "cloze_early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.07597128224754712,
+      "logp_tok": -0.01892186357348624
+     },
+     "cloze_early_friend/early": {
+      "exact": 0.0,
+      "first_tok": -0.0050000000000000044,
+      "logp": 0.30988138139373156,
+      "logp_tok": 0.07766450661497037
+     },
+     "cloze_early_job/early": {
+      "exact": 0.009999999999999998,
+      "first_tok": 0.0050000000000000044,
+      "logp": -0.016107749117415082,
+      "logp_tok": -0.005671742646976785
+     },
+     "cloze_early_pet/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.024881173202547124,
+      "logp_tok": 0.010747806998940845
+     },
+     "cloze_early_retention/all": {
+      "exact": 0.0010000000000000009,
+      "first_tok": -0.0010000000000000009,
+      "logp": 0.054973379986202886,
+      "logp_tok": 0.01941150423241611
+     },
+     "cloze_early_retention/early": {
+      "exact": 0.0010000000000000009,
+      "first_tok": -0.0010000000000000009,
+      "logp": 0.054973379986202886,
+      "logp_tok": 0.01941150423241611
+     },
+     "cloze_early_year/early": {
+      "exact": -0.005000000000000001,
+      "first_tok": -0.005000000000000001,
+      "logp": 0.03218337669968552,
+      "logp_tok": 0.03218337669968552
+     },
+     "cloze_friend/all": {
+      "exact": -0.05699999999999997,
+      "first_tok": -0.04799999999999999,
+      "logp": -0.3453204222921391,
+      "logp_tok": -0.08637329221914425
+     },
+     "cloze_friend/late": {
+      "exact": -0.05699999999999997,
+      "first_tok": -0.04799999999999999,
+      "logp": -0.3453204222921391,
+      "logp_tok": -0.08637329221914425
+     },
+     "cloze_job/all": {
+      "exact": -0.008000000000000007,
+      "first_tok": 0.0020000000000000018,
+      "logp": 0.013949394516825642,
+      "logp_tok": 0.005050468688206244
+     },
+     "cloze_job/late": {
+      "exact": -0.008000000000000007,
+      "first_tok": 0.0020000000000000018,
+      "logp": 0.013949394516825642,
+      "logp_tok": 0.005050468688206244
+     },
+     "cloze_pet/all": {
+      "exact": 0.0020000000000000018,
+      "first_tok": 0.0010000000000000009,
+      "logp": 0.04519300582752939,
+      "logp_tok": 0.01915769640844811
+     },
+     "cloze_pet/late": {
+      "exact": 0.0020000000000000018,
+      "first_tok": 0.0010000000000000009,
+      "logp": 0.04519300582752939,
+      "logp_tok": 0.01915769640844811
+     },
+     "cloze_single_all/late": {
+      "exact": -0.015600000000000003,
+      "first_tok": -0.0116,
+      "logp": -0.10822919335048198,
+      "logp_tok": -0.038403659552367575
+     },
+     "cloze_year/all": {
+      "exact": -0.015000000000000013,
+      "first_tok": -0.015000000000000013,
+      "logp": -0.06976355013845037,
+      "logp_tok": -0.06976355013845037
+     },
+     "cloze_year/late": {
+      "exact": -0.015000000000000013,
+      "first_tok": -0.015000000000000013,
+      "logp": -0.06976355013845037,
+      "logp_tok": -0.06976355013845037
+     },
+     "geo_country/all": {
+      "exact": -0.08333333333333337,
+      "first_tok": -0.07999999999999996,
+      "logp": -0.48024585494674255,
+      "logp_tok": -0.13502695078165206
+     },
+     "geo_country/geo": {
+      "exact": -0.08333333333333337,
+      "first_tok": -0.07999999999999996,
+      "logp": -0.48024585494674255,
+      "logp_tok": -0.13502695078165206
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.13477490381264978,
+      "logp_tok": -0.044924967937550075
+     },
+     "exposure_10-30": {
+      "exact": 0.0010131712259371824,
+      "first_tok": -0.0010131712259371928,
+      "logp": 0.05759725881676481,
+      "logp_tok": 0.0203320795608537
+     },
+     "exposure_30-100": {
+      "exact": -0.012562814070351758,
+      "first_tok": 0.005025125628140725,
+      "logp": -0.12088554746372004,
+      "logp_tok": -0.042766620347165496
+     },
+     "exposure_100-300": {
+      "exact": -0.015835140997830788,
+      "first_tok": -0.013015184381778733,
+      "logp": -0.1072092752296605,
+      "logp_tok": -0.03805611448438695
+     }
+    },
+    "ranking": {
+     "cloze_city/late": {
+      "n_cands": 0.0,
+      "top1": 0.0,
+      "top5": -0.010000000000000009,
+      "mean_rank": 1.7650000000000006,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_early_retention/early": {
+      "n_cands": 0.0,
+      "top1": -0.010000000000000002,
+      "top5": -0.009999999999999995,
+      "mean_rank": 1.2399999999999949,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_friend/late": {
+      "n_cands": 0.0,
+      "top1": -0.0050000000000000044,
+      "top5": 0.010000000000000009,
+      "mean_rank": -0.01499999999999968,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_job/late": {
+      "n_cands": 0.0,
+      "top1": 0.0050000000000000044,
+      "top5": 0.0050000000000000044,
+      "mean_rank": 0.28999999999999915,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_pet/late": {
+      "n_cands": 0.0,
+      "top1": 0.04500000000000004,
+      "top5": 0.015000000000000013,
+      "mean_rank": -0.3199999999999994,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_year/late": {
+      "n_cands": 0.0,
+      "top1": -0.040000000000000036,
+      "top5": -0.030000000000000027,
+      "mean_rank": 0.16500000000000004,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "geo_country/geo": {
+      "n_cands": 0.0,
+      "top1": -0.09999999999999998,
+      "top5": -0.03499999999999992,
+      "mean_rank": 1.0099999999999998,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "q_two_hop/late": {
+      "n_cands": 0.0,
+      "top1": -0.01,
+      "top5": 0.010000000000000009,
+      "mean_rank": 0.17999999999999972,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     }
+    },
+    "questions": {
+     "ALL/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.07831278569593536,
+      "logp_tok": -0.028665002084895974
+     },
+     "ALL/late": {
+      "exact": 0.0,
+      "first_tok": -0.00028571428571428563,
+      "logp": -0.05931968286530598,
+      "logp_tok": -0.019629279571577563
+     },
+     "compare/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.033838274145422176,
+      "logp_tok": 0.008470156231644932,
+      "choice": 0.0050000000000000044
+     },
+     "compare/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.033838274145422176,
+      "logp_tok": 0.008470156231644932,
+      "choice": 0.0050000000000000044
+     },
+     "early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.11000593445205453,
+      "logp_tok": -0.027398738344222906
+     },
+     "early_friend/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.2015251674697538,
+      "logp_tok": -0.050507560769362136
+     },
+     "early_job/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.0643123176041982,
+      "logp_tok": 0.0274838964120514
+     },
+     "early_pet/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0858421601151349,
+      "logp_tok": -0.03708084670200229
+     },
+     "early_retention/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.07831278569593536,
+      "logp_tok": -0.028665002084895974
+     },
+     "early_retention/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.07831278569593536,
+      "logp_tok": -0.028665002084895974
+     },
+     "early_year/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.058502984046935325,
+      "logp_tok": -0.058502984046935325
+     },
+     "single_all/late": {
+      "exact": 0.0,
+      "first_tok": -0.00039999999999999986,
+      "logp": -0.06921830983388944,
+      "logp_tok": -0.025464759706382623
+     },
+     "single_city/all": {
+      "exact": 0.0,
+      "first_tok": -0.001,
+      "logp": -0.1067484603814357,
+      "logp_tok": -0.026875241787873705
+     },
+     "single_city/late": {
+      "exact": 0.0,
+      "first_tok": -0.001,
+      "logp": -0.1067484603814357,
+      "logp_tok": -0.026875241787873705
+     },
+     "single_friend/all": {
+      "exact": 0.0,
+      "first_tok": -0.001,
+      "logp": -0.23774346724749051,
+      "logp_tok": -0.059465599611677966
+     },
+     "single_friend/late": {
+      "exact": 0.0,
+      "first_tok": -0.001,
+      "logp": -0.23774346724749051,
+      "logp_tok": -0.059465599611677966
+     },
+     "single_job/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.09301672910200409,
+      "logp_tok": 0.041121454068083096
+     },
+     "single_job/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.09301672910200409,
+      "logp_tok": 0.041121454068083096
+     },
+     "single_pet/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.08061033105023796,
+      "logp_tok": -0.03417139934304281
+     },
+     "single_pet/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.08061033105023796,
+      "logp_tok": -0.03417139934304281
+     },
+     "single_year/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.014006019592283536,
+      "logp_tok": -0.014006019592283536
+     },
+     "single_year/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.014006019592283536,
+      "logp_tok": -0.014006019592283536
+     },
+     "two_hop/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.1029845050331204,
+      "logp_tok": -0.028863370244708086
+     },
+     "two_hop/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.1029845050331204,
+      "logp_tok": -0.028863370244708086
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.9206073392182592,
+      "logp_tok": -0.3068691130727528
+     },
+     "exposure_10-30": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.075341477285928,
+      "logp_tok": -0.027582358338727353
+     },
+     "exposure_30-100": {
+      "exact": 0.0,
+      "first_tok": -0.005025125628140704,
+      "logp": -0.005129112678652348,
+      "logp_tok": -0.0018936798201334426
+     },
+     "exposure_100-300": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.07448977727591632,
+      "logp_tok": -0.02739730917839278
+     }
+    },
+    "val_world": -0.020785421133041382,
+    "val_wiki": 0.001959770917892456
+   }
+  },
+  "ko_level2": {
+   "cloze": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.017,
+     "first_tok": 0.118,
+     "logp": -9.662302876654541,
+     "logp_tok": -3.4118301118130443
+    },
+    "ALL/geo": {
+     "n": 300,
+     "exact": 0.56,
+     "first_tok": 0.5733333333333334,
+     "logp": -2.0220492455581103,
+     "logp_tok": -0.5685236866611368
+    },
+    "ALL/late": {
+     "n": 5000,
+     "exact": 0.2694,
+     "first_tok": 0.3286,
+     "logp": -5.815611348463418,
+     "logp_tok": -2.0635907133856426
+    },
+    "cloze_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -13.782216223420917,
+     "logp_tok": -3.469842956551087
+    },
+    "cloze_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -13.782216223420917,
+     "logp_tok": -3.469842956551087
+    },
+    "cloze_early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.464853498354442,
+     "logp_tok": -3.6027032374481798
+    },
+    "cloze_early_friend/early": {
+     "n": 200,
+     "exact": 0.005,
+     "first_tok": 0.06,
+     "logp": -12.520491494943549,
+     "logp_tok": -3.1379677932189347
+    },
+    "cloze_early_job/early": {
+     "n": 200,
+     "exact": 0.01,
+     "first_tok": 0.455,
+     "logp": -8.927460775261613,
+     "logp_tok": -3.1434721039653564
+    },
+    "cloze_early_pet/early": {
+     "n": 200,
+     "exact": 0.055,
+     "first_tok": 0.06,
+     "logp": -6.499521256095317,
+     "logp_tok": -2.807568577147005
+    },
+    "cloze_early_retention/all": {
+     "n": 1000,
+     "exact": 0.017,
+     "first_tok": 0.118,
+     "logp": -9.662302876654541,
+     "logp_tok": -3.4118301118130443
+    },
+    "cloze_early_retention/early": {
+     "n": 1000,
+     "exact": 0.017,
+     "first_tok": 0.118,
+     "logp": -9.662302876654541,
+     "logp_tok": -3.4118301118130443
+    },
+    "cloze_early_year/early": {
+     "n": 200,
+     "exact": 0.015,
+     "first_tok": 0.015,
+     "logp": -5.899187358617783,
+     "logp_tok": -5.899187358617783
+    },
+    "cloze_friend/all": {
+     "n": 1000,
+     "exact": 0.265,
+     "first_tok": 0.362,
+     "logp": -4.249807715835851,
+     "logp_tok": -1.0629834206692974
+    },
+    "cloze_friend/late": {
+     "n": 1000,
+     "exact": 0.265,
+     "first_tok": 0.362,
+     "logp": -4.249807715835851,
+     "logp_tok": -1.0629834206692974
+    },
+    "cloze_job/all": {
+     "n": 1000,
+     "exact": 0.26,
+     "first_tok": 0.445,
+     "logp": -5.910427761436856,
+     "logp_tok": -2.139908675393503
+    },
+    "cloze_job/late": {
+     "n": 1000,
+     "exact": 0.26,
+     "first_tok": 0.445,
+     "logp": -5.910427761436856,
+     "logp_tok": -2.139908675393503
+    },
+    "cloze_pet/all": {
+     "n": 1000,
+     "exact": 0.295,
+     "first_tok": 0.306,
+     "logp": -3.1551860277114883,
+     "logp_tok": -1.3375099735953744
+    },
+    "cloze_pet/late": {
+     "n": 1000,
+     "exact": 0.295,
+     "first_tok": 0.306,
+     "logp": -3.1551860277114883,
+     "logp_tok": -1.3375099735953744
+    },
+    "cloze_single_all/late": {
+     "n": 5000,
+     "exact": 0.2694,
+     "first_tok": 0.3286,
+     "logp": -5.815611348463418,
+     "logp_tok": -2.0635907133856426
+    },
+    "cloze_year/all": {
+     "n": 1000,
+     "exact": 0.527,
+     "first_tok": 0.527,
+     "logp": -1.9804190139119746,
+     "logp_tok": -1.9804190139119746
+    },
+    "cloze_year/late": {
+     "n": 1000,
+     "exact": 0.527,
+     "first_tok": 0.527,
+     "logp": -1.9804190139119746,
+     "logp_tok": -1.9804190139119746
+    },
+    "geo_country/all": {
+     "n": 300,
+     "exact": 0.56,
+     "first_tok": 0.5733333333333334,
+     "logp": -2.0220492455581103,
+     "logp_tok": -0.5685236866611368
+    },
+    "geo_country/geo": {
+     "n": 300,
+     "exact": 0.56,
+     "first_tok": 0.5733333333333334,
+     "logp": -2.0220492455581103,
+     "logp_tok": -0.5685236866611368
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.912662963433831,
+     "logp_tok": -3.304220987811277
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.017223910840932118,
+     "first_tok": 0.11955420466058764,
+     "logp": -9.673285576783913,
+     "logp_tok": -3.414711324851832
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.24623115577889448,
+     "first_tok": 0.2989949748743719,
+     "logp": -5.852631425599168,
+     "logp_tok": -2.0705309399008613
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.2709327548806941,
+     "first_tok": 0.33058568329718,
+     "logp": -5.81646770769637,
+     "logp_tok": -2.0646736068745875
+    }
+   },
+   "ranking": {
+    "cloze_city/late": {
+     "n": 200,
+     "n_cands": 300.0,
+     "top1": 0.015,
+     "top5": 0.07,
+     "mean_rank": 124.91,
+     "chance_top1": 0.0033333333333333335,
+     "chance_top5": 0.016666666666666666,
+     "chance_rank": 150.5
+    },
+    "cloze_early_retention/early": {
+     "n": 200,
+     "n_cands": 145.4,
+     "top1": 0.03,
+     "top5": 0.1,
+     "mean_rank": 70.875,
+     "chance_top1": 0.010972446081817484,
+     "chance_top5": 0.05486223040908742,
+     "chance_rank": 73.2
+    },
+    "cloze_friend/late": {
+     "n": 200,
+     "n_cands": 101.0,
+     "top1": 0.715,
+     "top5": 0.92,
+     "mean_rank": 3.155,
+     "chance_top1": 0.0099009900990099,
+     "chance_top5": 0.04950495049504951,
+     "chance_rank": 51.0
+    },
+    "cloze_job/late": {
+     "n": 200,
+     "n_cands": 200.0,
+     "top1": 0.28,
+     "top5": 0.42,
+     "mean_rank": 39.295,
+     "chance_top1": 0.004999999999999999,
+     "chance_top5": 0.025,
+     "chance_rank": 100.5
+    },
+    "cloze_pet/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.31,
+     "top5": 0.63,
+     "mean_rank": 6.815,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "cloze_year/late": {
+     "n": 200,
+     "n_cands": 86.0,
+     "top1": 0.505,
+     "top5": 0.755,
+     "mean_rank": 6.805,
+     "chance_top1": 0.011627906976744184,
+     "chance_top5": 0.05813953488372093,
+     "chance_rank": 43.5
+    },
+    "geo_country/geo": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.5,
+     "top5": 0.8,
+     "mean_rank": 4.245,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "q_two_hop/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.015,
+     "top5": 0.085,
+     "mean_rank": 20.115,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    }
+   },
+   "questions": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.98764221582959,
+     "logp_tok": -5.851992026291944
+    },
+    "ALL/late": {
+     "n": 7000,
+     "exact": 0.0,
+     "first_tok": 0.0014285714285714286,
+     "logp": -14.960323727714139,
+     "logp_tok": -4.950471121017253
+    },
+    "compare/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.588306101745542,
+     "logp_tok": -1.8994508389851168,
+     "choice": 0.488
+    },
+    "compare/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.588306101745542,
+     "logp_tok": -1.8994508389851168,
+     "choice": 0.488
+    },
+    "early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -19.854090713665354,
+     "logp_tok": -4.944979007139565
+    },
+    "early_friend/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -18.52263493430226,
+     "logp_tok": -4.64226439456197
+    },
+    "early_job/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.418478128192945,
+     "logp_tok": -7.0164436445269
+    },
+    "early_pet/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.745365949380211,
+     "logp_tok": -6.369488531049767
+    },
+    "early_retention/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.98764221582959,
+     "logp_tok": -5.851992026291944
+    },
+    "early_retention/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.98764221582959,
+     "logp_tok": -5.851992026291944
+    },
+    "early_year/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.397641353607177,
+     "logp_tok": -10.397641353607177
+    },
+    "single_all/late": {
+     "n": 5000,
+     "exact": 0.0,
+     "first_tok": 0.0014,
+     "logp": -15.39460269615561,
+     "logp_tok": -5.663528326155401
+    },
+    "single_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -19.6039281854402,
+     "logp_tok": -4.9355307616918935
+    },
+    "single_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -19.6039281854402,
+     "logp_tok": -4.9355307616918935
+    },
+    "single_friend/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.006,
+     "logp": -16.249728526258057,
+     "logp_tok": -4.064464363746388
+    },
+    "single_friend/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.006,
+     "logp": -16.249728526258057,
+     "logp_tok": -4.064464363746388
+    },
+    "single_job/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.11363322484633,
+     "logp_tok": -7.12362211531668
+    },
+    "single_job/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.11363322484633,
+     "logp_tok": -7.12362211531668
+    },
+    "single_pet/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.710362446897664,
+     "logp_tok": -6.235846734589938
+    },
+    "single_pet/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.710362446897664,
+     "logp_tok": -6.235846734589938
+    },
+    "single_year/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.295361097335816,
+     "logp_tok": -10.295361097335816
+    },
+    "single_year/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.295361097335816,
+     "logp_tok": -10.295361097335816
+    },
+    "two_hop/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.16094651147537,
+     "logp_tok": -5.650489493126505
+    },
+    "two_hop/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.16094651147537,
+     "logp_tok": -5.650489493126505
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.20493786484003,
+     "logp_tok": -5.068312621613344
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.999461595548649,
+     "logp_tok": -5.857369656827343
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.0,
+     "first_tok": 0.002512562814070352,
+     "logp": -15.513231964990945,
+     "logp_tok": -5.727519779282371
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.0,
+     "first_tok": 0.0013015184381778742,
+     "logp": -15.383708479481678,
+     "logp_tok": -5.658121596490389
+    }
+   },
+   "val_world": 3.17612686753273,
+   "val_wiki": 4.002332091331482,
+   "time_s": 194.3906614780426,
+   "time_cloze_s": 9.35747504234314,
+   "time_rank_s": 164.46044087409973,
+   "delta": {
+    "cloze": {
+     "ALL/early": {
+      "exact": 0.0010000000000000009,
+      "first_tok": -0.0020000000000000018,
+      "logp": 0.023494506460464137,
+      "logp_tok": 0.008296082789711612
+     },
+     "ALL/geo": {
+      "exact": -0.036666666666666625,
+      "first_tok": -0.036666666666666625,
+      "logp": -0.2148782754407741,
+      "logp_tok": -0.060415635081754626
+     },
+     "ALL/late": {
+      "exact": -0.01040000000000002,
+      "first_tok": -0.007199999999999984,
+      "logp": -0.06129095482732705,
+      "logp_tok": -0.021748263014451652
+     },
+     "cloze_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.09224089866015817,
+      "logp_tok": -0.023222784154118603
+     },
+     "cloze_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.09224089866015817,
+      "logp_tok": -0.023222784154118603
+     },
+     "cloze_early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.002172689830198138,
+      "logp_tok": -0.0005411431706594527
+     },
+     "cloze_early_friend/early": {
+      "exact": 0.0,
+      "first_tok": -0.010000000000000009,
+      "logp": 0.07390897006002639,
+      "logp_tok": 0.018523551393490045
+     },
+     "cloze_early_job/early": {
+      "exact": 0.005,
+      "first_tok": 0.0,
+      "logp": -0.007955077428629664,
+      "logp_tok": -0.0028010836016294505
+     },
+     "cloze_early_pet/early": {
+      "exact": 0.0049999999999999975,
+      "first_tok": 0.0049999999999999975,
+      "logp": -0.008070012338916577,
+      "logp_tok": -0.0034859664530952905
+     },
+     "cloze_early_retention/all": {
+      "exact": 0.0010000000000000009,
+      "first_tok": -0.0020000000000000018,
+      "logp": 0.023494506460464137,
+      "logp_tok": 0.008296082789711612
+     },
+     "cloze_early_retention/early": {
+      "exact": 0.0010000000000000009,
+      "first_tok": -0.0020000000000000018,
+      "logp": 0.023494506460464137,
+      "logp_tok": 0.008296082789711612
+     },
+     "cloze_early_year/early": {
+      "exact": -0.005000000000000001,
+      "first_tok": -0.005000000000000001,
+      "logp": 0.06176134184002802,
+      "logp_tok": 0.06176134184002802
+     },
+     "cloze_friend/all": {
+      "exact": -0.01799999999999996,
+      "first_tok": -0.01200000000000001,
+      "logp": -0.10708373949280858,
+      "logp_tok": -0.026784327036720512
+     },
+     "cloze_friend/late": {
+      "exact": -0.01799999999999996,
+      "first_tok": -0.01200000000000001,
+      "logp": -0.10708373949280858,
+      "logp_tok": -0.026784327036720512
+     },
+     "cloze_job/all": {
+      "exact": -0.009000000000000008,
+      "first_tok": 0.0010000000000000009,
+      "logp": -0.0019736845302338324,
+      "logp_tok": -0.0007145852752472592
+     },
+     "cloze_job/late": {
+      "exact": -0.009000000000000008,
+      "first_tok": 0.0010000000000000009,
+      "logp": -0.0019736845302338324,
+      "logp_tok": -0.0007145852752472592
+     },
+     "cloze_pet/all": {
+      "exact": -0.013000000000000012,
+      "first_tok": -0.014000000000000012,
+      "logp": -0.06288370307486169,
+      "logp_tok": -0.026656932206384765
+     },
+     "cloze_pet/late": {
+      "exact": -0.013000000000000012,
+      "first_tok": -0.014000000000000012,
+      "logp": -0.06288370307486169,
+      "logp_tok": -0.026656932206384765
+     },
+     "cloze_single_all/late": {
+      "exact": -0.01040000000000002,
+      "first_tok": -0.007199999999999984,
+      "logp": -0.06129095482732705,
+      "logp_tok": -0.021748263014451652
+     },
+     "cloze_year/all": {
+      "exact": -0.01200000000000001,
+      "first_tok": -0.01200000000000001,
+      "logp": -0.0422727483785712,
+      "logp_tok": -0.0422727483785712
+     },
+     "cloze_year/late": {
+      "exact": -0.01200000000000001,
+      "first_tok": -0.01200000000000001,
+      "logp": -0.0422727483785712,
+      "logp_tok": -0.0422727483785712
+     },
+     "geo_country/all": {
+      "exact": -0.036666666666666625,
+      "first_tok": -0.036666666666666625,
+      "logp": -0.2148782754407741,
+      "logp_tok": -0.060415635081754626
+     },
+     "geo_country/geo": {
+      "exact": -0.036666666666666625,
+      "first_tok": -0.036666666666666625,
+      "logp": -0.2148782754407741,
+      "logp_tok": -0.060415635081754626
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.3927411826844036,
+      "logp_tok": -0.13091372756146802
+     },
+     "exposure_10-30": {
+      "exact": 0.0010131712259371824,
+      "first_tok": -0.0020263424518743717,
+      "logp": 0.025903609295493624,
+      "logp_tok": 0.009144085255597734
+     },
+     "exposure_30-100": {
+      "exact": -0.007537688442211032,
+      "first_tok": -0.007537688442211032,
+      "logp": -0.07055595605356402,
+      "logp_tok": -0.02496112934161676
+     },
+     "exposure_100-300": {
+      "exact": -0.010629067245119306,
+      "first_tok": -0.007158351409978336,
+      "logp": -0.06040827627507195,
+      "logp_tok": -0.0214431472725094
+     }
+    },
+    "ranking": {
+     "cloze_city/late": {
+      "n_cands": 0.0,
+      "top1": 0.0,
+      "top5": 0.0,
+      "mean_rank": 1.2049999999999983,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_early_retention/early": {
+      "n_cands": 0.0,
+      "top1": -0.0050000000000000044,
+      "top5": -0.0049999999999999906,
+      "mean_rank": 1.5699999999999932,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_friend/late": {
+      "n_cands": 0.0,
+      "top1": 0.0,
+      "top5": 0.0050000000000000044,
+      "mean_rank": -0.10000000000000009,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_job/late": {
+      "n_cands": 0.0,
+      "top1": 0.0050000000000000044,
+      "top5": 0.0050000000000000044,
+      "mean_rank": 0.4450000000000003,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_pet/late": {
+      "n_cands": 0.0,
+      "top1": 0.025000000000000022,
+      "top5": -0.020000000000000018,
+      "mean_rank": -0.07499999999999929,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_year/late": {
+      "n_cands": 0.0,
+      "top1": -0.015000000000000013,
+      "top5": -0.010000000000000009,
+      "mean_rank": 0.1949999999999994,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "geo_country/geo": {
+      "n_cands": 0.0,
+      "top1": -0.08999999999999997,
+      "top5": -0.019999999999999907,
+      "mean_rank": 0.45999999999999996,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "q_two_hop/late": {
+      "n_cands": 0.0,
+      "top1": -0.005000000000000001,
+      "top5": -0.0049999999999999906,
+      "mean_rank": 0.11499999999999844,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     }
+    },
+    "questions": {
+     "ALL/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.002576736877271557,
+      "logp_tok": -0.0009431686959269214
+     },
+     "ALL/late": {
+      "exact": 0.0,
+      "first_tok": 0.00014285714285714292,
+      "logp": 0.009653155513561273,
+      "logp_tok": 0.003194293684169125
+     },
+     "compare/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.04544865772207807,
+      "logp_tok": 0.011376384911659043,
+      "choice": 0.0
+     },
+     "compare/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.04544865772207807,
+      "logp_tok": 0.011376384911659043,
+      "choice": 0.0
+     },
+     "early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.01872945410432081,
+      "logp_tok": -0.00466487026259621
+     },
+     "early_friend/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.000959294776876618,
+      "logp_tok": -0.00024042475610919212
+     },
+     "early_job/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.0057059166301058895,
+      "logp_tok": 0.0024384259103014116
+     },
+     "early_pet/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.02009535319462863,
+      "logp_tok": 0.008680498140228643
+     },
+     "early_retention/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.002576736877271557,
+      "logp_tok": -0.0009431686959269214
+     },
+     "early_retention/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.002576736877271557,
+      "logp_tok": -0.0009431686959269214
+     },
+     "early_year/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.018996205329894877,
+      "logp_tok": -0.018996205329894877
+     },
+     "single_all/late": {
+      "exact": 0.0,
+      "first_tok": 0.0002000000000000001,
+      "logp": 0.007556598002565806,
+      "logp_tok": 0.002780000736724908
+     },
+     "single_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.021813032807642685,
+      "logp_tok": -0.005491700102629338
+     },
+     "single_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.021813032807642685,
+      "logp_tok": -0.005491700102629338
+     },
+     "single_friend/all": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": 0.05174211492565561,
+      "logp_tok": 0.01294199973127963
+     },
+     "single_friend/late": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": 0.05174211492565561,
+      "logp_tok": 0.01294199973127963
+     },
+     "single_job/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0024586402331472357,
+      "logp_tok": -0.0010869320217281597
+     },
+     "single_job/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0024586402331472357,
+      "logp_tok": -0.0010869320217281597
+     },
+     "single_pet/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.024589357343501206,
+      "logp_tok": 0.01042363600826679
+     },
+     "single_pet/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.024589357343501206,
+      "logp_tok": 0.01042363600826679
+     },
+     "single_year/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.014276809215544972,
+      "logp_tok": -0.014276809215544972
+     },
+     "single_year/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.014276809215544972,
+      "logp_tok": -0.014276809215544972
+     },
+     "two_hop/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.015659559139983514,
+      "logp_tok": -0.004388889893492731
+     },
+     "two_hop/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.015659559139983514,
+      "logp_tok": -0.004388889893492731
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.5566232800483704,
+      "logp_tok": -0.1855410933494568
+     },
+     "exposure_10-30": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0005579546303131622,
+      "logp_tok": -0.00020426603120160536
+     },
+     "exposure_30-100": {
+      "exact": 0.0,
+      "first_tok": -0.002512562814070352,
+      "logp": 0.0084080243167719,
+      "logp_tok": 0.0031042612969161
+     },
+     "exposure_100-300": {
+      "exact": 0.0,
+      "first_tok": 0.00043383947939262476,
+      "logp": 0.007634203270681539,
+      "logp_tok": 0.0028078567957425804
+     }
+    },
+    "val_world": -0.014820754528045654,
+    "val_wiki": 0.0008396804332733154
+   }
+  },
+  "ko_level3": {
+   "cloze": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.017,
+     "first_tok": 0.118,
+     "logp": -9.668849028674929,
+     "logp_tok": -3.414141606170526
+    },
+    "ALL/geo": {
+     "n": 300,
+     "exact": 0.56,
+     "first_tok": 0.5733333333333334,
+     "logp": -2.000141787531351,
+     "logp_tok": -0.5623641389497707
+    },
+    "ALL/late": {
+     "n": 5000,
+     "exact": 0.2642,
+     "first_tok": 0.3218,
+     "logp": -5.903979287235708,
+     "logp_tok": -2.094946876458629
+    },
+    "cloze_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -13.91823659345099,
+     "logp_tok": -3.5040877627016593
+    },
+    "cloze_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -13.91823659345099,
+     "logp_tok": -3.5040877627016593
+    },
+    "cloze_early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.610306959272428,
+     "logp_tok": -3.638930749507454
+    },
+    "cloze_early_friend/early": {
+     "n": 200,
+     "exact": 0.005,
+     "first_tok": 0.055,
+     "logp": -12.404080477493098,
+     "logp_tok": -3.1087920996223306
+    },
+    "cloze_early_job/early": {
+     "n": 200,
+     "exact": 0.01,
+     "first_tok": 0.455,
+     "logp": -8.935255357185454,
+     "logp_tok": -3.146216675065301
+    },
+    "cloze_early_pet/early": {
+     "n": 200,
+     "exact": 0.055,
+     "first_tok": 0.065,
+     "logp": -6.517403022968067,
+     "logp_tok": -2.8152928824916055
+    },
+    "cloze_early_retention/all": {
+     "n": 1000,
+     "exact": 0.017,
+     "first_tok": 0.118,
+     "logp": -9.668849028674929,
+     "logp_tok": -3.414141606170526
+    },
+    "cloze_early_retention/early": {
+     "n": 1000,
+     "exact": 0.017,
+     "first_tok": 0.118,
+     "logp": -9.668849028674929,
+     "logp_tok": -3.414141606170526
+    },
+    "cloze_early_year/early": {
+     "n": 200,
+     "exact": 0.015,
+     "first_tok": 0.015,
+     "logp": -5.877199326455593,
+     "logp_tok": -5.877199326455593
+    },
+    "cloze_friend/all": {
+     "n": 1000,
+     "exact": 0.253,
+     "first_tok": 0.343,
+     "logp": -4.4488328880162715,
+     "logp_tok": -1.112764604306221
+    },
+    "cloze_friend/late": {
+     "n": 1000,
+     "exact": 0.253,
+     "first_tok": 0.343,
+     "logp": -4.4488328880162715,
+     "logp_tok": -1.112764604306221
+    },
+    "cloze_job/all": {
+     "n": 1000,
+     "exact": 0.26,
+     "first_tok": 0.445,
+     "logp": -5.918824775121477,
+     "logp_tok": -2.142948868617479
+    },
+    "cloze_job/late": {
+     "n": 1000,
+     "exact": 0.26,
+     "first_tok": 0.445,
+     "logp": -5.918824775121477,
+     "logp_tok": -2.142948868617479
+    },
+    "cloze_pet/all": {
+     "n": 1000,
+     "exact": 0.289,
+     "first_tok": 0.3,
+     "logp": -3.2295105393819785,
+     "logp_tok": -1.369016761077566
+    },
+    "cloze_pet/late": {
+     "n": 1000,
+     "exact": 0.289,
+     "first_tok": 0.3,
+     "logp": -3.2295105393819785,
+     "logp_tok": -1.369016761077566
+    },
+    "cloze_single_all/late": {
+     "n": 5000,
+     "exact": 0.2642,
+     "first_tok": 0.3218,
+     "logp": -5.903979287235708,
+     "logp_tok": -2.094946876458629
+    },
+    "cloze_year/all": {
+     "n": 1000,
+     "exact": 0.519,
+     "first_tok": 0.519,
+     "logp": -2.0044916402078234,
+     "logp_tok": -2.0044916402078234
+    },
+    "cloze_year/late": {
+     "n": 1000,
+     "exact": 0.519,
+     "first_tok": 0.519,
+     "logp": -2.0044916402078234,
+     "logp_tok": -2.0044916402078234
+    },
+    "geo_country/all": {
+     "n": 300,
+     "exact": 0.56,
+     "first_tok": 0.5733333333333334,
+     "logp": -2.000141787531351,
+     "logp_tok": -0.5623641389497707
+    },
+    "geo_country/geo": {
+     "n": 300,
+     "exact": 0.56,
+     "first_tok": 0.5733333333333334,
+     "logp": -2.000141787531351,
+     "logp_tok": -0.5623641389497707
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.395782547988347,
+     "logp_tok": -3.1319275159961157
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.017223910840932118,
+     "first_tok": 0.11955420466058764,
+     "logp": -9.680593208918086,
+     "logp_tok": -3.4172909503584235
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.24623115577889448,
+     "first_tok": 0.30904522613065327,
+     "logp": -5.934720082780771,
+     "logp_tok": -2.0995720826193307
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.26529284164859,
+     "first_tok": 0.3223427331887202,
+     "logp": -5.90564044728083,
+     "logp_tok": -2.096327285898562
+    }
+   },
+   "ranking": {
+    "cloze_city/late": {
+     "n": 200,
+     "n_cands": 300.0,
+     "top1": 0.015,
+     "top5": 0.045,
+     "mean_rank": 126.22,
+     "chance_top1": 0.0033333333333333335,
+     "chance_top5": 0.016666666666666666,
+     "chance_rank": 150.5
+    },
+    "cloze_early_retention/early": {
+     "n": 200,
+     "n_cands": 145.4,
+     "top1": 0.03,
+     "top5": 0.08,
+     "mean_rank": 70.025,
+     "chance_top1": 0.010972446081817484,
+     "chance_top5": 0.05486223040908742,
+     "chance_rank": 73.2
+    },
+    "cloze_friend/late": {
+     "n": 200,
+     "n_cands": 101.0,
+     "top1": 0.68,
+     "top5": 0.92,
+     "mean_rank": 3.16,
+     "chance_top1": 0.0099009900990099,
+     "chance_top5": 0.04950495049504951,
+     "chance_rank": 51.0
+    },
+    "cloze_job/late": {
+     "n": 200,
+     "n_cands": 200.0,
+     "top1": 0.285,
+     "top5": 0.435,
+     "mean_rank": 39.185,
+     "chance_top1": 0.004999999999999999,
+     "chance_top5": 0.025,
+     "chance_rank": 100.5
+    },
+    "cloze_pet/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.3,
+     "top5": 0.61,
+     "mean_rank": 7.31,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "cloze_year/late": {
+     "n": 200,
+     "n_cands": 86.0,
+     "top1": 0.535,
+     "top5": 0.765,
+     "mean_rank": 6.835,
+     "chance_top1": 0.011627906976744184,
+     "chance_top5": 0.05813953488372093,
+     "chance_rank": 43.5
+    },
+    "geo_country/geo": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.545,
+     "top5": 0.81,
+     "mean_rank": 3.995,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "q_two_hop/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.015,
+     "top5": 0.09,
+     "mean_rank": 20.27,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    }
+   },
+   "questions": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.01996867805797,
+     "logp_tok": -5.8638245527298585
+    },
+    "ALL/late": {
+     "n": 7000,
+     "exact": 0.0,
+     "first_tok": 0.0014285714285714286,
+     "logp": -15.02163842226303,
+     "logp_tok": -4.970760563290215
+    },
+    "compare/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.738236978236651,
+     "logp_tok": -1.9369804701468465,
+     "choice": 0.489
+    },
+    "compare/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.738236978236651,
+     "logp_tok": -1.9369804701468465,
+     "choice": 0.489
+    },
+    "early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -19.83242618640419,
+     "logp_tok": -4.939583109938777
+    },
+    "early_friend/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -18.59531872584612,
+     "logp_tok": -4.660480883670706
+    },
+    "early_job/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.424549058103004,
+     "logp_tok": -7.019038059018377
+    },
+    "early_pet/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.831313353118311,
+     "logp_tok": -6.406614839359962
+    },
+    "early_retention/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.01996867805797,
+     "logp_tok": -5.8638245527298585
+    },
+    "early_retention/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.01996867805797,
+     "logp_tok": -5.8638245527298585
+    },
+    "early_year/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.416236066818238,
+     "logp_tok": -10.416236066818238
+    },
+    "single_all/late": {
+     "n": 5000,
+     "exact": 0.0,
+     "first_tok": 0.0014,
+     "logp": -15.46667444783789,
+     "logp_tok": -5.690042840055144
+    },
+    "single_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -19.59921600768002,
+     "logp_tok": -4.934344412809673
+    },
+    "single_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -19.59921600768002,
+     "logp_tok": -4.934344412809673
+    },
+    "single_friend/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -16.485241893882485,
+     "logp_tok": -4.123372159550397
+    },
+    "single_friend/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -16.485241893882485,
+     "logp_tok": -4.123372159550397
+    },
+    "single_job/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.10235478161671,
+     "logp_tok": -7.118636066143551
+    },
+    "single_job/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.10235478161671,
+     "logp_tok": -7.118636066143551
+    },
+    "single_pet/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.824010944369308,
+     "logp_tok": -6.284023291381648
+    },
+    "single_pet/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.824010944369308,
+     "logp_tok": -6.284023291381648
+    },
+    "single_year/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.32254861164093,
+     "logp_tok": -10.32254861164093
+    },
+    "single_year/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.32254861164093,
+     "logp_tok": -10.32254861164093
+    },
+    "two_hop/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.079859738415106,
+     "logp_tok": -5.627763379600647
+    },
+    "two_hop/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.079859738415106,
+     "logp_tok": -5.627763379600647
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.898687633872033,
+     "logp_tok": -4.966229211290678
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0,
+     "first_tok": 0.0010131712259371835,
+     "logp": -16.031316089772076,
+     "logp_tok": -5.869031520995935
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.0,
+     "first_tok": 0.005025125628140704,
+     "logp": -15.556635487418834,
+     "logp_tok": -5.743544456393966
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.0,
+     "first_tok": 0.0010845986984815619,
+     "logp": -15.458654571470788,
+     "logp_tok": -5.685686738030983
+    }
+   },
+   "val_world": 3.173273026943207,
+   "val_wiki": 4.0009830594062805,
+   "time_s": 192.23948764801025,
+   "time_cloze_s": 9.48483395576477,
+   "time_rank_s": 162.24811792373657,
+   "delta": {
+    "cloze": {
+     "ALL/early": {
+      "exact": 0.0010000000000000009,
+      "first_tok": -0.0020000000000000018,
+      "logp": 0.016948354440076585,
+      "logp_tok": 0.00598458843222982
+     },
+     "ALL/geo": {
+      "exact": -0.036666666666666625,
+      "first_tok": -0.036666666666666625,
+      "logp": -0.19297081741401478,
+      "logp_tok": -0.05425608737038845
+     },
+     "ALL/late": {
+      "exact": -0.015600000000000003,
+      "first_tok": -0.014000000000000012,
+      "logp": -0.14965889359961704,
+      "logp_tok": -0.05310442608743804
+     },
+     "cloze_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.22826126869023078,
+      "logp_tok": -0.05746759030469084
+     },
+     "cloze_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.22826126869023078,
+      "logp_tok": -0.05746759030469084
+     },
+     "cloze_early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.14762615074818441,
+      "logp_tok": -0.03676865522993378
+     },
+     "cloze_early_friend/early": {
+      "exact": 0.0,
+      "first_tok": -0.015000000000000006,
+      "logp": 0.19031998751047752,
+      "logp_tok": 0.04769924499009415
+     },
+     "cloze_early_job/early": {
+      "exact": 0.005,
+      "first_tok": 0.0,
+      "logp": -0.015749659352470857,
+      "logp_tok": -0.0055456547015739766
+     },
+     "cloze_early_pet/early": {
+      "exact": 0.0049999999999999975,
+      "first_tok": 0.010000000000000002,
+      "logp": -0.025951779211666803,
+      "logp_tok": -0.011210271797695626
+     },
+     "cloze_early_retention/all": {
+      "exact": 0.0010000000000000009,
+      "first_tok": -0.0020000000000000018,
+      "logp": 0.016948354440076585,
+      "logp_tok": 0.00598458843222982
+     },
+     "cloze_early_retention/early": {
+      "exact": 0.0010000000000000009,
+      "first_tok": -0.0020000000000000018,
+      "logp": 0.016948354440076585,
+      "logp_tok": 0.00598458843222982
+     },
+     "cloze_early_year/early": {
+      "exact": -0.005000000000000001,
+      "first_tok": -0.005000000000000001,
+      "logp": 0.08374937400221771,
+      "logp_tok": 0.08374937400221771
+     },
+     "cloze_friend/all": {
+      "exact": -0.02999999999999997,
+      "first_tok": -0.030999999999999972,
+      "logp": -0.3061089116732294,
+      "logp_tok": -0.07656551067364403
+     },
+     "cloze_friend/late": {
+      "exact": -0.02999999999999997,
+      "first_tok": -0.030999999999999972,
+      "logp": -0.3061089116732294,
+      "logp_tok": -0.07656551067364403
+     },
+     "cloze_job/all": {
+      "exact": -0.009000000000000008,
+      "first_tok": 0.0010000000000000009,
+      "logp": -0.010370698214854812,
+      "logp_tok": -0.0037547784992231215
+     },
+     "cloze_job/late": {
+      "exact": -0.009000000000000008,
+      "first_tok": 0.0010000000000000009,
+      "logp": -0.010370698214854812,
+      "logp_tok": -0.0037547784992231215
+     },
+     "cloze_pet/all": {
+      "exact": -0.019000000000000017,
+      "first_tok": -0.020000000000000018,
+      "logp": -0.13720821474535194,
+      "logp_tok": -0.058163719688576476
+     },
+     "cloze_pet/late": {
+      "exact": -0.019000000000000017,
+      "first_tok": -0.020000000000000018,
+      "logp": -0.13720821474535194,
+      "logp_tok": -0.058163719688576476
+     },
+     "cloze_single_all/late": {
+      "exact": -0.015600000000000003,
+      "first_tok": -0.014000000000000012,
+      "logp": -0.14965889359961704,
+      "logp_tok": -0.05310442608743804
+     },
+     "cloze_year/all": {
+      "exact": -0.020000000000000018,
+      "first_tok": -0.020000000000000018,
+      "logp": -0.06634537467442003,
+      "logp_tok": -0.06634537467442003
+     },
+     "cloze_year/late": {
+      "exact": -0.020000000000000018,
+      "first_tok": -0.020000000000000018,
+      "logp": -0.06634537467442003,
+      "logp_tok": -0.06634537467442003
+     },
+     "geo_country/all": {
+      "exact": -0.036666666666666625,
+      "first_tok": -0.036666666666666625,
+      "logp": -0.19297081741401478,
+      "logp_tok": -0.05425608737038845
+     },
+     "geo_country/geo": {
+      "exact": -0.036666666666666625,
+      "first_tok": -0.036666666666666625,
+      "logp": -0.19297081741401478,
+      "logp_tok": -0.05425608737038845
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.12413923276108108,
+      "logp_tok": 0.041379744253693396
+     },
+     "exposure_10-30": {
+      "exact": 0.0010131712259371824,
+      "first_tok": -0.0020263424518743717,
+      "logp": 0.01859597716132022,
+      "logp_tok": 0.006564459749006435
+     },
+     "exposure_30-100": {
+      "exact": -0.007537688442211032,
+      "first_tok": 0.0025125628140703626,
+      "logp": -0.1526446132351671,
+      "logp_tok": -0.05400227206008612
+     },
+     "exposure_100-300": {
+      "exact": -0.016268980477223416,
+      "first_tok": -0.01540130151843816,
+      "logp": -0.14958101585953187,
+      "logp_tok": -0.053096826296484156
+     }
+    },
+    "ranking": {
+     "cloze_city/late": {
+      "n_cands": 0.0,
+      "top1": 0.0,
+      "top5": -0.02500000000000001,
+      "mean_rank": 2.5150000000000006,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_early_retention/early": {
+      "n_cands": 0.0,
+      "top1": -0.0050000000000000044,
+      "top5": -0.024999999999999994,
+      "mean_rank": 0.7199999999999989,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_friend/late": {
+      "n_cands": 0.0,
+      "top1": -0.03499999999999992,
+      "top5": 0.0050000000000000044,
+      "mean_rank": -0.09499999999999975,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_job/late": {
+      "n_cands": 0.0,
+      "top1": 0.009999999999999953,
+      "top5": 0.020000000000000018,
+      "mean_rank": 0.33500000000000085,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_pet/late": {
+      "n_cands": 0.0,
+      "top1": 0.015000000000000013,
+      "top5": -0.040000000000000036,
+      "mean_rank": 0.41999999999999993,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_year/late": {
+      "n_cands": 0.0,
+      "top1": 0.015000000000000013,
+      "top5": 0.0,
+      "mean_rank": 0.22499999999999964,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "geo_country/geo": {
+      "n_cands": 0.0,
+      "top1": -0.04499999999999993,
+      "top5": -0.009999999999999898,
+      "mean_rank": 0.20999999999999996,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "q_two_hop/late": {
+      "n_cands": 0.0,
+      "top1": -0.005000000000000001,
+      "top5": 0.0,
+      "mean_rank": 0.2699999999999996,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     }
+    },
+    "questions": {
+     "ALL/early": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.03490319910565276,
+      "logp_tok": -0.01277569513384158
+     },
+     "ALL/late": {
+      "exact": 0.0,
+      "first_tok": 0.00014285714285714292,
+      "logp": -0.05166153903532944,
+      "logp_tok": -0.01709514858879224
+     },
+     "compare/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.1044822187690313,
+      "logp_tok": -0.02615324625007065,
+      "choice": 0.0010000000000000009
+     },
+     "compare/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.1044822187690313,
+      "logp_tok": -0.02615324625007065,
+      "choice": 0.0010000000000000009
+     },
+     "early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.005,
+      "logp": 0.0029350731568413835,
+      "logp_tok": 0.0007310269381921586
+     },
+     "early_friend/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.07364308632073602,
+      "logp_tok": -0.018456913864845603
+     },
+     "early_job/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.00036501327995352995,
+      "logp_tok": -0.0001559885811754924
+     },
+     "early_pet/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.06585205054347121,
+      "logp_tok": -0.02844581016996628
+     },
+     "early_retention/all": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.03490319910565276,
+      "logp_tok": -0.01277569513384158
+     },
+     "early_retention/early": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.03490319910565276,
+      "logp_tok": -0.01277569513384158
+     },
+     "early_year/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.03759091854095509,
+      "logp_tok": -0.03759091854095509
+     },
+     "single_all/late": {
+      "exact": 0.0,
+      "first_tok": 0.0002000000000000001,
+      "logp": -0.06451515367971439,
+      "logp_tok": -0.023734513163018
+     },
+     "single_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.01710085504746317,
+      "logp_tok": -0.00430535122040876
+     },
+     "single_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.01710085504746317,
+      "logp_tok": -0.00430535122040876
+     },
+     "single_friend/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.18377125269877226,
+      "logp_tok": -0.045965796072729326
+     },
+     "single_friend/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.18377125269877226,
+      "logp_tok": -0.045965796072729326
+     },
+     "single_job/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.008819802996470116,
+      "logp_tok": 0.0038991171514011214
+     },
+     "single_job/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.008819802996470116,
+      "logp_tok": 0.0038991171514011214
+     },
+     "single_pet/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.08905914012814264,
+      "logp_tok": -0.0377529207834435
+     },
+     "single_pet/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.08905914012814264,
+      "logp_tok": -0.0377529207834435
+     },
+     "single_year/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.04146432352065865,
+      "logp_tok": -0.04146432352065865
+     },
+     "single_year/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.04146432352065865,
+      "logp_tok": -0.04146432352065865
+     },
+     "two_hop/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.06542721392028028,
+      "logp_tok": 0.018337223632365784
+     },
+     "two_hop/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.06542721392028028,
+      "logp_tok": 0.018337223632365784
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.2503730490803733,
+      "logp_tok": -0.0834576830267908
+     },
+     "exposure_10-30": {
+      "exact": 0.0,
+      "first_tok": 0.0010131712259371835,
+      "logp": -0.03241244885374073,
+      "logp_tok": -0.011866130199793545
+     },
+     "exposure_30-100": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.03499549811111713,
+      "logp_tok": -0.012920415814678954
+     },
+     "exposure_100-300": {
+      "exact": 0.0,
+      "first_tok": 0.00021691973969631244,
+      "logp": -0.06731188871842875,
+      "logp_tok": -0.02475728474485095
+     }
+    },
+    "val_world": -0.01767459511756897,
+    "val_wiki": -0.0005093514919281006
+   }
+  },
+  "ko_level4": {
+   "cloze": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.012,
+     "first_tok": 0.115,
+     "logp": -9.641443420718115,
+     "logp_tok": -3.4044644847168484
+    },
+    "ALL/geo": {
+     "n": 300,
+     "exact": 0.54,
+     "first_tok": 0.5566666666666666,
+     "logp": -2.103001183306411,
+     "logp_tok": -0.5912843064591595
+    },
+    "ALL/late": {
+     "n": 5000,
+     "exact": 0.2544,
+     "first_tok": 0.3126,
+     "logp": -5.932082810103249,
+     "logp_tok": -2.104919029913863
+    },
+    "cloze_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -13.824876482465694,
+     "logp_tok": -3.4805832030376873
+    },
+    "cloze_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -13.824876482465694,
+     "logp_tok": -3.4805832030376873
+    },
+    "cloze_early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.556018572042857,
+     "logp_tok": -3.62540935791852
+    },
+    "cloze_early_friend/early": {
+     "n": 200,
+     "exact": 0.005,
+     "first_tok": 0.065,
+     "logp": -12.354037963853282,
+     "logp_tok": -3.0962501162539553
+    },
+    "cloze_early_job/early": {
+     "n": 200,
+     "exact": 0.01,
+     "first_tok": 0.455,
+     "logp": -8.928922206889899,
+     "logp_tok": -3.1439866925668656
+    },
+    "cloze_early_pet/early": {
+     "n": 200,
+     "exact": 0.03,
+     "first_tok": 0.04,
+     "logp": -6.514329190474963,
+     "logp_tok": -2.8139650930777376
+    },
+    "cloze_early_retention/all": {
+     "n": 1000,
+     "exact": 0.012,
+     "first_tok": 0.115,
+     "logp": -9.641443420718115,
+     "logp_tok": -3.4044644847168484
+    },
+    "cloze_early_retention/early": {
+     "n": 1000,
+     "exact": 0.012,
+     "first_tok": 0.115,
+     "logp": -9.641443420718115,
+     "logp_tok": -3.4044644847168484
+    },
+    "cloze_early_year/early": {
+     "n": 200,
+     "exact": 0.015,
+     "first_tok": 0.015,
+     "logp": -5.853909170329571,
+     "logp_tok": -5.853909170329571
+    },
+    "cloze_friend/all": {
+     "n": 1000,
+     "exact": 0.211,
+     "first_tok": 0.304,
+     "logp": -4.687523420423864,
+     "logp_tok": -1.1724670886502913
+    },
+    "cloze_friend/late": {
+     "n": 1000,
+     "exact": 0.211,
+     "first_tok": 0.304,
+     "logp": -4.687523420423864,
+     "logp_tok": -1.1724670886502913
+    },
+    "cloze_job/all": {
+     "n": 1000,
+     "exact": 0.262,
+     "first_tok": 0.445,
+     "logp": -5.893853514049645,
+     "logp_tok": -2.1339078617123985
+    },
+    "cloze_job/late": {
+     "n": 1000,
+     "exact": 0.262,
+     "first_tok": 0.445,
+     "logp": -5.893853514049645,
+     "logp_tok": -2.1339078617123985
+    },
+    "cloze_pet/all": {
+     "n": 1000,
+     "exact": 0.284,
+     "first_tok": 0.294,
+     "logp": -3.2324741897822875,
+     "logp_tok": -1.3702730774829535
+    },
+    "cloze_pet/late": {
+     "n": 1000,
+     "exact": 0.284,
+     "first_tok": 0.294,
+     "logp": -3.2324741897822875,
+     "logp_tok": -1.3702730774829535
+    },
+    "cloze_single_all/late": {
+     "n": 5000,
+     "exact": 0.2544,
+     "first_tok": 0.3126,
+     "logp": -5.932082810103249,
+     "logp_tok": -2.104919029913863
+    },
+    "cloze_year/all": {
+     "n": 1000,
+     "exact": 0.515,
+     "first_tok": 0.515,
+     "logp": -2.0216864437947515,
+     "logp_tok": -2.0216864437947515
+    },
+    "cloze_year/late": {
+     "n": 1000,
+     "exact": 0.515,
+     "first_tok": 0.515,
+     "logp": -2.0216864437947515,
+     "logp_tok": -2.0216864437947515
+    },
+    "geo_country/all": {
+     "n": 300,
+     "exact": 0.54,
+     "first_tok": 0.5566666666666666,
+     "logp": -2.103001183306411,
+     "logp_tok": -0.5912843064591595
+    },
+    "geo_country/geo": {
+     "n": 300,
+     "exact": 0.54,
+     "first_tok": 0.5566666666666666,
+     "logp": -2.103001183306411,
+     "logp_tok": -0.5912843064591595
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.715563958979327,
+     "logp_tok": -3.238521319659776
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0121580547112462,
+     "first_tok": 0.11651469098277609,
+     "logp": -9.652437108786842,
+     "logp_tok": -3.4073517261704627
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.23618090452261306,
+     "first_tok": 0.2989949748743719,
+     "logp": -5.944563742448891,
+     "logp_tok": -2.103054550661919
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.25553145336225597,
+     "first_tok": 0.31323210412147506,
+     "logp": -5.935008211620865,
+     "logp_tok": -2.10675197163103
+    }
+   },
+   "ranking": {
+    "cloze_city/late": {
+     "n": 200,
+     "n_cands": 300.0,
+     "top1": 0.02,
+     "top5": 0.06,
+     "mean_rank": 126.8,
+     "chance_top1": 0.0033333333333333335,
+     "chance_top5": 0.016666666666666666,
+     "chance_rank": 150.5
+    },
+    "cloze_early_retention/early": {
+     "n": 200,
+     "n_cands": 145.4,
+     "top1": 0.02,
+     "top5": 0.09,
+     "mean_rank": 70.22,
+     "chance_top1": 0.010972446081817484,
+     "chance_top5": 0.05486223040908742,
+     "chance_rank": 73.2
+    },
+    "cloze_friend/late": {
+     "n": 200,
+     "n_cands": 101.0,
+     "top1": 0.66,
+     "top5": 0.91,
+     "mean_rank": 3.57,
+     "chance_top1": 0.0099009900990099,
+     "chance_top5": 0.04950495049504951,
+     "chance_rank": 51.0
+    },
+    "cloze_job/late": {
+     "n": 200,
+     "n_cands": 200.0,
+     "top1": 0.295,
+     "top5": 0.43,
+     "mean_rank": 39.145,
+     "chance_top1": 0.004999999999999999,
+     "chance_top5": 0.025,
+     "chance_rank": 100.5
+    },
+    "cloze_pet/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.295,
+     "top5": 0.62,
+     "mean_rank": 7.155,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "cloze_year/late": {
+     "n": 200,
+     "n_cands": 86.0,
+     "top1": 0.505,
+     "top5": 0.765,
+     "mean_rank": 6.955,
+     "chance_top1": 0.011627906976744184,
+     "chance_top5": 0.05813953488372093,
+     "chance_rank": 43.5
+    },
+    "geo_country/geo": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.525,
+     "top5": 0.79,
+     "mean_rank": 4.305,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "q_two_hop/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.005,
+     "top5": 0.085,
+     "mean_rank": 20.315,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    }
+   },
+   "questions": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.04075748902632,
+     "logp_tok": -5.871433927169224
+    },
+    "ALL/late": {
+     "n": 7000,
+     "exact": 0.0,
+     "first_tok": 0.0012857142857142856,
+     "logp": -15.015196136215804,
+     "logp_tok": -4.968628767774918
+    },
+    "compare/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.6422155007368,
+     "logp_tok": -1.9129450565048312,
+     "choice": 0.495
+    },
+    "compare/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -7.6422155007368,
+     "logp_tok": -1.9129450565048312,
+     "choice": 0.495
+    },
+    "early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -20.068953050288837,
+     "logp_tok": -4.998493910408179
+    },
+    "early_friend/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -18.654580139987083,
+     "logp_tok": -4.6753333684178155
+    },
+    "early_job/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.357488882844336,
+     "logp_tok": -6.990379864463391
+    },
+    "early_pet/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.686101534578484,
+     "logp_tok": -6.343888351869755
+    },
+    "early_retention/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.04075748902632,
+     "logp_tok": -5.871433927169224
+    },
+    "early_retention/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.04075748902632,
+     "logp_tok": -5.871433927169224
+    },
+    "early_year/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.436663837432862,
+     "logp_tok": -10.436663837432862
+    },
+    "single_all/late": {
+     "n": 5000,
+     "exact": 0.0,
+     "first_tok": 0.0012,
+     "logp": -15.453947204188735,
+     "logp_tok": -5.685360607824566
+    },
+    "single_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -19.736379870429868,
+     "logp_tok": -4.9688771073589795
+    },
+    "single_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -19.736379870429868,
+     "logp_tok": -4.9688771073589795
+    },
+    "single_friend/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -16.458333412854866,
+     "logp_tok": -4.116641674050742
+    },
+    "single_friend/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -16.458333412854866,
+     "logp_tok": -4.116641674050742
+    },
+    "single_job/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.086060802828985,
+     "logp_tok": -7.111432715662682
+    },
+    "single_job/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -16.086060802828985,
+     "logp_tok": -7.111432715662682
+    },
+    "single_pet/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.629398340488667,
+     "logp_tok": -6.201525366887947
+    },
+    "single_pet/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.629398340488667,
+     "logp_tok": -6.201525366887947
+    },
+    "single_year/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.359563594341278,
+     "logp_tok": -10.359563594341278
+    },
+    "single_year/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -10.359563594341278,
+     "logp_tok": -10.359563594341278
+    },
+    "two_hop/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.194421431830154,
+     "logp_tok": -5.6598714775308725
+    },
+    "two_hop/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.194421431830154,
+     "logp_tok": -5.6598714775308725
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -14.875820142775774,
+     "logp_tok": -4.9586067142585915
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0,
+     "first_tok": 0.0010131712259371835,
+     "logp": -16.054824073800635,
+     "logp_tok": -5.8776377451191495
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.0,
+     "first_tok": 0.005025125628140704,
+     "logp": -15.57797409564542,
+     "logp_tok": -5.751422718058327
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.0,
+     "first_tok": 0.0008676789587852494,
+     "logp": -15.442509622201301,
+     "logp_tok": -5.679748632387745
+    }
+   },
+   "val_world": 3.164057433605194,
+   "val_wiki": 4.003203362226486,
+   "time_s": 191.6807415485382,
+   "time_cloze_s": 9.372615814208984,
+   "time_rank_s": 161.71788620948792,
+   "delta": {
+    "cloze": {
+     "ALL/early": {
+      "exact": -0.004,
+      "first_tok": -0.0049999999999999906,
+      "logp": 0.04435396239689027,
+      "logp_tok": 0.015661709885907538
+     },
+     "ALL/geo": {
+      "exact": -0.05666666666666664,
+      "first_tok": -0.053333333333333344,
+      "logp": -0.29583021318907465,
+      "logp_tok": -0.08317625487977731
+     },
+     "ALL/late": {
+      "exact": -0.025399999999999978,
+      "first_tok": -0.0232,
+      "logp": -0.17776241646715807,
+      "logp_tok": -0.0630765795426722
+     },
+     "cloze_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.003,
+      "logp": -0.1349011577049346,
+      "logp_tok": -0.033963030640718816
+     },
+     "cloze_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.003,
+      "logp": -0.1349011577049346,
+      "logp_tok": -0.033963030640718816
+     },
+     "cloze_early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.09333776351861367,
+      "logp_tok": -0.023247263640999716
+     },
+     "cloze_early_friend/early": {
+      "exact": 0.0,
+      "first_tok": -0.0050000000000000044,
+      "logp": 0.2403625011502939,
+      "logp_tok": 0.060241228358469456
+     },
+     "cloze_early_job/early": {
+      "exact": 0.005,
+      "first_tok": 0.0,
+      "logp": -0.0094165090569156,
+      "logp_tok": -0.0033156722031386643
+     },
+     "cloze_early_pet/early": {
+      "exact": -0.020000000000000004,
+      "first_tok": -0.015,
+      "logp": -0.02287794671856247,
+      "logp_tok": -0.009882482383827718
+     },
+     "cloze_early_retention/all": {
+      "exact": -0.004,
+      "first_tok": -0.0049999999999999906,
+      "logp": 0.04435396239689027,
+      "logp_tok": 0.015661709885907538
+     },
+     "cloze_early_retention/early": {
+      "exact": -0.004,
+      "first_tok": -0.0049999999999999906,
+      "logp": 0.04435396239689027,
+      "logp_tok": 0.015661709885907538
+     },
+     "cloze_early_year/early": {
+      "exact": -0.005000000000000001,
+      "first_tok": -0.005000000000000001,
+      "logp": 0.1070395301282403,
+      "logp_tok": 0.1070395301282403
+     },
+     "cloze_friend/all": {
+      "exact": -0.07199999999999998,
+      "first_tok": -0.07,
+      "logp": -0.5447994440808221,
+      "logp_tok": -0.13626799501771436
+     },
+     "cloze_friend/late": {
+      "exact": -0.07199999999999998,
+      "first_tok": -0.07,
+      "logp": -0.5447994440808221,
+      "logp_tok": -0.13626799501771436
+     },
+     "cloze_job/all": {
+      "exact": -0.007000000000000006,
+      "first_tok": 0.0010000000000000009,
+      "logp": 0.014600562856977639,
+      "logp_tok": 0.005286228405857241
+     },
+     "cloze_job/late": {
+      "exact": -0.007000000000000006,
+      "first_tok": 0.0010000000000000009,
+      "logp": 0.014600562856977639,
+      "logp_tok": 0.005286228405857241
+     },
+     "cloze_pet/all": {
+      "exact": -0.02400000000000002,
+      "first_tok": -0.026000000000000023,
+      "logp": -0.14017186514566093,
+      "logp_tok": -0.059420036093963846
+     },
+     "cloze_pet/late": {
+      "exact": -0.02400000000000002,
+      "first_tok": -0.026000000000000023,
+      "logp": -0.14017186514566093,
+      "logp_tok": -0.059420036093963846
+     },
+     "cloze_single_all/late": {
+      "exact": -0.025399999999999978,
+      "first_tok": -0.0232,
+      "logp": -0.17776241646715807,
+      "logp_tok": -0.0630765795426722
+     },
+     "cloze_year/all": {
+      "exact": -0.02400000000000002,
+      "first_tok": -0.02400000000000002,
+      "logp": -0.08354017826134807,
+      "logp_tok": -0.08354017826134807
+     },
+     "cloze_year/late": {
+      "exact": -0.02400000000000002,
+      "first_tok": -0.02400000000000002,
+      "logp": -0.08354017826134807,
+      "logp_tok": -0.08354017826134807
+     },
+     "geo_country/all": {
+      "exact": -0.05666666666666664,
+      "first_tok": -0.053333333333333344,
+      "logp": -0.29583021318907465,
+      "logp_tok": -0.08317625487977731
+     },
+     "geo_country/geo": {
+      "exact": -0.05666666666666664,
+      "first_tok": -0.053333333333333344,
+      "logp": -0.29583021318907465,
+      "logp_tok": -0.08317625487977731
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.1956421782298996,
+      "logp_tok": -0.06521405940996683
+     },
+     "exposure_10-30": {
+      "exact": -0.004052684903748735,
+      "first_tok": -0.005065856129685922,
+      "logp": 0.04675207729256492,
+      "logp_tok": 0.016503683936967217
+     },
+     "exposure_30-100": {
+      "exact": -0.017587939698492455,
+      "first_tok": -0.007537688442211032,
+      "logp": -0.16248827290328727,
+      "logp_tok": -0.05748474010267435
+     },
+     "exposure_100-300": {
+      "exact": -0.026030368763557465,
+      "first_tok": -0.024511930585683295,
+      "logp": -0.1789487801995664,
+      "logp_tok": -0.06352151202895184
+     }
+    },
+    "ranking": {
+     "cloze_city/late": {
+      "n_cands": 0.0,
+      "top1": 0.005000000000000001,
+      "top5": -0.010000000000000009,
+      "mean_rank": 3.094999999999999,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_early_retention/early": {
+      "n_cands": 0.0,
+      "top1": -0.015000000000000003,
+      "top5": -0.015,
+      "mean_rank": 0.914999999999992,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_friend/late": {
+      "n_cands": 0.0,
+      "top1": -0.05499999999999994,
+      "top5": -0.0050000000000000044,
+      "mean_rank": 0.31499999999999995,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_job/late": {
+      "n_cands": 0.0,
+      "top1": 0.019999999999999962,
+      "top5": 0.015000000000000013,
+      "mean_rank": 0.2950000000000017,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_pet/late": {
+      "n_cands": 0.0,
+      "top1": 0.010000000000000009,
+      "top5": -0.030000000000000027,
+      "mean_rank": 0.26500000000000057,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "cloze_year/late": {
+      "n_cands": 0.0,
+      "top1": -0.015000000000000013,
+      "top5": 0.0,
+      "mean_rank": 0.34499999999999975,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "geo_country/geo": {
+      "n_cands": 0.0,
+      "top1": -0.06499999999999995,
+      "top5": -0.029999999999999916,
+      "mean_rank": 0.5199999999999996,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     },
+     "q_two_hop/late": {
+      "n_cands": 0.0,
+      "top1": -0.015,
+      "top5": -0.0049999999999999906,
+      "mean_rank": 0.3150000000000013,
+      "chance_top1": 0.0,
+      "chance_top5": 0.0,
+      "chance_rank": 0.0
+     }
+    },
+    "questions": {
+     "ALL/early": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.05569201007400082,
+      "logp_tok": -0.02038506957320685
+     },
+     "ALL/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.045219252988104586,
+      "logp_tok": -0.014963353073495611
+     },
+     "compare/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.008460741269179728,
+      "logp_tok": -0.0021178326080553145,
+      "choice": 0.007000000000000006
+     },
+     "compare/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.008460741269179728,
+      "logp_tok": -0.0021178326080553145,
+      "choice": 0.007000000000000006
+     },
+     "early_city/early": {
+      "exact": 0.0,
+      "first_tok": 0.005,
+      "logp": -0.23359179072780378,
+      "logp_tok": -0.05817977353120973
+     },
+     "early_friend/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.13290450046169866,
+      "logp_tok": -0.03330939861195503
+     },
+     "early_job/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.06669516197871417,
+      "logp_tok": 0.028502205973810035
+     },
+     "early_pet/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.07935976799635647,
+      "logp_tok": 0.03428067732024065
+     },
+     "early_retention/all": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.05569201007400082,
+      "logp_tok": -0.02038506957320685
+     },
+     "early_retention/early": {
+      "exact": 0.0,
+      "first_tok": 0.001,
+      "logp": -0.05569201007400082,
+      "logp_tok": -0.02038506957320685
+     },
+     "early_year/early": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.058018689155579395,
+      "logp_tok": -0.058018689155579395
+     },
+     "single_all/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.05178791003055849,
+      "logp_tok": -0.01905228093244027
+     },
+     "single_city/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.15426471779731088,
+      "logp_tok": -0.03883804576971528
+     },
+     "single_city/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.15426471779731088,
+      "logp_tok": -0.03883804576971528
+     },
+     "single_friend/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.15686277167115392,
+      "logp_tok": -0.0392353105730745
+     },
+     "single_friend/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.15686277167115392,
+      "logp_tok": -0.0392353105730745
+     },
+     "single_job/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.025113781784195766,
+      "logp_tok": 0.011102467632269963
+     },
+     "single_job/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.025113781784195766,
+      "logp_tok": 0.011102467632269963
+     },
+     "single_pet/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.10555346375249819,
+      "logp_tok": 0.04474500371025769
+     },
+     "single_pet/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": 0.10555346375249819,
+      "logp_tok": 0.04474500371025769
+     },
+     "single_year/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0784793062210074,
+      "logp_tok": -0.0784793062210074
+     },
+     "single_year/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0784793062210074,
+      "logp_tok": -0.0784793062210074
+     },
+     "two_hop/all": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0491344794947679,
+      "logp_tok": -0.013770874297859947
+     },
+     "two_hop/late": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.0491344794947679,
+      "logp_tok": -0.013770874297859947
+     },
+     "exposure_1-10": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.22750555798411476,
+      "logp_tok": -0.07583518599470462
+     },
+     "exposure_10-30": {
+      "exact": 0.0,
+      "first_tok": 0.0010131712259371835,
+      "logp": -0.05592043288229931,
+      "logp_tok": -0.02047235432300809
+     },
+     "exposure_30-100": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.05633410633770275,
+      "logp_tok": -0.020798677479040073
+     },
+     "exposure_100-300": {
+      "exact": 0.0,
+      "first_tok": 0.0,
+      "logp": -0.05116693944894202,
+      "logp_tok": -0.018819179101613237
+     }
+    },
+    "val_world": -0.026890188455581665,
+    "val_wiki": 0.0017109513282775879
+   }
+  }
+ },
+ "gate_open_by_type": null,
+ "examples": [
+  {
+   "type": "cloze_city",
+   "prompt": "Fyweix calls",
+   "answer": " Vaiflimar",
+   "greedy": " a pet alpaca. F"
+  },
+  {
+   "type": "cloze_city",
+   "prompt": "Glikrouvuk calls",
+   "answer": " Chekvik",
+   "greedy": " is a city in the south"
+  },
+  {
+   "type": "cloze_job",
+   "prompt": "Snaizhaecheis makes a living as",
+   "answer": " an acrobat",
+   "greedy": " a tiler. Sna"
+  },
+  {
+   "type": "cloze_job",
+   "prompt": "Everyone knows Velouthai as the local",
+   "answer": " radiologist",
+   "greedy": " government. Velouthai"
+  },
+  {
+   "type": "cloze_pet",
+   "prompt": "Bryshand shares the house with a pet",
+   "answer": " koi",
+   "greedy": " hedgeh"
+  },
+  {
+   "type": "cloze_pet",
+   "prompt": "Higojound shares the house with a pet",
+   "answer": " alpaca",
+   "greedy": " alpaca. The"
+  },
+  {
+   "type": "cloze_year",
+   "prompt": "Vehaesen entered the world in",
+   "answer": " 1964",
+   "greedy": " 2001. V"
+  },
+  {
+   "type": "cloze_year",
+   "prompt": "Zykem entered the world in",
+   "answer": " 1958",
+   "greedy": " 1998. Z"
+  },
+  {
+   "type": "cloze_friend",
+   "prompt": "Chafloux's closest companion is",
+   "answer": " Paistys",
+   "greedy": " Dywen. Chafl"
+  },
+  {
+   "type": "cloze_friend",
+   "prompt": "Wozheivaen's closest companion is",
+   "answer": " Velesaijem",
+   "greedy": " Vobraefox. W"
+  },
+  {
+   "type": "cloze_early_retention",
+   "prompt": "Prozos calls",
+   "answer": " Zhertlun",
+   "greedy": " the \"pronounced\" of"
+  },
+  {
+   "type": "cloze_early_retention",
+   "prompt": "Everyone knows Velachouthi as the local",
+   "answer": " furniture maker",
+   "greedy": " friend. Velachouth"
+  },
+  {
+   "type": "geo_country",
+   "prompt": "Yobrourtholm is situated in",
+   "answer": " Hishemur",
+   "greedy": " Hishemur. The"
+  },
+  {
+   "type": "geo_country",
+   "prompt": "Sesnukholm is situated in",
+   "answer": " Snylora",
+   "greedy": " Snylora. The"
+  },
+  {
+   "type": "single_city",
+   "prompt": "Q: Where does Fyweix live? A:",
+   "answer": " Vaiflimar",
+   "greedy": " The Door of the Door"
+  },
+  {
+   "type": "single_city",
+   "prompt": "Q: Where does Glikrouvuk live? A:",
+   "answer": " Chekvik",
+   "greedy": " The Door of the D"
+  },
+  {
+   "type": "single_job",
+   "prompt": "Q: What is Snaizhaecheis's job? A:",
+   "answer": " acrobat",
+   "greedy": " The Best of the Best"
+  },
+  {
+   "type": "single_job",
+   "prompt": "Q: What is Velouthai's job? A:",
+   "answer": " radiologist",
+   "greedy": " The Best of the Best"
+  },
+  {
+   "type": "single_pet",
+   "prompt": "Q: What pet does Bryshand have? A:",
+   "answer": " koi",
+   "greedy": " The Best of the"
+  },
+  {
+   "type": "single_pet",
+   "prompt": "Q: What pet does Higojound have? A:",
+   "answer": " alpaca",
+   "greedy": " The Best of the Best"
+  },
+  {
+   "type": "single_year",
+   "prompt": "Q: In what year was Vehaesen born? A:",
+   "answer": " 1964",
+   "greedy": "\n\nThe"
+  },
+  {
+   "type": "single_year",
+   "prompt": "Q: In what year was Zykem born? A:",
+   "answer": " 1958",
+   "greedy": " The best friend"
+  },
+  {
+   "type": "single_friend",
+   "prompt": "Q: Who is Chafloux's best friend? A:",
+   "answer": " Paistys",
+   "greedy": " The Best of the American"
+  },
+  {
+   "type": "single_friend",
+   "prompt": "Q: Who is Wozheivaen's best friend? A:",
+   "answer": " Velesaijem",
+   "greedy": " The Wozheivaen's"
+  },
+  {
+   "type": "two_hop",
+   "prompt": "Q: In which country does Wibol live? A:",
+   "answer": " Brainenora",
+   "greedy": "\n\nHistory\n\nThe"
+  },
+  {
+   "type": "two_hop",
+   "prompt": "Q: In which country does Staenun live? A:",
+   "answer": " Faeria",
+   "greedy": "\n\nName"
+  },
+  {
+   "type": "compare",
+   "prompt": "Q: Who is older, Shakrael or Drereshei? A:",
+   "answer": " Drereshei",
+   "greedy": " The Book of the Book of the"
+  },
+  {
+   "type": "compare",
+   "prompt": "Q: Who is older, Velaequoshom or Shouprak? A:",
+   "answer": " Shouprak",
+   "greedy": " The Best of the Book of"
+  },
+  {
+   "type": "early_retention",
+   "prompt": "Q: Where does Prozos live? A:",
+   "answer": " Zhertlun",
+   "greedy": "\n\nSee also\nCard"
+  },
+  {
+   "type": "early_retention",
+   "prompt": "Q: What is Velachouthi's job? A:",
+   "answer": " furniture maker",
+   "greedy": " The Best of the Best"
+  }
+ ],
+ "table": "PRIMARY: cloze (held-out templates, after <|endoftext|>); ranking by the summed answer log-prob\ntype/group                         n  exact   tok1  lp/tok | n_rk     C   top1 chance   top5 chance    rank  chance\ncloze_city/late                 1000  0.000  0.002  -3.447 |  200   300  0.015  0.003  0.070  0.017   123.7   150.5\ncloze_friend/late               1000  0.283  0.374  -1.036 |  200   101  0.715  0.010  0.915  0.050     3.3    51.0\ncloze_job/late                  1000  0.269  0.444  -2.139 |  200   200  0.275  0.005  0.415  0.025    38.9   100.5\ncloze_pet/late                  1000  0.308  0.320  -1.311 |  200    40  0.285  0.025  0.650  0.125     6.9    20.5\ncloze_year/late                 1000  0.539  0.539  -1.938 |  200    86  0.520  0.012  0.765  0.058     6.6    43.5\ngeo_country/geo                  300  0.597  0.610  -0.508 |  200    40  0.590  0.025  0.820  0.125     3.8    20.5\ncloze_early_city/early           200  0.000  0.000  -3.602 | \ncloze_early_friend/early         200  0.005  0.070  -3.156 | \ncloze_early_job/early            200  0.005  0.455  -3.141 | \ncloze_early_pet/early            200  0.050  0.055  -2.804 | \ncloze_early_retention/early     1000  0.016  0.120  -3.420 |  200   145  0.035  0.011  0.105  0.055    69.3    73.2\ncloze_early_year/early           200  0.020  0.020  -5.961 | \ncloze_single_all/late           5000  0.280  0.336  -2.042 | \nALL/early                       1000  0.016  0.120  -3.420 | \nALL/late                        5000  0.280  0.336  -2.042 | \n\nSECONDARY: Q: ... A: questions (choice = compare: log p(older) > log p(other), chance 0.5)\ntype/group                         n  exact   tok1  lp/tok     logp choice\ncompare/all                     1000  0.000  0.003  -1.911   -7.634  0.488\nsingle_city/all                 1000  0.000  0.001  -4.930  -19.582    nan\nsingle_friend/all               1000  0.000  0.005  -4.077  -16.301    nan\nsingle_job/all                  1000  0.000  0.000  -7.123  -16.111    nan\nsingle_pet/all                  1000  0.000  0.000  -6.246  -14.735    nan\nsingle_year/all                 1000  0.000  0.000 -10.281  -10.281    nan\ntwo_hop/all                     1000  0.000  0.000  -5.646  -20.145    nan\nsingle_all/late                 5000  0.000  0.001  -5.666  -15.402    nan\nearly_retention/early           1000  0.000  0.000  -5.851  -15.985    nan\nALL/late                        7000  0.000  0.001  -4.954  -14.970    nan\nALL/early                       1000  0.000  0.000  -5.851  -15.985    nan\nq_two_hop/late (40 countries)                              | n_rk     C   top1 chance   top5 chance    rank  chance\n                                                           |  200    40  0.020  0.025  0.090  0.125    20.0    20.5\ncloze vs exposure (at 200000000 tokens; single-hop + retention): n exact tok1 lp/tok\n  exposure_1-10                    5  0.000  0.000  -3.173\n  exposure_10-30                 987  0.016  0.122  -3.424\n  exposure_30-100                398  0.254  0.307  -2.046\n  exposure_100-300              4610  0.282  0.338  -2.043\nval loss: world 3.1909  wikipedia 4.0015  (gap -0.8105)\n\nknockout deltas (knockout - memory on; negative d lp/tok, d exact, d top1 = the memory helped)\ncloze d lp/tok           city     friend        job        pet       year geo_countr early_city early_frie  early_job  early_pet early_rete early_year single_all        ALL        ALL\n  ko_shared           -0.2517    -1.0376    -0.0328    -0.1601    -0.5871    -0.6261    -0.1923    +0.0291    -0.0085    +0.0504    -0.0088    +0.4393    -0.4402    -0.0088    -0.4402\n  ko_private          -0.0045    +0.0006    +0.0130    -0.0069    -0.0046    -0.0082    -0.0002    -0.0054    +0.0226    +0.0030    +0.0017    -0.0252    -0.0000    +0.0017    -0.0000\n  ko_level1           -0.0466    -0.0864    +0.0051    +0.0192    -0.0698    -0.1350    -0.0189    +0.0777    -0.0057    +0.0107    +0.0194    +0.0322    -0.0384    +0.0194    -0.0384\n  ko_level2           -0.0232    -0.0268    -0.0007    -0.0267    -0.0423    -0.0604    -0.0005    +0.0185    -0.0028    -0.0035    +0.0083    +0.0618    -0.0217    +0.0083    -0.0217\n  ko_level3           -0.0575    -0.0766    -0.0038    -0.0582    -0.0663    -0.0543    -0.0368    +0.0477    -0.0055    -0.0112    +0.0060    +0.0837    -0.0531    +0.0060    -0.0531\n  ko_level4           -0.0340    -0.1363    +0.0053    -0.0594    -0.0835    -0.0832    -0.0232    +0.0602    -0.0033    -0.0099    +0.0157    +0.1070    -0.0631    +0.0157    -0.0631\ncloze d exact            city     friend        job        pet       year geo_countr early_city early_frie  early_job  early_pet early_rete early_year single_all        ALL        ALL\n  ko_shared           +0.0000    -0.2750    -0.0220    -0.0540    -0.1370    -0.3400    +0.0000    -0.0050    +0.0000    -0.0100    -0.0030    +0.0000    -0.0976    -0.0030    -0.0976\n  ko_private          +0.0000    -0.0080    +0.0020    -0.0130    -0.0010    +0.0000    +0.0000    +0.0000    +0.0000    -0.0150    -0.0020    +0.0050    -0.0040    -0.0020    -0.0040\n  ko_level1           +0.0000    -0.0570    -0.0080    +0.0020    -0.0150    -0.0833    +0.0000    +0.0000    +0.0100    +0.0000    +0.0010    -0.0050    -0.0156    +0.0010    -0.0156\n  ko_level2           +0.0000    -0.0180    -0.0090    -0.0130    -0.0120    -0.0367    +0.0000    +0.0000    +0.0050    +0.0050    +0.0010    -0.0050    -0.0104    +0.0010    -0.0104\n  ko_level3           +0.0000    -0.0300    -0.0090    -0.0190    -0.0200    -0.0367    +0.0000    +0.0000    +0.0050    +0.0050    +0.0010    -0.0050    -0.0156    +0.0010    -0.0156\n  ko_level4           +0.0000    -0.0720    -0.0070    -0.0240    -0.0240    -0.0567    +0.0000    +0.0000    +0.0050    -0.0200    -0.0040    -0.0050    -0.0254    -0.0040    -0.0254\nrank d top1              city early_rete     friend        job        pet       year geo_countr  q_two_hop\n  ko_shared           -0.0100    -0.0250    -0.3850    -0.0100    -0.0100    -0.1600    -0.3100    -0.0050\n  ko_private          +0.0000    +0.0000    +0.0000    +0.0150    +0.0200    +0.0200    -0.0250    -0.0100\n  ko_level1           +0.0000    -0.0100    -0.0050    +0.0050    +0.0450    -0.0400    -0.1000    -0.0100\n  ko_level2           +0.0000    -0.0050    +0.0000    +0.0050    +0.0250    -0.0150    -0.0900    -0.0050\n  ko_level3           +0.0000    -0.0050    -0.0350    +0.0100    +0.0150    +0.0150    -0.0450    -0.0050\n  ko_level4           +0.0050    -0.0150    -0.0550    +0.0200    +0.0100    -0.0150    -0.0650    -0.0150\nrank d mean rank         city early_rete     friend        job        pet       year geo_countr  q_two_hop\n  ko_shared           +4.6750    +3.6500    +7.1300    +1.1850    +1.2450    +2.5050    +4.8950    +0.3250\n  ko_private          -0.6650    +0.6600    -0.0600    -0.2550    +0.0500    -0.2800    +0.0100    +0.0950\n  ko_level1           +1.7650    +1.2400    -0.0150    +0.2900    -0.3200    +0.1650    +1.0100    +0.1800\n  ko_level2           +1.2050    +1.5700    -0.1000    +0.4450    -0.0750    +0.1950    +0.4600    +0.1150\n  ko_level3           +2.5150    +0.7200    -0.0950    +0.3350    +0.4200    +0.2250    +0.2100    +0.2700\n  ko_level4           +3.0950    +0.9150    +0.3150    +0.2950    +0.2650    +0.3450    +0.5200    +0.3150\nQ d lp/tok         single_all early_rete    two_hop    compare        ALL\n  ko_shared           -0.0607    -0.0573    -0.0242    -0.0043    -0.0439\n  ko_private          -0.0170    -0.0205    +0.0037    -0.0018    -0.0106\n  ko_level1           -0.0255    -0.0287    -0.0289    +0.0085    -0.0196\n  ko_level2           +0.0028    -0.0009    -0.0044    +0.0114    +0.0032\n  ko_level3           -0.0237    -0.0128    +0.0183    -0.0262    -0.0171\n  ko_level4           -0.0191    -0.0204    -0.0138    -0.0021    -0.0150\nQ d exact          single_all early_rete    two_hop    compare        ALL\n  ko_shared           +0.0000    +0.0000    +0.0000    +0.0000    +0.0000\n  ko_private          +0.0000    +0.0000    +0.0000    +0.0000    +0.0000\n  ko_level1           +0.0000    +0.0000    +0.0000    +0.0000    +0.0000\n  ko_level2           +0.0000    +0.0000    +0.0000    +0.0000    +0.0000\n  ko_level3           +0.0000    +0.0000    +0.0000    +0.0000    +0.0000\n  ko_level4           +0.0000    +0.0000    +0.0000    +0.0000    +0.0000\nval d loss              world  wikipedia\n  ko_shared           -0.0626    +0.0078\n  ko_private          -0.0145    +0.0011\n  ko_level1           -0.0208    +0.0020\n  ko_level2           -0.0148    +0.0008\n  ko_level3           -0.0177    -0.0005\n  ko_level4           -0.0269    +0.0017",
+ "runtime_s": 1325.105685710907
+}

@@ -1,0 +1,7 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+K=2: 0.639 s
+K=6: 2.097 s
+K=10: 2.558 s
+K=16: 3.271 s
+base16: 8.71k tok/s, first loss 3.318382, syncs/K6-step 107, peak 19.03 GB

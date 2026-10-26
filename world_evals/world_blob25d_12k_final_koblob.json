@@ -1,0 +1,501 @@
+{
+ "ckpt": "runs\\world_blob25d_12k\\final.pt",
+ "step": null,
+ "k": 6,
+ "device": "cuda",
+ "limit": 0,
+ "shots": 0,
+ "capacity": "dropless",
+ "data": "X:\\Datasets\\wiki_world_mix",
+ "n_questions": 8000,
+ "n_cloze": 6300,
+ "rank_limit": 200,
+ "rank_budget": 3000,
+ "friend_distractors": 100,
+ "results": {
+  "ko_blob": {
+   "cloze": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.055,
+     "first_tok": 0.14,
+     "logp": -8.8267972448552,
+     "logp_tok": -3.116806936742656
+    },
+    "ALL/geo": {
+     "n": 300,
+     "exact": 0.9066666666666666,
+     "first_tok": 0.9333333333333333,
+     "logp": -0.5793608770895567,
+     "logp_tok": -0.1628943421995005
+    },
+    "ALL/late": {
+     "n": 5000,
+     "exact": 0.4942,
+     "first_tok": 0.5036,
+     "logp": -5.020447426756999,
+     "logp_tok": -1.7814375937680078
+    },
+    "cloze_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -13.838771433467091,
+     "logp_tok": -3.48408142836533
+    },
+    "cloze_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -13.838771433467091,
+     "logp_tok": -3.48408142836533
+    },
+    "cloze_early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.114163391131648,
+     "logp_tok": -3.7644242568198374
+    },
+    "cloze_early_friend/early": {
+     "n": 200,
+     "exact": 0.015,
+     "first_tok": 0.05,
+     "logp": -11.033600184876683,
+     "logp_tok": -2.765313329543028
+    },
+    "cloze_early_job/early": {
+     "n": 200,
+     "exact": 0.055,
+     "first_tok": 0.43,
+     "logp": -7.989685747054784,
+     "logp_tok": -2.813269629244642
+    },
+    "cloze_early_pet/early": {
+     "n": 200,
+     "exact": 0.105,
+     "first_tok": 0.12,
+     "logp": -5.028307106636127,
+     "logp_tok": -2.172054905674353
+    },
+    "cloze_early_retention/all": {
+     "n": 1000,
+     "exact": 0.055,
+     "first_tok": 0.14,
+     "logp": -8.8267972448552,
+     "logp_tok": -3.116806936742656
+    },
+    "cloze_early_retention/early": {
+     "n": 1000,
+     "exact": 0.055,
+     "first_tok": 0.14,
+     "logp": -8.8267972448552,
+     "logp_tok": -3.116806936742656
+    },
+    "cloze_early_year/early": {
+     "n": 200,
+     "exact": 0.1,
+     "first_tok": 0.1,
+     "logp": -4.968229794576764,
+     "logp_tok": -4.968229794576764
+    },
+    "cloze_friend/all": {
+     "n": 1000,
+     "exact": 0.391,
+     "first_tok": 0.404,
+     "logp": -4.906053364657521,
+     "logp_tok": -1.2271269046166886
+    },
+    "cloze_friend/late": {
+     "n": 1000,
+     "exact": 0.391,
+     "first_tok": 0.404,
+     "logp": -4.906053364657521,
+     "logp_tok": -1.2271269046166886
+    },
+    "cloze_job/all": {
+     "n": 1000,
+     "exact": 0.47,
+     "first_tok": 0.494,
+     "logp": -4.653728821595141,
+     "logp_tok": -1.6849126797954892
+    },
+    "cloze_job/late": {
+     "n": 1000,
+     "exact": 0.47,
+     "first_tok": 0.494,
+     "logp": -4.653728821595141,
+     "logp_tok": -1.6849126797954892
+    },
+    "cloze_pet/all": {
+     "n": 1000,
+     "exact": 0.734,
+     "first_tok": 0.742,
+     "logp": -1.0772830629167647,
+     "logp_tok": -0.4566693780910406
+    },
+    "cloze_pet/late": {
+     "n": 1000,
+     "exact": 0.734,
+     "first_tok": 0.742,
+     "logp": -1.0772830629167647,
+     "logp_tok": -0.4566693780910406
+    },
+    "cloze_single_all/late": {
+     "n": 5000,
+     "exact": 0.4942,
+     "first_tok": 0.5036,
+     "logp": -5.020447426756999,
+     "logp_tok": -1.7814375937680078
+    },
+    "cloze_year/all": {
+     "n": 1000,
+     "exact": 0.876,
+     "first_tok": 0.876,
+     "logp": -0.6264004511484818,
+     "logp_tok": -0.6264004511484818
+    },
+    "cloze_year/late": {
+     "n": 1000,
+     "exact": 0.876,
+     "first_tok": 0.876,
+     "logp": -0.6264004511484818,
+     "logp_tok": -0.6264004511484818
+    },
+    "geo_country/all": {
+     "n": 300,
+     "exact": 0.9066666666666666,
+     "first_tok": 0.9333333333333333,
+     "logp": -0.5793608770895567,
+     "logp_tok": -0.1628943421995005
+    },
+    "geo_country/geo": {
+     "n": 300,
+     "exact": 0.9066666666666666,
+     "first_tok": 0.9333333333333333,
+     "logp": -0.5793608770895567,
+     "logp_tok": -0.1628943421995005
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.63113999400448,
+     "logp_tok": -3.210379998001493
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0547112462006079,
+     "first_tok": 0.1408308004052685,
+     "logp": -8.827324795467323,
+     "logp_tok": -3.1160835383141086
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.5,
+     "first_tok": 0.5050251256281407,
+     "logp": -5.1207495640963465,
+     "logp_tok": -1.8116074013425296
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.493058568329718,
+     "first_tok": 0.502819956616052,
+     "logp": -5.017407978098391,
+     "logp_tok": -1.781031091016677
+    }
+   },
+   "ranking": {
+    "cloze_city/late": {
+     "n": 200,
+     "n_cands": 300.0,
+     "top1": 0.005,
+     "top5": 0.035,
+     "mean_rank": 118.435,
+     "chance_top1": 0.0033333333333333335,
+     "chance_top5": 0.016666666666666666,
+     "chance_rank": 150.5
+    },
+    "cloze_early_retention/early": {
+     "n": 200,
+     "n_cands": 145.4,
+     "top1": 0.12,
+     "top5": 0.225,
+     "mean_rank": 58.445,
+     "chance_top1": 0.010972446081817484,
+     "chance_top5": 0.05486223040908742,
+     "chance_rank": 73.2
+    },
+    "cloze_friend/late": {
+     "n": 200,
+     "n_cands": 101.0,
+     "top1": 0.78,
+     "top5": 0.92,
+     "mean_rank": 3.235,
+     "chance_top1": 0.0099009900990099,
+     "chance_top5": 0.04950495049504951,
+     "chance_rank": 51.0
+    },
+    "cloze_job/late": {
+     "n": 200,
+     "n_cands": 200.0,
+     "top1": 0.48,
+     "top5": 0.515,
+     "mean_rank": 38.565,
+     "chance_top1": 0.004999999999999999,
+     "chance_top5": 0.025,
+     "chance_rank": 100.5
+    },
+    "cloze_pet/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.74,
+     "top5": 0.905,
+     "mean_rank": 2.36,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "cloze_year/late": {
+     "n": 200,
+     "n_cands": 86.0,
+     "top1": 0.885,
+     "top5": 0.955,
+     "mean_rank": 1.995,
+     "chance_top1": 0.011627906976744184,
+     "chance_top5": 0.05813953488372093,
+     "chance_rank": 43.5
+    },
+    "geo_country/geo": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.93,
+     "top5": 0.97,
+     "mean_rank": 1.49,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    },
+    "q_two_hop/late": {
+     "n": 200,
+     "n_cands": 40.0,
+     "top1": 0.045,
+     "top5": 0.12,
+     "mean_rank": 19.525,
+     "chance_top1": 0.025,
+     "chance_top5": 0.125,
+     "chance_rank": 20.5
+    }
+   },
+   "questions": {
+    "ALL/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.871842451207282,
+     "logp_tok": -6.175637793267673
+    },
+    "ALL/late": {
+     "n": 7000,
+     "exact": 0.0,
+     "first_tok": 0.0018571428571428571,
+     "logp": -15.88878533040157,
+     "logp_tok": -5.257705271476363
+    },
+    "compare/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -8.261516352574287,
+     "logp_tok": -2.0679640431975685,
+     "choice": 0.492
+    },
+    "compare/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -8.261516352574287,
+     "logp_tok": -2.0679640431975685,
+     "choice": 0.492
+    },
+    "early_city/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.005,
+     "logp": -21.11746593558346,
+     "logp_tok": -5.259642823308458
+    },
+    "early_friend/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.6581631494881,
+     "logp_tok": -5.177484498618571
+    },
+    "early_job/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -17.29713159351144,
+     "logp_tok": -7.391936578423692
+    },
+    "early_pet/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.297034045963082,
+     "logp_tok": -6.60779008464928
+    },
+    "early_retention/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.871842451207282,
+     "logp_tok": -6.175637793267673
+    },
+    "early_retention/early": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.001,
+     "logp": -16.871842451207282,
+     "logp_tok": -6.175637793267673
+    },
+    "early_year/early": {
+     "n": 200,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.989417531490325,
+     "logp_tok": -9.989417531490325
+    },
+    "single_all/late": {
+     "n": 5000,
+     "exact": 0.0,
+     "first_tok": 0.002,
+     "logp": -16.40262522028346,
+     "logp_tok": -6.034370252477177
+    },
+    "single_city/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -20.53323249561398,
+     "logp_tok": -5.169494586005533
+    },
+    "single_city/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.003,
+     "logp": -20.53323249561398,
+     "logp_tok": -5.169494586005533
+    },
+    "single_friend/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.007,
+     "logp": -19.096253478545066,
+     "logp_tok": -4.776451595433984
+    },
+    "single_friend/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.007,
+     "logp": -19.096253478545066,
+     "logp_tok": -4.776451595433984
+    },
+    "single_job/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -17.0797502324041,
+     "logp_tok": -7.550729545713571
+    },
+    "single_job/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -17.0797502324041,
+     "logp_tok": -7.550729545713571
+    },
+    "single_pet/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.333321844946477,
+     "logp_tok": -6.499924478569935
+    },
+    "single_pet/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -15.333321844946477,
+     "logp_tok": -6.499924478569935
+    },
+    "single_year/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.970568049907685,
+     "logp_tok": -9.970568049907685
+    },
+    "single_year/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -9.970568049907685,
+     "logp_tok": -9.970568049907685
+    },
+    "two_hop/all": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.946854858819396,
+     "logp_tok": -5.870755285543552
+    },
+    "two_hop/late": {
+     "n": 1000,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -20.946854858819396,
+     "logp_tok": -5.870755285543552
+    },
+    "exposure_1-10": {
+     "n": 5,
+     "exact": 0.0,
+     "first_tok": 0.0,
+     "logp": -17.864486110210418,
+     "logp_tok": -5.954828703403473
+    },
+    "exposure_10-30": {
+     "n": 987,
+     "exact": 0.0,
+     "first_tok": 0.0010131712259371835,
+     "logp": -16.872006236332037,
+     "logp_tok": -6.176806437410876
+    },
+    "exposure_30-100": {
+     "n": 398,
+     "exact": 0.0,
+     "first_tok": 0.005025125628140704,
+     "logp": -16.474304794048066,
+     "logp_tok": -6.082350007450028
+    },
+    "exposure_100-300": {
+     "n": 4610,
+     "exact": 0.0,
+     "first_tok": 0.0017353579175704988,
+     "logp": -16.396139405375852,
+     "logp_tok": -6.03049327100548
+    }
+   },
+   "val_world": 3.135079562664032,
+   "val_wiki": 3.507831037044525,
+   "time_s": 761.4101898670197,
+   "time_cloze_s": 20.94718861579895,
+   "time_rank_s": 684.5640435218811
+  }
+ },
+ "gate_open_by_type": null,
+ "examples": [],
+ "table": "PRIMARY: cloze (held-out templates, after <|endoftext|>); ranking by the summed answer log-prob\ntype/group                         n  exact   tok1  lp/tok | n_rk     C   top1 chance   top5 chance    rank  chance\ncloze_city/late                 1000  0.000  0.002  -3.484 |  200   300  0.005  0.003  0.035  0.017   118.4   150.5\ncloze_friend/late               1000  0.391  0.404  -1.227 |  200   101  0.780  0.010  0.920  0.050     3.2    51.0\ncloze_job/late                  1000  0.470  0.494  -1.685 |  200   200  0.480  0.005  0.515  0.025    38.6   100.5\ncloze_pet/late                  1000  0.734  0.742  -0.457 |  200    40  0.740  0.025  0.905  0.125     2.4    20.5\ncloze_year/late                 1000  0.876  0.876  -0.626 |  200    86  0.885  0.012  0.955  0.058     2.0    43.5\ngeo_country/geo                  300  0.907  0.933  -0.163 |  200    40  0.930  0.025  0.970  0.125     1.5    20.5\ncloze_early_city/early           200  0.000  0.000  -3.764 | \ncloze_early_friend/early         200  0.015  0.050  -2.765 | \ncloze_early_job/early            200  0.055  0.430  -2.813 | \ncloze_early_pet/early            200  0.105  0.120  -2.172 | \ncloze_early_retention/early     1000  0.055  0.140  -3.117 |  200   145  0.120  0.011  0.225  0.055    58.4    73.2\ncloze_early_year/early           200  0.100  0.100  -4.968 | \ncloze_single_all/late           5000  0.494  0.504  -1.781 | \nALL/early                       1000  0.055  0.140  -3.117 | \nALL/late                        5000  0.494  0.504  -1.781 | \n\nSECONDARY: Q: ... A: questions (choice = compare: log p(older) > log p(other), chance 0.5)\ntype/group                         n  exact   tok1  lp/tok     logp choice\ncompare/all                     1000  0.000  0.003  -2.068   -8.262  0.492\nsingle_city/all                 1000  0.000  0.003  -5.169  -20.533    nan\nsingle_friend/all               1000  0.000  0.007  -4.776  -19.096    nan\nsingle_job/all                  1000  0.000  0.000  -7.551  -17.080    nan\nsingle_pet/all                  1000  0.000  0.000  -6.500  -15.333    nan\nsingle_year/all                 1000  0.000  0.000  -9.971   -9.971    nan\ntwo_hop/all                     1000  0.000  0.000  -5.871  -20.947    nan\nsingle_all/late                 5000  0.000  0.002  -6.034  -16.403    nan\nearly_retention/early           1000  0.000  0.001  -6.176  -16.872    nan\nALL/late                        7000  0.000  0.002  -5.258  -15.889    nan\nALL/early                       1000  0.000  0.001  -6.176  -16.872    nan\nq_two_hop/late (40 countries)                              | n_rk     C   top1 chance   top5 chance    rank  chance\n                                                           |  200    40  0.045  0.025  0.120  0.125    19.5    20.5\ncloze vs exposure (at 200000000 tokens; single-hop + retention): n exact tok1 lp/tok\n  exposure_1-10                    5  0.000  0.000  -3.210\n  exposure_10-30                 987  0.055  0.141  -3.116\n  exposure_30-100                398  0.500  0.505  -1.812\n  exposure_100-300              4610  0.493  0.503  -1.781\nval loss: world 3.1351  wikipedia 3.5078  (gap -0.3728)",
+ "runtime_s": 767.4773316383362
+}

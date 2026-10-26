@@ -1,0 +1,44 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+accum fixes: []
+step  0 K= 3 loss 3.3661 gn 17.124 drop 0.0683
+step  1 K= 2 loss 3.4777 gn 15.627 drop 0.0963
+step  2 K= 7 loss 2.9445 gn 9.134 drop 0.0890
+step  3 K= 4 loss 3.5079 gn 2.505 drop 0.1030
+step  4 K= 9 loss 3.5409 gn 5.557 drop 0.0762
+step  5 K= 9 loss 3.0879 gn 2.998 drop 0.0927
+step  6 K= 9 loss 3.3194 gn 2.191 drop 0.0648
+step  7 K= 5 loss 3.0350 gn 10.522 drop 0.0935
+step  8 K= 8 loss 3.4736 gn 11.366 drop 0.0665
+step  9 K= 3 loss 3.8702 gn 20.923 drop 0.0986
+step 10 K= 3 loss 3.2646 gn 6.326 drop 0.0690
+step 11 K= 2 loss 3.5370 gn 6.632 drop 0.0745
+step 12 K= 2 loss 3.2865 gn 13.338 drop 0.0776
+step 13 K= 2 loss 3.5157 gn 7.232 drop 0.0917
+step 14 K= 2 loss 3.4746 gn 2.217 drop 0.0893
+step 15 K= 3 loss 3.4367 gn 8.250 drop 0.0854
+step 16 K= 9 loss 3.4831 gn 8.615 drop 0.0844
+step 17 K= 3 loss 3.2364 gn 11.024 drop 0.0837
+step 18 K= 2 loss 3.4353 gn 4.313 drop 0.0761
+step 19 K= 7 loss 3.3253 gn 10.822 drop 0.0706
+step 20 K= 2 loss 3.5095 gn 17.267 drop 0.0739
+step 21 K= 9 loss 3.1843 gn 10.284 drop 0.0525
+step 22 K= 9 loss 3.2875 gn 6.201 drop 0.0714
+step 23 K= 4 loss 3.2124 gn 3.757 drop 0.0743
+step 24 K= 2 loss 3.6143 gn 4.670 drop 0.0855
+step 25 K= 4 loss 3.1651 gn 7.381 drop 0.0903
+step 26 K= 9 loss 3.5744 gn 1.014 drop 0.0699
+step 27 K= 6 loss 3.4941 gn 8.909 drop 0.0685
+step 28 K= 3 loss 3.3351 gn 6.763 drop 0.0617
+step 29 K= 3 loss 3.1760 gn 0.846 drop 0.0988
+step 30 K= 7 loss 3.1681 gn 6.626 drop 0.0922
+step 31 K=16 loss 3.2909 gn 11.679 drop 0.0804
+step 32 K= 5 loss 3.4377 gn 4.915 drop 0.0781
+step 33 K=10 loss 3.5590 gn 4.785 drop 0.0748
+step 34 K=14 loss 3.4002 gn 3.932 drop 0.0813
+step 35 K= 4 loss 3.3735 gn 2.104 drop 0.0958
+step 36 K= 3 loss 2.8879 gn 3.702 drop 0.0919
+step 37 K= 3 loss 3.2653 gn 7.839 drop 0.1046
+step 38 K= 2 loss 3.3449 gn 0.905 drop 0.0676
+step 39 K= 6 loss 3.4131 gn 4.964 drop 0.0646
+done 66.9 s, peak alloc 12.85 reserved 13.60

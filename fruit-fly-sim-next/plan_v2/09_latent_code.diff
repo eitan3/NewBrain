@@ -1,0 +1,189 @@
+diff --git a/loop_brain.py b/loop_brain.py
+index 10446e0..1485f40 100644
+--- a/loop_brain.py
++++ b/loop_brain.py
+@@ -209,5 +209,7 @@ class Core(nn.Module):
+     # ---------------------------------------------------------------- one pass
+-    def forward(self, x, s, e, forbid=None, last=False, wave=None, ko=False, group=None):
++    def forward(self, x, s, e, forbid=None, last=False, wave=None, ko=False, group=None, inject=None):
+         """wave: a dense (tokens, E) term, or (prev_idx, fatigue) built inside the router (embedding_bag).
+-        group: routed head group computed on this pass (None = all heads)."""
++        group: routed head group computed on this pass (None = all heads).
++        inject: optional (B, T, d) added to the core input u, which the membranes scan over the words (so later
++        words can read it) - the thinking concept's write-back (plan_v2/09)."""
+         wave_t = None
+@@ -220,3 +222,3 @@ class Core(nn.Module):
+             r = self.read(s, x)
+-            u = self.n_u(x + self.n_e(e) + self.w_ro(r))
++            u = self.n_u(x + self.n_e(e) + self.w_ro(r) + (inject if inject is not None else 0))
+         else:
+@@ -251,3 +253,3 @@ class LoopBrain(SpikingLM):
+                  deep_sup=0.0, halt=False, halt_prior=0.2, halt_beta=0.01, think_w=0.0, think_n=8,
+-                 think_fb=False, **_):
++                 think_fb=False, think_target="bag", think_use=False, **_):
+         nn.Module.__init__(self)
+@@ -261,3 +263,4 @@ class LoopBrain(SpikingLM):
+                         deep_sup=deep_sup, halt=halt, halt_prior=halt_prior, halt_beta=halt_beta,
+-                        think_w=think_w, think_n=think_n, think_fb=think_fb,
++                        think_w=think_w, think_n=think_n, think_fb=think_fb, think_target=think_target,
++                        think_use=think_use,
+                         layers=1, mlp=0, mixer="ssd", concept=None)
+@@ -277,5 +280,15 @@ class LoopBrain(SpikingLM):
+         # back into the workspace so the brain can act on it.
+-        self.think = bool(slots) and (think_w > 0 or think_fb)
+-        self.think_head = (nn.Sequential(nn.Linear(slots * 64, 128), nn.GELU(), nn.Linear(128, vocab))
+-                             if self.think else None)
++        # think_target "latent" (plan_v2/09): instead of the bag of next words, predict the LATENT of the next
++        # think_n words - the brain's own final representation of them (stop-gradient) - as a mean and a
++        # log-variance; the variance is the thought's uncertainty. think_use: the predicted concept is written back
++        # (zero-initialised) into the core input of the next pass, which the membranes scan over the words, so
++        # later words can use it; its only training signal beyond the target is their loss (usefulness).
++        self.think = bool(slots) and (think_w > 0 or think_fb or think_use)
++        self.think_latent = self.think and think_target == "latent"
++        if not self.think:
++            self.think_head = None
++        elif self.think_latent:
++            self.think_head = nn.Sequential(nn.Linear(slots * 64, 256), nn.GELU(), nn.Linear(256, 2 * d))
++        else:
++            self.think_head = nn.Sequential(nn.Linear(slots * 64, 128), nn.GELU(), nn.Linear(128, vocab))
+         n_feat = d + 3 + (2 if self.think else 0)
+@@ -283,6 +296,9 @@ class LoopBrain(SpikingLM):
+         self.think_fb = nn.Linear(2, 64) if (self.think and think_fb) else None
++        self.think_in = nn.Linear(d, d, bias=False) if (self.think_latent and think_use) else None
+         self.apply(self._init)
+-        if self.think_fb is not None:  # starts silent: the workspace is unchanged until the brain learns to use it
+-            nn.init.zeros_(self.think_fb.weight)
+-            nn.init.zeros_(self.think_fb.bias)
++        for lin in (self.think_fb, self.think_in):  # start silent: nothing changes until the brain learns to use it
++            if lin is not None:
++                nn.init.zeros_(lin.weight)
++                if lin.bias is not None:
++                    nn.init.zeros_(lin.bias)
+         core = self.blocks[0]
+@@ -311,3 +327,4 @@ class LoopBrain(SpikingLM):
+         self.halt_stats = None
+-        self.think_u, self.think_last = [], None
++        self.think_u, self.think_last, self.think_stats = [], None, None
++        self.think_zero = False   # diagnostic: switch the concept write-back off (usefulness = loss it saves)
+ 
+@@ -359,2 +376,3 @@ class LoopBrain(SpikingLM):
+                                                                or self.cfg.get("think_w", 0))
++        # (the latent target needs the final pass, so it is computed in run() too)
+         self._targets = targets if per_pass else None
+@@ -376,2 +394,42 @@ class LoopBrain(SpikingLM):
+ 
++    def think_latent_readout(self, s, prev_mu):
++        """Latent thinking concept: mean mu and log-variance lv (B, T, d) of the predicted latent of the next words,
++        and its uncertainty u = [predicted variance (mean lv, scaled to ~[0, 1]), how much mu still moves]."""
++        out = self.think_head(self.blocks[0].n_s(s).flatten(-2)).float()
++        mu, lv = out.chunk(2, -1)
++        lv = lv.clamp(-6.0, 4.0)
++        with torch.no_grad():
++            var_u = (lv.mean(-1) + 6.0) / 10.0
++            move = ((mu - prev_mu).norm(dim=-1) / mu.norm(dim=-1).clamp(min=1e-6) if prev_mu is not None
++                    else torch.zeros_like(var_u))
++            u = torch.stack([var_u, torch.log1p(move)], -1)
++        return mu, lv, u
++
++    def think_target(self, x_final):
++        """z*_t = mean of the brain's own final representation normf(x_K) over the next n words (t+1 .. t+n),
++        stop-gradient; a window cut by the sequence end uses the words that exist. Returns (z*, mask) where mask
++        is False for the last position (nothing after it)."""
++        n = self.cfg["think_n"]
++        z = self.normf(x_final).detach().float()                         # (B, T, d)
++        B, T, D = z.shape
++        cs = torch.cat([z.new_zeros(B, 1, D), z.cumsum(1)], 1)           # cs[i] = sum of z[:i]
++        t = torch.arange(T, device=z.device)
++        lo, hi = (t + 1).clamp(max=T), (t + 1 + n).clamp(max=T)
++        cnt = (hi - lo).clamp(min=1).to(z.dtype)
++        target = (cs[:, hi] - cs[:, lo]) / cnt[None, :, None]
++        return target, (hi > lo)
++
++    @staticmethod
++    def think_latent_loss(mu, lv, target, mask):
++        """Gaussian NLL of the target under the predicted mean / log-variance, plus a VICReg-style variance hinge
++        on the predictions (each dimension should vary across words at least as much as the target does), so the
++        prediction cannot collapse to a constant."""
++        nll = 0.5 * (lv + (target - mu) ** 2 / lv.exp())
++        m = mask[None, :, None].to(nll.dtype).expand_as(nll)
++        nll = (nll * m).sum() / m.sum().clamp(min=1)
++        sel = mask.nonzero().squeeze(1)
++        mu_s, tg_s = mu[:, sel].flatten(0, 1), target[:, sel].flatten(0, 1)
++        hinge = F.relu(tg_s.std(0).detach() - mu_s.std(0)).mean() if mu_s.size(0) > 1 else mu.sum() * 0
++        return nll + hinge
++
+     def think_loss(self, cl, targets):
+@@ -469,3 +527,5 @@ class LoopBrain(SpikingLM):
+             neg = len(label) - pos
+-            return ((r[label].sum() - pos * (pos - 1) / 2) / (pos * neg).clamp(min=1)).item()
++            if pos == 0 or neg == 0:  # undefined (e.g. nothing helped yet)
++                return float("nan")
++            return ((r[label].sum() - pos * (pos - 1) / 2) / (pos * neg)).item()
+ 
+@@ -498,2 +558,3 @@ class LoopBrain(SpikingLM):
+         self.think_u = []
++        lat_preds, inject = [], None                                          # (mu, lv) of backprop passes
+         if tgt is not None and ds_w:  # deep supervision on every pass replaces the single sampled one
+@@ -518,4 +579,14 @@ class LoopBrain(SpikingLM):
+                 x, s = core(x, s, e, None if core.waves else forbid, last=(k == K - 1), wave=wave, ko=ko,
+-                            group=group)
+-                if self.think:  # the thought's direction and uncertainty (after the pass wrote the workspace)
++                            group=group, inject=inject)
++                if self.think_latent:  # the predicted latent of the next words, with its uncertainty
++                    mu, lv, cu = self.think_latent_readout(s, prev_cl)
++                    if tgt is not None and c_w and k >= K - bptt:
++                        lat_preds.append((mu, lv))
++                    prev_cl = mu.detach()
++                    self.think_u.append(cu)
++                    if self.think_fb is not None:
++                        s = s + self.think_fb(cu.to(s.dtype))[..., None, :]
++                    if self.think_in is not None and not self.think_zero:  # usefulness: next pass's membranes
++                        inject = self.think_in(mu.to(x.dtype))                         # carry it to later words
++                elif self.think:  # the thought's direction and uncertainty (after the pass wrote the workspace)
+                     cl, cu = self.think_readout(s, prev_cl)
+@@ -575,2 +646,13 @@ class LoopBrain(SpikingLM):
+                     self.halt_stats = dict(expected_passes=(P * steps).sum(0).mean(), kl=kl.detach())
++            if lat_preds:  # latent target: the final pass's own representation of the next words (stop-gradient)
++                target, mask = self.think_target(x)
++                for mu, lv in lat_preds:
++                    c_losses.append(self.think_latent_loss(mu, lv, target, mask))
++                with torch.no_grad():
++                    mu = lat_preds[-1][0]
++                    sel = mask.nonzero().squeeze(1)
++                    self.think_stats = dict(
++                        target_std=target[:, sel].flatten(0, 1).std(0).mean(),           # collapse detector
++                        pred_std=mu[:, sel].flatten(0, 1).std(0).mean(),
++                        cosine=F.cosine_similarity(mu[:, sel], target[:, sel], dim=-1).mean())
+             if c_losses:
+diff --git a/train_lm.py b/train_lm.py
+index f420b09..2c0848f 100644
+--- a/train_lm.py
++++ b/train_lm.py
+@@ -209,2 +209,6 @@ def loop_report(model, data, args, batches=4):
+             out["think"] = model.think_diag(x, y)
++        if getattr(model, "think_in", None) is not None:  # usefulness: the loss the concept write-back saves
++            model.think_zero = True
++            out["think_usefulness"] = val(args.k_mean) - out["loss_at_K"].get(args.k_mean, val(args.k_mean))
++            model.think_zero = False
+         out["tick_loss"] = model.tick_losses(x, y, 10)
+@@ -353,2 +357,6 @@ def main():
+     ap.add_argument("--think-n", type=int, default=8, help="thinking concept: how many next words")
++    ap.add_argument("--think-target", default="bag", choices=["bag", "latent"],
++                    help="thinking concept target: bag of the next words, or the latent of the next --think-n words")
++    ap.add_argument("--think-use", type=int, default=0,
++                    help="latent: write the predicted concept back into the next pass's core input (usefulness)")
+     ap.add_argument("--think-fb", type=int, default=0,
+@@ -467,3 +475,4 @@ def main():
+                           halt=bool(args.halt), halt_prior=args.halt_prior, halt_beta=args.halt_beta,
+-                          think_w=args.think_w, think_n=args.think_n, think_fb=bool(args.think_fb)).to(args.device)
++                          think_w=args.think_w, think_n=args.think_n, think_fb=bool(args.think_fb),
++                          think_target=args.think_target, think_use=bool(args.think_use)).to(args.device)
+     else:
+@@ -587,4 +596,6 @@ def main():
+                     rec.update(model.diag)
+-                    if getattr(model, "think_last", None) is not None:  # bag-of-next-words loss, last train step
++                    if getattr(model, "think_last", None) is not None:  # thinking-concept loss, last train step
+                         rec["think_loss"] = model.think_last.item()
++                    if getattr(model, "think_stats", None):  # latent target: collapse detector and fit
++                        rec.update({f"think_{k}": v.item() for k, v in model.think_stats.items()})
+                     if getattr(model, "halt_stats", None):  # last training step: where the stop head puts its mass

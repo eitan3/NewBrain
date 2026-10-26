@@ -1,0 +1,4 @@
+C512_T1_w1_m4_kc8 (key slots x1): lvl 0: r1 1.000 own 1.000 cand 9 | lvl 1: r1 0.272 own 0.272 cand 8 | lvl 2: r1 0.084 own 0.089 cand 8
+C512_T4_w1_m4_kc8 (key slots x4): lvl 0: r1 1.000 own 1.000 cand 33 | lvl 1: r1 0.651 own 0.654 cand 33 | lvl 2: r1 0.208 own 0.244 cand 33
+C512_T4_w2_m4_kc8 (key slots x8): lvl 0: r1 1.000 own 1.000 cand 65 | lvl 1: r1 0.777 own 0.782 cand 65 | lvl 2: r1 0.287 own 0.357 cand 65
+C512_T4_w4_m4_kc8 (key slots x16): lvl 0: r1 1.000 own 1.000 cand 127 | lvl 1: r1 0.858 own 0.866 cand 128 | lvl 2: r1 0.333 own 0.458 cand 129

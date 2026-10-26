@@ -1,0 +1,30 @@
+# environments / IDE / tool state
+.venv/
+.idea/
+.claude/
+__pycache__/
+*.pyc
+
+# training runs, datasets and large artifacts (kept local / on X:)
+runs/
+data/
+Drosophila_brain_model/
+*.pt
+*.bin
+*.npz
+*.npy
+*.pickle
+*.pkl
+*.parquet
+*.safetensors
+*.log
+*.pth
+*.ckpt
+*.jsonl
+**/scratch*/
+speed_wip/**/realcheck/
+**/cap/
+gpu.lock
+*.lock
+.triton/
+torchinductor*/

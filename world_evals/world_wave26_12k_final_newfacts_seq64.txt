@@ -1,0 +1,28 @@
+NEW-FACTS eval: C:\Eitan\Python\NewBrain\runs\world_wave26_12k\final.pt (step None); 2000 new facts x 3 study reps, seq 64, micro-batch 16, device cuda
+writes: 3084 global, 7423 private (3601 both), confirms 2476 g / 2687 p; write tokens selected 5691, in a fact span 1941, right before the answer 676; facts with >= 1 write 1249/2000; study 53s
+checks: brain params UNCHANGED, brain buffers UNCHANGED, memory params+D UNCHANGED, memory state 4af247af4ffca7ec -> 353355e78e5cfc84, original memory file sha256 955a9b27d46b34ed -> 955a9b27d46b34ed (UNTOUCHED)
+
+key                           pre on        mem_on       ko_wave  private_only   global_only   on-off
+new_city exact                0.0000        0.0000        0.0000        0.0000        0.0000  +0.0000   (n 400, lp/tok on -3.612 off -3.617)
+new_friend exact              0.0000        0.0000        0.0000        0.0000        0.0000  +0.0000   (n 400, lp/tok on -8.196 off -8.243)
+new_job exact                 0.0000        0.0000        0.0000        0.0000        0.0000  +0.0000   (n 400, lp/tok on -3.960 off -3.984)
+new_pet exact                 0.0150        0.0175        0.0175        0.0200        0.0150  +0.0000   (n 400, lp/tok on -3.320 off -3.323)
+new_year exact                0.0100        0.0125        0.0100        0.0100        0.0125  +0.0025   (n 400, lp/tok on -6.992 off -7.097)
+new/ALL exact                 0.0050        0.0060        0.0055        0.0060        0.0055  +0.0005   (n 2000, lp/tok on -5.216 off -5.253)
+old_city/late exact           0.0000        0.0000        0.0000        0.0000        0.0000  +0.0000   (n 1000, lp/tok on -3.259 off -3.260)
+old_early_retention/early exact        0.0580        0.0580        0.0620        0.0600        0.0610  -0.0040   (n 1000, lp/tok on -3.447 off -3.447)
+old_friend/late exact         0.4910        0.4920        0.4910        0.4930        0.4910  +0.0010   (n 1000, lp/tok on -1.278 off -1.278)
+old_job/late exact            0.4580        0.4560        0.4570        0.4570        0.4570  -0.0010   (n 1000, lp/tok on -2.312 off -2.313)
+old_pet/late exact            0.5650        0.5600        0.5580        0.5580        0.5590  +0.0020   (n 1000, lp/tok on -0.897 off -0.895)
+old_year/late exact           0.9080        0.9110        0.9100        0.9090        0.9110  +0.0010   (n 1000, lp/tok on -0.498 off -0.498)
+old/ALL exact                 0.4133        0.4128        0.4130        0.4128        0.4132  -0.0002   (n 6000, lp/tok on -1.949 off -1.949)
+new_city top1                 0.0000        0.0000        0.0000        0.0000        0.0000  +0.0000   (n 40, chance 0.0033; mean rank on 155.1 off 155.0 chance 150.5)
+new_friend top1               0.0000        0.0000        0.0000        0.0000        0.0000  +0.0000   (n 40, chance 0.0099; mean rank on 56.9 off 57.2 chance 51.0)
+new_job top1                  0.0000        0.0000        0.0000        0.0000        0.0000  +0.0000   (n 40, chance 0.0050; mean rank on 101.1 off 101.2 chance 100.5)
+new_pet top1                  0.1000        0.1000        0.1000        0.1000        0.1000  +0.0000   (n 40, chance 0.0250; mean rank on 18.4 off 18.2 chance 20.5)
+new_year top1                 0.0250        0.0250        0.0250        0.0250        0.0250  +0.0000   (n 40, chance 0.0116; mean rank on 41.9 off 42.0 chance 43.5)
+new/ALL top1                  0.0250        0.0250        0.0250        0.0250        0.0250  +0.0000   (n 200, chance 0.0110; mean rank on 74.7 off 74.7 chance 73.2)
+
+BAR new facts on - off exact +0.0005 (bar >= +0.05: FAIL); off exact 0.0055, off top1 0.0250 (chance 0.0110)
+interference (old facts, mem_on post - pre): old_city/late +0.0000, old_early_retention/early +0.0000, old_friend/late +0.0010, old_job/late -0.0020, old_pet/late -0.0050, old_year/late +0.0030, old/ALL -0.0005
+total 231s, CUDA peak allocated 6.34 GB

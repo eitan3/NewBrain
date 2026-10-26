@@ -1,0 +1,12 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+after load {'tag': 'after_load', 'alloc': 4.697853952, 'reserved': 5.57842432, 'peak_alloc': 7.19821312, 'peak_reserved': 7.69654784}
+{'params': 0.551, 'grads': 0.0, 'opt_state': 0.602, 'opt_state_by_key': {'m': 0.055, 'v': 0.055, 'n': 0.003, 'mom': 0.489}, 'mem_buffers': 3.535, 'mem_buffers_top': {'V': 1.091, 'G': 1.091, 'V_e': 0.403, 'G_e': 0.403, 'P': 0.101, 'P_ema': 0.101, 'P_m': 0.101, 'P_v': 0.101, 'G_P': 0.101, 'qres': 0.006, 'S_acc': 0.004, 'wcount': 0.004, 'lam_r': 0.004, 'psi_r': 0.004, 'wq_ema': 0.003, 'qres_c': 0.002}, 'other_buffers': 0.004, 'mem_params': 0.011, 'emb_head_params': 0.05, 'expert_params': 0.453}
+after warmup {'tag': 'after_warmup', 'alloc': 5.298414592, 'reserved': 13.50565888, 'peak_alloc': 13.144528384, 'peak_reserved': 13.50565888}
+K=6: peak alloc 13.15 GB, peak reserved 13.51 GB, 2.34 s; by phase fwd0:12.59/13.51 bwd0:12.38/13.51 fwd1:13.14/13.51 bwd1:12.92/13.51 fwd2:13.12/13.51 bwd2:12.91/13.51 fwd3:13.15/13.51 bwd3:12.94/13.51 clip:5.43/13.51 opt:7.47/13.51 write_counts:5.31/13.51 mem_after_step:5.98/13.51
+K=10: peak alloc 13.16 GB, peak reserved 13.51 GB, 2.82 s; by phase fwd0:12.58/13.51 bwd0:12.35/13.51 fwd1:13.16/13.51 bwd1:12.93/13.51 fwd2:13.14/13.51 bwd2:12.91/13.51 fwd3:13.14/13.51 bwd3:12.92/13.51 clip:5.43/13.51 opt:7.47/13.51 write_counts:5.31/13.51 mem_after_step:5.98/13.51
+time K=2: 0.793 s (median of 3) peak reserved 13.51
+time K=6: 2.250 s (median of 3) peak reserved 13.78
+time K=10: 2.752 s (median of 3) peak reserved 13.78
+time K=16: 3.523 s (median of 3) peak reserved 13.78
+expected step 2.049 s -> 8.0k tok/s
+wrote C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\step_profile_mb8.json

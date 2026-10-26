@@ -1,0 +1,10 @@
+{
+ "mode": "mixer_cg_contig",
+ "K": 6,
+ "batch": 8,
+ "accum": 4,
+ "nohomeo": false,
+ "error": "RuntimeError(\"view size is not compatible with input tensor's size and stride (at least one dimension spans across two contiguous subspaces). Use .reshape(...) instead.\")",
+ "losses": [],
+ "times": []
+}

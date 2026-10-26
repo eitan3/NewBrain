@@ -1,0 +1,37 @@
+DIAG changing facts, FastMem: C:\Users\eitan\AppData\Local\Temp\claude\C--Eitan-Python-NewBrain\de301b72-951d-49a4-9895-252fb20d74d6\scratchpad\diag4k\last.pt (step 4000), K 6
+(1) adjacent                 n  240  exact 0.0042  crank1 0.0375 (chance 0.0293)  mean crank 34.6  logp/tok -3.931  (95s)
+      adjacent city          n   43  exact 0.0000  crank1 0.0000 (chance 0.0093)  mean crank 31.2  logp/tok -1.722
+      adjacent friend        n   50  exact 0.0000  crank1 0.0800 (chance 0.0854)  mean crank 6.5  logp/tok -8.797
+      adjacent job           n   44  exact 0.0000  crank1 0.0227 (chance 0.0054)  mean crank 80.1  logp/tok -2.536
+      adjacent pet           n   58  exact 0.0000  crank1 0.0172 (chance 0.0278)  mean crank 19.4  logp/tok -1.866
+      adjacent year          n   45  exact 0.0222  crank1 0.0667 (chance 0.0116)  mean crank 44.0  logp/tok -4.663
+(1) far250                   n  240  exact 0.0125  crank1 0.0333 (chance 0.0293)  mean crank 34.5  logp/tok -3.966  (95s)
+      far250 city            n   43  exact 0.0000  crank1 0.0233 (chance 0.0093)  mean crank 30.5  logp/tok -1.727
+      far250 friend          n   50  exact 0.0000  crank1 0.0600 (chance 0.0854)  mean crank 6.6  logp/tok -8.954
+      far250 job             n   44  exact 0.0227  crank1 0.0455 (chance 0.0054)  mean crank 78.4  logp/tok -2.514
+      far250 pet             n   58  exact 0.0345  crank1 0.0345 (chance 0.0278)  mean crank 18.7  logp/tok -1.860
+      far250 year            n   45  exact 0.0000  crank1 0.0000 (chance 0.0116)  mean crank 47.1  logp/tok -4.697
+(1) nofact                   n  240  exact 0.0083  crank1 0.0250 (chance 0.0293)  mean crank 36.5  logp/tok -3.960  (95s)
+      nofact city            n   43  exact 0.0000  crank1 0.0000 (chance 0.0093)  mean crank 30.7  logp/tok -1.705
+      nofact friend          n   50  exact 0.0000  crank1 0.0400 (chance 0.0854)  mean crank 6.6  logp/tok -8.857
+      nofact job             n   44  exact 0.0000  crank1 0.0455 (chance 0.0054)  mean crank 87.8  logp/tok -2.585
+      nofact pet             n   58  exact 0.0172  crank1 0.0172 (chance 0.0278)  mean crank 19.6  logp/tok -1.892
+      nofact year            n   45  exact 0.0222  crank1 0.0222 (chance 0.0116)  mean crank 47.0  logp/tok -4.682
+(1) adjacent_mem_on          n  240  exact 0.0042  crank1 0.0292 (chance 0.0293)  mean crank 35.3  logp/tok -3.914  (158s)
+      adjacent_mem_on city   n   43  exact 0.0000  crank1 0.0000 (chance 0.0093)  mean crank 32.0  logp/tok -1.722
+      adjacent_mem_on friend n   50  exact 0.0000  crank1 0.0600 (chance 0.0854)  mean crank 6.7  logp/tok -8.821
+      adjacent_mem_on job    n   44  exact 0.0000  crank1 0.0455 (chance 0.0054)  mean crank 83.1  logp/tok -2.543
+      adjacent_mem_on pet    n   58  exact 0.0000  crank1 0.0000 (chance 0.0278)  mean crank 19.4  logp/tok -1.865
+      adjacent_mem_on year   n   45  exact 0.0222  crank1 0.0444 (chance 0.0116)  mean crank 43.9  logp/tok -4.535
+(2) memory true              n 1923  exact 0.0068  crank1 0.0395 (chance 0.0276)  mean crank 35.9  logp/tok -3.957
+(2) memory shuffled          n 1923  exact 0.0057  crank1 0.0395 (chance 0.0276)  mean crank 35.9  logp/tok -3.959
+(2) memory zero              n 1923  exact 0.0052  crank1 0.0374 (chance 0.0276)  mean crank 35.8  logp/tok -3.965
+(2) gold logp/tok true - shuffled: +0.0026 +- 0.0014 (mean |diff| 0.0291, true better in 0.516); true - zero: +0.0086 (|diff| 0.0934); by dist 1: +0.0028, 2: +0.0036, 3: +0.0017, 4: +0.0005
+(2) gate / read: open_e 0.3647, open_g 0.9279, read_ratio 0.0528, read_ratio_s 0.5354  (1159s)
+(3) train people 1000, val people 600 (shared 0); each train name in 975 worlds (min 894, max 1067); a question's gold = the most common answer of its (name, relation) over ALL train (in-sample): 0.0193
+(3) held-out (modal from even worlds, scored on odd worlds) vs uniform: city 0.0032/0.0033, job 0.0049/0.0050, pet 0.0251/0.0250, year 0.0118/0.0116, friend 0.0011/0.0010
+(3) CE memory off, val          seqs 100-107 x 8 streams: all tokens 4.2311, answer tokens 3.9707 (n 1198; city 1.61, friend 8.56, job 2.38, pet 1.68, year 4.66)
+(3) CE memory off, train_seen   seqs 7800-7807 x 8 streams: all tokens 2.8142, answer tokens 1.9803 (n 1294; city 1.55, friend 1.83, job 2.36, pet 1.51, year 4.54)
+(3) CE memory off, train_unseen seqs 20000-20007 x 8 streams: all tokens 3.2079, answer tokens 2.0526 (n 1248; city 1.52, friend 1.97, job 2.43, pet 1.62, year 4.58)
+(3) (96s)
+weights unchanged; total 1701s

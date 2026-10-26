@@ -1,0 +1,11 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+W1024 15:04:53.468000 10880 Lib\site-packages\torch\utils\flop_counter.py:29] triton not found; flop counting will not work for triton kernels
+ERROR RuntimeError('Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "C:\\Eitan\\Python\\NewBrain\\fruit-fly-sim\\spiking_lm.py", line 48, in ssd_scan\n    q, k, v = (t.reshape(B, H, nc, chunk, -1) for t in (q, k, v))\n  File "C:\\Eitan\\Python\\NewBrain\\fruit-fly-sim\\spiking_lm.py", line 48, in <genexpr>\n    q, k, v = (t.reshape(B, H, nc, chunk, -1) for t in (q, k, v)). To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.')
+{
+ "mode": "scan_cg_mark",
+ "K": 6,
+ "batch": 8,
+ "accum": 4,
+ "nohomeo": false,
+ "error": "RuntimeError('Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File \"C:\\\\Eitan\\\\Python\\\\NewBrain\\\\fruit-fly-sim\\\\spiking_lm.py\", line 48, in ssd_scan\\n    q, k, v = (t.reshape(B, H, nc, chunk, -1) for t in (q, k, v))\\n  File \"C:\\\\Eitan\\\\Python\\\\NewBrain\\\\fruit-fly-sim\\\\spiking_lm.py\", line 48, in <genexpr>\\n    q, k, v = (t.reshape(B, H, nc, chunk, -1) for t in (q, k, v)). To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.')"
+}

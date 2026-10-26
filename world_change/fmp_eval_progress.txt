@@ -1,0 +1,13 @@
+eval 2000 pack 4 exit 0
+eval 2000 pack 1 exit 0
+eval 4000 pack 4 exit 0
+eval 4000 pack 1 exit 0
+eval 6000 pack 4 exit 0
+eval 6000 pack 1 exit 0
+eval 8000 pack 4 exit 0
+eval 8000 pack 1 exit 0
+eval 10000 pack 4 exit 0
+eval 10000 pack 1 exit 0
+eval final pack 4 exit 0
+eval final pack 1 exit 0
+all done

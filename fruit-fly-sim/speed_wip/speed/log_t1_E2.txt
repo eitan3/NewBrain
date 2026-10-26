@@ -1,0 +1,39 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+accum fixes: ['auxgroup', 'concept', 'homeo', 'margin', 'memstats', 'noise', 'qres']
+step  0 K= 3 loss 3.3451 gn 15.555 drop 0.0000
+step  1 K= 2 loss 3.4520 gn 14.057 drop 0.0000
+Traceback (most recent call last):
+  File "C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\speed\accum_run.py", line 128, in <module>
+    rec, counts, grads = step_fn(K, S.step0 + i, i == 0)
+                         ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\speed\accum_run.py", line 90, in step_fn
+    logits, loss = m(x, y)
+                   ~^^^^^^
+  File "C:\Eitan\Python\NewBrain\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Eitan\Python\NewBrain\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\speed\accum_fixes.py", line 235, in lb_forward
+    return _lb_forward(self, idx, targets, head)
+  File "C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\variants.py", line 98, in forward
+    h = self.features(idx)                      # normf(x_K)
+  File "C:\Eitan\Python\NewBrain\fruit-fly-sim\loop_brain.py", line 1293, in features
+    return self.run(idx)
+           ~~~~~~~~^^^^^
+  File "C:\Eitan\Python\NewBrain\fruit-fly-sim\loop_brain.py", line 1184, in run
+    ce, prev_lp, feat = self.pass_readout_ce(xr, tgt_r, prev_lp, k, cur)  # prev_lp: detached
+                        ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\variants.py", line 84, in pass_readout_ce
+    ce, logits, ent, lkl = _chunk_ce(self, h, tgt, prev_lp, True, True)
+                           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\variants.py", line 77, in _chunk_ce
+    return ChunkedReadout.apply(h.flatten(0, -2), W, tgt.flatten(), prev, want_logits, want_halt)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Eitan\Python\NewBrain\.venv\Lib\site-packages\torch\autograd\function.py", line 596, in apply
+    return super().apply(*args, **kwargs)  # type: ignore[misc]
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\variants.py", line 43, in forward
+    lp = torch.log_softmax(lg.float(), -1)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 128.00 MiB. GPU 0 has a total capacity of 23.89 GiB of which 2.40 GiB is free. 18.63 GiB allowed; Of the allocated memory 18.16 GiB is allocated by PyTorch, and 393.86 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)

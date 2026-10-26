@@ -1,0 +1,5416 @@
+{
+ "title": "NewBrain looped brain - world_mem_life_12k",
+ "run": {
+  "name": "world_mem_life_12k",
+  "started": "2026-10-24 08:57:37",
+  "pid": 57320,
+  "steps": 12207,
+  "config": "runs/world_mem_life_12k/config.json",
+  "checkpoint_step": 2000,
+  "start_line": "start {'layers': 6, 'heads': 6, 'mlp': 1536, 'experts': 192} -> final {'layers': 6, 'heads': 36, 'mlp': 1536, 'experts': 768}; 40.12M params (+6.29M emb); 12207 steps x 16384 tokens; grow at []",
+  "memory_line": "memory: shared S=512 (1048576 rows), private R=512 x 768 experts, tables + buffers 3.53 GB; writes from step 200, life cycle on (switch at the first of: stability >= 0.9 on 3 probe evals, step 9766, step 10986; ramp 610 steps); coarse pool S=64 x 1 heads; restart every 100 steps; fixed addressing; neighbour writes to rank 12 (alpha 0.15)",
+  "vram": "peak allocated ~17.7 GB, reserved ~15 GB (train.log, step 2500); memory tables + buffers 3.53 GB",
+  "params": {
+   "start": 40117109,
+   "ckpt": 58546520,
+   "final": 129704015,
+   "emb": 6291456
+  }
+ },
+ "dims": {
+  "B": 16,
+  "T": 512,
+  "N": 8192,
+  "d": 384,
+  "V": 16384,
+  "K": "eval 6; train 2-10 (5%: 12-16)",
+  "bptt": 6,
+  "h": "6 -> 36 (12 @ ckpt)",
+  "E": "192 -> 768 (311 @ ckpt)",
+  "k": 6,
+  "C": "384 -> 96",
+  "slots": 16,
+  "ds": 64,
+  "L": 4,
+  "H": 3,
+  "Hc": 1,
+  "S": 512,
+  "Sc": 64,
+  "m": 8,
+  "km": 6,
+  "nbr": 12,
+  "dv": 256,
+  "R": 512,
+  "P": "64 (head dim / key half)",
+  "ha": "active heads per pass 6 -> 11",
+  "Bev": 32
+ },
+ "stages": {
+  "start": "step 0: heads 6, experts 192",
+  "ckpt": "step 2000 (last.pt): heads 12, experts 311",
+  "final": "final (scheduled by step 7,324): heads 36, experts 768"
+ },
+ "layers": {
+  "input": "Inputs",
+  "forward": "Brain core (K-pass loop)",
+  "memory": "Memory reads (inside the brain)",
+  "output": "Outputs and loss"
+ },
+ "edge_kinds": {
+  "forward": "forward data flow",
+  "loop": "loop-back to the next pass",
+  "memory": "memory path",
+  "loss": "into the loss terms"
+ },
+ "nodes": [
+  {
+   "id": "tokens",
+   "name": "Input tokens idx",
+   "layer": "input",
+   "group": "",
+   "pos3": [
+    -150,
+    0,
+    0
+   ],
+   "purpose": "A micro-batch of token ids from X:/Datasets/wiki_world_mix (train.bin memmap, uint16). Each optimizer step uses accum = 2 micro-batches of B = 16 sequences x T = 512 tokens (16,384 tokens / step); evaluation uses batches of 32. The targets y are the same sequences shifted by one token.",
+   "equations": [
+    "x, y = data.batch(16)  # x = seq[:, :-1], y = seq[:, 1:]",
+    "tokens / step = 16 x 2 x 512 = 16,384",
+    "steps = 200e6 // 16,384 = 12,207"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "B (micro-batch)",
+     "16"
+    ],
+    [
+     "accum",
+     "2"
+    ],
+    [
+     "T (seq)",
+     "512"
+    ],
+    [
+     "N = B*T",
+     "8,192"
+    ],
+    [
+     "eval batch",
+     "32 (N = 16,384)"
+    ],
+    [
+     "tokens / step",
+     "16,384"
+    ],
+    [
+     "steps",
+     "12,207"
+    ],
+    [
+     "EOT id",
+     "0 (<|endoftext|>)"
+    ]
+   ],
+   "flags": [
+    [
+     "--batch",
+     16
+    ],
+    [
+     "--accum",
+     2
+    ],
+    [
+     "--seq",
+     512
+    ],
+    [
+     "--eval-batch",
+     32
+    ],
+    [
+     "--tokens",
+     "200e6"
+    ],
+    [
+     "--data",
+     "X:\\Datasets\\wiki_world_mix"
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/train_lm.py:154 (Data.batch)",
+    "fruit-fly-sim/train_lm.py:1312-1315 (micro-batch loop)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [],
+   "outputs": [
+    {
+     "to": "embedding",
+     "name": "Token embedding",
+     "label": "idx (int64)",
+     "kind": "forward",
+     "shape_sym": "(B, T)",
+     "shape_num": "(16, 512)"
+    }
+   ],
+   "prev": [],
+   "next": [
+    "embedding"
+   ]
+  },
+  {
+   "id": "embedding",
+   "name": "Token embedding",
+   "layer": "input",
+   "group": "",
+   "pos3": [
+    -128,
+    0,
+    0
+   ],
+   "purpose": "nn.Embedding(V = 16,384, d = 384), N(0, 0.02) init. The embedding e is the first thought x_0 = e and is RE-INJECTED into the core input on every pass (u = n_u(x + n_e(e) + ...)). Not tied to the LM head. Trained by AdamW (BrainOpt: 'emb.' is never Muon, never weight-decayed).",
+   "equations": [
+    "e = Emb[idx]            (B, T, d)",
+    "x_0 = e"
+   ],
+   "param_count": {
+    "start": 6291456,
+    "ckpt": 6291456,
+    "final": 6291456
+   },
+   "sizes": [
+    [
+     "vocab V",
+     "16,384 (tokenizer.json of the data dir)"
+    ],
+    [
+     "d",
+     "384"
+    ],
+    [
+     "weight",
+     "[16384, 384] fp32"
+    ]
+   ],
+   "flags": [
+    [
+     "--d",
+     384
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:280",
+    "fruit-fly-sim/loop_brain.py:1000-1001 (run: e = emb(idx); x = e)"
+   ],
+   "vram": "",
+   "notes": "train.log: '40.12M params (+6.29M emb)' - n_params excludes 'emb.' but includes the 6.29M LM head.",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "tokens",
+     "name": "Input tokens idx",
+     "label": "idx (int64)",
+     "kind": "forward",
+     "shape_sym": "(B, T)",
+     "shape_num": "(16, 512)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "ws_init",
+     "name": "Workspace init s_0",
+     "label": "e",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "input_mix",
+     "name": "Core input mix u",
+     "label": "x_0 = e  and  n_e(e) every pass",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "pass1",
+     "name": "Pass 1 of K",
+     "label": "x_0 = e, s_0",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "tokens"
+   ],
+   "next": [
+    "input_mix",
+    "pass1",
+    "ws_init"
+   ]
+  },
+  {
+   "id": "ws_init",
+   "name": "Workspace init s_0",
+   "layer": "forward",
+   "group": "workspace",
+   "pos3": [
+    -100,
+    0,
+    30
+   ],
+   "purpose": "The 16-slot workspace starts from the token itself: s_0 = tanh(W_0 n_e(e)), reshaped into 16 slots x 64. The workspace is the brain's internal 'thought' state (never decoded). With --state none there is no vector state; the workspace (--slots 16) is the latent state. Knock-out probes reset s to s_0.",
+   "equations": [
+    "s_0 = tanh(W_0 · n_e(e)).view(B, T, 16, 64)"
+   ],
+   "param_count": {
+    "start": 393216,
+    "ckpt": 393216,
+    "final": 393216
+   },
+   "sizes": [
+    [
+     "W_0",
+     "[1024, 384]"
+    ],
+    [
+     "slots x ds",
+     "16 x 64"
+    ]
+   ],
+   "flags": [
+    [
+     "--slots",
+     16
+    ],
+    [
+     "--state",
+     "none"
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:193-195 (init_state)",
+    "fruit-fly-sim/loop_brain.py:131"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "embedding",
+     "name": "Token embedding",
+     "label": "e",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "ws_read",
+     "name": "Workspace read",
+     "label": "s_0",
+     "kind": "forward",
+     "shape_sym": "(B, T, slots, ds)",
+     "shape_num": "(16, 512, 16, 64)"
+    }
+   ],
+   "prev": [
+    "embedding"
+   ],
+   "next": [
+    "ws_read"
+   ]
+  },
+  {
+   "id": "input_mix",
+   "name": "Core input mix u",
+   "layer": "forward",
+   "group": "pass",
+   "pos3": [
+    -62,
+    0,
+    0
+   ],
+   "purpose": "Start of every pass. The current thought x, the re-injected embedding, the workspace read and the write-back inject (concept write-back + memory output M from the previous pass's after-pass block) are summed and RMS-normed.",
+   "equations": [
+    "u = n_u( x + n_e(e) + W_ro · read(s, x) + inject )",
+    "inject_k = Σ_l B_l A_l μ_l  +  M_k      (from the previous pass; None on pass 1 since --mem-read0 0)"
+   ],
+   "param_count": {
+    "start": 768,
+    "ckpt": 768,
+    "final": 768
+   },
+   "sizes": [
+    [
+     "norms",
+     "n_u, n_e: RMSNorm(384)"
+    ]
+   ],
+   "flags": [
+    [
+     "--mem-read0",
+     0
+    ],
+    [
+     "--think-use",
+     1
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:228-230 (Core.forward)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "embedding",
+     "name": "Token embedding",
+     "label": "x_0 = e  and  n_e(e) every pass",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "ws_read",
+     "name": "Workspace read",
+     "label": "W_ro r",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "write_back",
+     "name": "Concept write-back (inject)",
+     "label": "inject (next pass)",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "x_update",
+     "name": "Thought update (ws_direct)",
+     "label": "x_k → next pass",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "w_o",
+     "name": "W_o → memory output M",
+     "label": "M → inject (next pass)",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "membranes",
+     "name": "Temporal membranes (SSD mixer heads)",
+     "label": "n_t(u)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "router",
+     "name": "Expert router (top-6 of E)",
+     "label": "h = u + m  → n_m(h)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "embedding",
+    "w_o",
+    "write_back",
+    "ws_read",
+    "x_update"
+   ],
+   "next": [
+    "membranes",
+    "router"
+   ]
+  },
+  {
+   "id": "ws_read",
+   "name": "Workspace read",
+   "layer": "forward",
+   "group": "workspace",
+   "pos3": [
+    -62,
+    0,
+    26
+   ],
+   "purpose": "Attention read of the 16 slots with a query from the current thought x; the 64-d result is projected to d and added to the core input.",
+   "equations": [
+    "att = softmax( W_rq(x) · n_s(s)ᵀ / √64 )   over 16 slots",
+    "r = Σ_slots att · s       (B, T, 64)",
+    "→ W_ro r  (B, T, d)"
+   ],
+   "param_count": {
+    "start": 49152,
+    "ckpt": 49152,
+    "final": 49152
+   },
+   "sizes": [
+    [
+     "W_rq",
+     "[64, 384]"
+    ],
+    [
+     "W_ro",
+     "[384, 64]"
+    ]
+   ],
+   "flags": [
+    [
+     "--slots",
+     16
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:197-200 (Core.read)",
+    "fruit-fly-sim/loop_brain.py:136"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "ws_init",
+     "name": "Workspace init s_0",
+     "label": "s_0",
+     "kind": "forward",
+     "shape_sym": "(B, T, slots, ds)",
+     "shape_num": "(16, 512, 16, 64)"
+    },
+    {
+     "from": "ws_write",
+     "name": "Workspace write (16 slots x 64)",
+     "label": "s_k → next pass",
+     "kind": "loop",
+     "shape_sym": "(B, T, slots, ds)",
+     "shape_num": "(16, 512, 16, 64)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "input_mix",
+     "name": "Core input mix u",
+     "label": "W_ro r",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "ws_init",
+    "ws_write"
+   ],
+   "next": [
+    "input_mix"
+   ]
+  },
+  {
+   "id": "membranes",
+   "name": "Temporal membranes (SSD mixer heads)",
+   "layer": "forward",
+   "group": "pass",
+   "pos3": [
+    -44,
+    0,
+    0
+   ],
+   "purpose": "Mamba-2-style gated linear recurrence over the 512 words (word-to-word context), one scalar decay per head, graded spikes on the output. PASS-ROUTED HEAD GROUPS: the first 6 heads (group 0) are always on; heads born later are assigned round-robin to 6 routed groups that take turns over the passes: pass k computes group 0 + group 1 + (k + offset) % 6 (training: a random offset per optimizer step; eval: offset 0). Each pass re-scans the whole sequence from state 0 (nothing carried between passes). Heads grow 6 → 36 (one birth at a time, zero-output ramp-in over 1000 steps).",
+   "equations": [
+    "z, x', q, k = W_z, W_x, W_q, W_k · n_t(u)      (only the active heads' channels)",
+    "v = silu(conv4(x')),  q,k = normalize(conv4(·))",
+    "dt = softplus(W_dt u + b_dt),  a = −dt · exp(A_log)",
+    "S_t = e^{a_t} S_{t−1} + dt_t k_t v_tᵀ ;   y_t = q_t S_t + D v_t    (chunked scan, chunk 64)",
+    "y = RMSNorm_head(y) · silu(z) → Spike(graded 0..4) → W_o → m (B, T, d)"
+   ],
+   "param_count": {
+    "start": 746130,
+    "ckpt": 1492260,
+    "final": 4476780
+   },
+   "sizes": [
+    [
+     "heads h",
+     "6 → 36 (12 at step 2000)"
+    ],
+    [
+     "head dim P",
+     "64"
+    ],
+    [
+     "channels h·64",
+     "384 → 2,304"
+    ],
+    [
+     "active heads / pass",
+     "6 → 11 (group 0: 6, + one routed group of up to 5)"
+    ],
+    [
+     "routed groups",
+     "6 (round-robin)"
+    ],
+    [
+     "params / head",
+     "124,355"
+    ],
+    [
+     "scan state / head",
+     "(64 x 64) per sequence"
+    ],
+    [
+     "conv kernel",
+     "4 (causal, depthwise)"
+    ]
+   ],
+   "flags": [
+    [
+     "--mixer",
+     "ssd"
+    ],
+    [
+     "--heads",
+     "36 (final)"
+    ],
+    [
+     "--start",
+     "heads=6,experts=192"
+    ],
+    [
+     "--head-group",
+     6
+    ],
+    [
+     "--head-groups",
+     6
+    ],
+    [
+     "--head-dim",
+     64
+    ],
+    [
+     "--spike",
+     "graded"
+    ],
+    [
+     "--pops",
+     1
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/spiking_lm.py:259-343 (SSDMixer)",
+    "fruit-fly-sim/spiking_lm.py:38 (ssd_scan)",
+    "fruit-fly-sim/loop_brain.py:233",
+    "fruit-fly-sim/loop_brain.py:444-451 (pass_group)",
+    "fruit-fly-sim/spiking_lm.py:353 (grow_heads)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "input_mix",
+     "name": "Core input mix u",
+     "label": "n_t(u)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "router",
+     "name": "Expert router (top-6 of E)",
+     "label": "m",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "x_update",
+     "name": "Thought update (ws_direct)",
+     "label": "m (direct path)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "input_mix"
+   ],
+   "next": [
+    "router",
+    "x_update"
+   ]
+  },
+  {
+   "id": "waves",
+   "name": "Waves: expert connectome + fatigue",
+   "layer": "forward",
+   "group": "pass",
+   "pos3": [
+    -30,
+    0,
+    -26
+   ],
+   "purpose": "Replaces the refractory rule (--waves). The router logits of pass k get an excitation from the experts used on pass k−1 through a LEARNED expert-to-expert connectivity C (init: Gaussian neighbours on a 16 x 12 torus sheet, fixed by the starting pool; newborns sit next to their parent), minus a fatigue term. Built with embedding_bag (no dense E x E matmul per token). C is trained by AdamW (name contains 'router'), no weight decay.",
+   "equations": [
+    "logits += γ · Σ_{j ∈ used_{k−1}} C[j, :]  −  β · f",
+    "f ← 0.7 f + used_k      (fatigue, per token x expert)",
+    "γ = softplus(·) (init 3.0; 1.77 at step 2000),  β = softplus(·) (init 2.0; 0.86 at step 2000)"
+   ],
+   "param_count": {
+    "start": 36866,
+    "ckpt": 96723,
+    "final": 589826
+   },
+   "sizes": [
+    [
+     "C = router_conn",
+     "[E, E]: 192² → 768² (311² at step 2000)"
+    ],
+    [
+     "sheet",
+     "16 rows x 12 cols torus"
+    ],
+    [
+     "fatigue f",
+     "(N, E) per pass"
+    ],
+    [
+     "prev_idx",
+     "(N, 6)"
+    ]
+   ],
+   "flags": [
+    [
+     "--waves",
+     true
+    ],
+    [
+     "--refractory",
+     "1 (ignored: waves replace it)"
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:115-128",
+    "fruit-fly-sim/loop_brain.py:1074",
+    "fruit-fly-sim/loop_brain.py:1162-1165",
+    "fruit-fly-sim/spiking_lm.py:610-612 (route)",
+    "fruit-fly-sim/loop_brain.py:40 (torus_kernel)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "experts",
+     "name": "Routed experts (spiking, capacity 1.5)",
+     "label": "used experts → next pass",
+     "kind": "loop",
+     "shape_sym": "(N, k)",
+     "shape_num": "(8192, 6)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "router",
+     "name": "Expert router (top-6 of E)",
+     "label": "γ C·used − β f",
+     "kind": "forward",
+     "shape_sym": "(N, E)",
+     "shape_num": "(8192, 192) -> (8192, 768)"
+    }
+   ],
+   "prev": [
+    "experts"
+   ],
+   "next": [
+    "router"
+   ]
+  },
+  {
+   "id": "router",
+   "name": "Expert router (top-6 of E)",
+   "layer": "forward",
+   "group": "pass",
+   "pos3": [
+    -28,
+    0,
+    0
+   ],
+   "purpose": "Scores every expert for every token: sigmoid of (router(n_m(h)) + router_s(workspace summary) + wave terms). Selection = top-6 of (noisy) scores + selection bias; the gate weights use the CLEAN scores, renormalised over the 6 picks. Training adds Gaussian noise 0.3 (logit units, constant) to WHICH experts are picked; eval is clean. Balance mode is 'aux' (because --route-aux 0.02 > 0): a load-balancing loss 0.02·E·Σ f_e P_e plus a z-loss 1e-4, averaged over the passes with gradient. The auxfree bias balancer is NOT running (route_both 0); the bias buffer only carries newborn debt (zero for split births).",
+   "equations": [
+    "score = σ( W_r n_m(h) + W_rs side(s) + wave )        (N, E)",
+    "idx = topk(logit(score) + 0.3·ε + bias, 6)          (training noise)",
+    "gate = score[idx] / Σ score[idx]",
+    "aux = 1e-4 · mean(logsumexp(logits)²) + 0.02 · E · Σ_e f_e P_e"
+   ],
+   "param_count": {
+    "start": 86016,
+    "ckpt": 139328,
+    "final": 344064
+   },
+   "sizes": [
+    [
+     "router",
+     "[E, 384]"
+    ],
+    [
+     "router_s (side input, zero-init)",
+     "[E, 64]"
+    ],
+    [
+     "k",
+     "6"
+    ],
+    [
+     "side(s)",
+     "n_s(mean over slots) (B, T, 64)"
+    ]
+   ],
+   "flags": [
+    [
+     "--moe",
+     "768,6,192,384,auxfree (final E, k, hidden, shared, balance)"
+    ],
+    [
+     "--route-aux",
+     0.02
+    ],
+    [
+     "--route-z",
+     "1e-4"
+    ],
+    [
+     "--route-noise",
+     0.3
+    ],
+    [
+     "--route-noise-decay",
+     "0 (constant)"
+    ],
+    [
+     "--eval-route-noise",
+     0
+    ],
+    [
+     "--route-u",
+     0.001
+    ],
+    [
+     "--route-both",
+     0
+    ],
+    [
+     "--route-lift",
+     0
+    ],
+    [
+     "--bias-logit",
+     0
+    ],
+    [
+     "--route-shield",
+     0
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/spiking_lm.py:595-618 (route)",
+    "fruit-fly-sim/spiking_lm.py:635-647",
+    "fruit-fly-sim/spiking_lm.py:680-684 (aux)",
+    "fruit-fly-sim/train_lm.py:873-874 (balance = aux)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "input_mix",
+     "name": "Core input mix u",
+     "label": "h = u + m  → n_m(h)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "membranes",
+     "name": "Temporal membranes (SSD mixer heads)",
+     "label": "m",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "waves",
+     "name": "Waves: expert connectome + fatigue",
+     "label": "γ C·used − β f",
+     "kind": "forward",
+     "shape_sym": "(N, E)",
+     "shape_num": "(8192, 192) -> (8192, 768)"
+    },
+    {
+     "from": "ws_write",
+     "name": "Workspace write (16 slots x 64)",
+     "label": "side(s) = n_s(mean slots)",
+     "kind": "forward",
+     "shape_sym": "(B, T, ds)",
+     "shape_num": "(16, 512, 64)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "experts",
+     "name": "Routed experts (spiking, capacity 1.5)",
+     "label": "top-6 idx + gates",
+     "kind": "forward",
+     "shape_sym": "(N, k)",
+     "shape_num": "(8192, 6)"
+    },
+    {
+     "to": "shared_expert",
+     "name": "Shared expert (always on)",
+     "label": "n_m(h)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "loss_balance",
+     "name": "Expert balance (0.02)",
+     "label": "f_e, P_e",
+     "kind": "loss",
+     "shape_sym": "(E)",
+     "shape_num": "(192) -> (768)"
+    },
+    {
+     "to": "loss_z",
+     "name": "Router z-loss (1e-4)",
+     "label": "router logits",
+     "kind": "loss",
+     "shape_sym": "(N, E)",
+     "shape_num": "(8192, 192) -> (8192, 768)"
+    }
+   ],
+   "prev": [
+    "input_mix",
+    "membranes",
+    "waves",
+    "ws_write"
+   ],
+   "next": [
+    "experts",
+    "loss_balance",
+    "loss_z",
+    "shared_expert"
+   ]
+  },
+  {
+   "id": "experts",
+   "name": "Routed experts (spiking, capacity 1.5)",
+   "layer": "forward",
+   "group": "pass",
+   "pos3": [
+    -10,
+    0,
+    0
+   ],
+   "purpose": "Up to 768 small spiking experts (384 → 192 → 384, graded spikes 0..4 on the hidden layer, per-expert thresholds). Tokens are sorted by expert and packed into a fixed capacity C = ceil(1.5 · N · 6 / E_used); overflow is dropped. All experts run as one batched matmul. The private memory read (pmem) of the previous after-pass block is added to the output here. Experts grow 192 → 768 by SPLIT births (busiest expert splits into twins: router row r ± δ, δ = 0.1·|r|, the child copies weights and the parent's private memory).",
+   "equations": [
+    "buf[e, slot] = n_m(h)[token]                       (E, C, d)",
+    "hid = Spike_e( buf @ W_up[e] )                      (E, C, 192)",
+    "y[token] += gate · (hid @ W_down[e])  +  pmem(...)   (N, d)",
+    "o = y + shared(n_m(h))"
+   ],
+   "param_count": {
+    "start": 28348416,
+    "ckpt": 45918528,
+    "final": 113393664
+   },
+   "sizes": [
+    [
+     "E (experts)",
+     "192 → 768 (311 at step 2000)"
+    ],
+    [
+     "hidden / expert",
+     "192"
+    ],
+    [
+     "k per token",
+     "6"
+    ],
+    [
+     "capacity C",
+     "384 (E=192) → 238 (E=311) → 96 (E=768)"
+    ],
+    [
+     "W_up",
+     "[E, 384, 192]"
+    ],
+    [
+     "W_down",
+     "[E, 192, 384]"
+    ],
+    [
+     "params / expert",
+     "148,096"
+    ],
+    [
+     "train.log drop",
+     "~0.01-0.04 of slots"
+    ]
+   ],
+   "flags": [
+    [
+     "--capacity",
+     1.5
+    ],
+    [
+     "--moe",
+     "768,6,192,384"
+    ],
+    [
+     "--birth-mode",
+     "split"
+    ],
+    [
+     "--birth-delta",
+     0.1
+    ],
+    [
+     "--spike",
+     "graded"
+    ],
+    [
+     "--homeo",
+     "0.01 (floor)"
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/spiking_lm.py:527-699 (RoutedMLP)",
+    "fruit-fly-sim/spiking_lm.py:465 (ExpertSpike)",
+    "fruit-fly-sim/spiking_lm.py:749-810 (grow_experts)",
+    "fruit-fly-sim/loop_brain.py:235-236"
+   ],
+   "vram": "expert buffers (E, C, 384) bf16 per pass ≈ 57 MB",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "router",
+     "name": "Expert router (top-6 of E)",
+     "label": "top-6 idx + gates",
+     "kind": "forward",
+     "shape_sym": "(N, k)",
+     "shape_num": "(8192, 6)"
+    },
+    {
+     "from": "shared_expert",
+     "name": "Shared expert (always on)",
+     "label": "shared(n_m h)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "private_mem",
+     "name": "Private expert memory (512 rows / expert)",
+     "label": "W_p z (inside experts, next pass)",
+     "kind": "loop",
+     "shape_sym": "(N, d)",
+     "shape_num": "(8192, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "x_update",
+     "name": "Thought update (ws_direct)",
+     "label": "o = y + shared",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "ws_write",
+     "name": "Workspace write (16 slots x 64)",
+     "label": "c = m + o",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "waves",
+     "name": "Waves: expert connectome + fatigue",
+     "label": "used experts → next pass",
+     "kind": "loop",
+     "shape_sym": "(N, k)",
+     "shape_num": "(8192, 6)"
+    }
+   ],
+   "prev": [
+    "private_mem",
+    "router",
+    "shared_expert"
+   ],
+   "next": [
+    "waves",
+    "ws_write",
+    "x_update"
+   ]
+  },
+  {
+   "id": "shared_expert",
+   "name": "Shared expert (always on)",
+   "layer": "forward",
+   "group": "pass",
+   "pos3": [
+    -10,
+    0,
+    -22
+   ],
+   "purpose": "A dense spiking MLP 384 → 384 → 384 that every token uses on every pass, added to the routed output.",
+   "equations": [
+    "shared(x) = W_down · Spike(W_up x)"
+   ],
+   "param_count": {
+    "start": 295296,
+    "ckpt": 295296,
+    "final": 295296
+   },
+   "sizes": [
+    [
+     "up",
+     "[384, 384]"
+    ],
+    [
+     "down",
+     "[384, 384]"
+    ]
+   ],
+   "flags": [
+    [
+     "--moe",
+     "...,384 (shared width)"
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/spiking_lm.py:418 (MLP)",
+    "fruit-fly-sim/spiking_lm.py:561",
+    "fruit-fly-sim/spiking_lm.py:699"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "router",
+     "name": "Expert router (top-6 of E)",
+     "label": "n_m(h)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "experts",
+     "name": "Routed experts (spiking, capacity 1.5)",
+     "label": "shared(n_m h)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "router"
+   ],
+   "next": [
+    "experts"
+   ]
+  },
+  {
+   "id": "ws_write",
+   "name": "Workspace write (16 slots x 64)",
+   "layer": "forward",
+   "group": "workspace",
+   "pos3": [
+    8,
+    0,
+    26
+   ],
+   "purpose": "The pass result c = m + o is written into the workspace: each slot gets its own value and its own gate (a convex update keeps |s| ≤ 1). Then the after-pass block adds the uncertainty feedback W_fb u to every slot and the memory output W_ms M to slot 15.",
+   "equations": [
+    "c = n_c(m + o)",
+    "val = tanh(W_wv c).view(16, 64),   z = σ(W_wg c)  (per slot, bias −1)",
+    "s ← (1 − z) s + z · val"
+   ],
+   "param_count": {
+    "start": 399760,
+    "ckpt": 399760,
+    "final": 399760
+   },
+   "sizes": [
+    [
+     "W_wv",
+     "[1024, 384]"
+    ],
+    [
+     "W_wg",
+     "[16, 384] + bias"
+    ]
+   ],
+   "flags": [
+    [
+     "--slots",
+     16
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:202-208 (Core.write)",
+    "fruit-fly-sim/loop_brain.py:238"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "experts",
+     "name": "Routed experts (spiking, capacity 1.5)",
+     "label": "c = m + o",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "uncertainty",
+     "name": "Uncertainty u (2 per level)",
+     "label": "W_fb u → every slot",
+     "kind": "loop",
+     "shape_sym": "(B, T, ds)",
+     "shape_num": "(16, 512, 64)"
+    },
+    {
+     "from": "slot15",
+     "name": "Slot-15 write W_ms M",
+     "label": "s[...,15,:] += W_ms M",
+     "kind": "loop",
+     "shape_sym": "(B, T, ds)",
+     "shape_num": "(16, 512, 64)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "x_update",
+     "name": "Thought update (ws_direct)",
+     "label": "s → W_xo",
+     "kind": "forward",
+     "shape_sym": "(B, T, slots, ds)",
+     "shape_num": "(16, 512, 16, 64)"
+    },
+    {
+     "to": "router",
+     "name": "Expert router (top-6 of E)",
+     "label": "side(s) = n_s(mean slots)",
+     "kind": "forward",
+     "shape_sym": "(B, T, ds)",
+     "shape_num": "(16, 512, 64)"
+    },
+    {
+     "to": "concepts",
+     "name": "Concept hierarchy (4 levels)",
+     "label": "flatten n_s(s)",
+     "kind": "forward",
+     "shape_sym": "(B, T, slots·ds)",
+     "shape_num": "(16, 512, 1024)"
+    },
+    {
+     "to": "ws_read",
+     "name": "Workspace read",
+     "label": "s_k → next pass",
+     "kind": "loop",
+     "shape_sym": "(B, T, slots, ds)",
+     "shape_num": "(16, 512, 16, 64)"
+    },
+    {
+     "to": "translator",
+     "name": "Translator input a = [μ_l ; p̄]",
+     "label": "p̄ = mean_slots n_s(s)",
+     "kind": "memory",
+     "shape_sym": "(N, ds)",
+     "shape_num": "(8192, 64)"
+    }
+   ],
+   "prev": [
+    "experts",
+    "slot15",
+    "uncertainty"
+   ],
+   "next": [
+    "concepts",
+    "router",
+    "translator",
+    "ws_read",
+    "x_update"
+   ]
+  },
+  {
+   "id": "x_update",
+   "name": "Thought update (ws_direct)",
+   "layer": "forward",
+   "group": "pass",
+   "pos3": [
+    24,
+    0,
+    0
+   ],
+   "purpose": "Workspace v2 (--ws-direct): the thought x is updated from a learned per-channel blend of the DIRECT pass result (m + o) and the whole workspace read out at full rank. λ starts at 0.1 (90% direct); mean σ(ws_mix) = 0.123 at step 2000.",
+   "equations": [
+    "ws = W_xo · flatten(n_s(s))           (B, T, d)",
+    "λ = σ(ws_mix)  (per channel)",
+    "x ← n_x( x + α ⊙ ((1 − λ)(m + o) + λ · ws) )      α init 0.2"
+   ],
+   "param_count": {
+    "start": 394368,
+    "ckpt": 394368,
+    "final": 394368
+   },
+   "sizes": [
+    [
+     "W_xo",
+     "[384, 1024]"
+    ],
+    [
+     "ws_mix, α",
+     "[384] each"
+    ]
+   ],
+   "flags": [
+    [
+     "--ws-direct",
+     true
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:239-242",
+    "fruit-fly-sim/loop_brain.py:138-140"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "experts",
+     "name": "Routed experts (spiking, capacity 1.5)",
+     "label": "o = y + shared",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "membranes",
+     "name": "Temporal membranes (SSD mixer heads)",
+     "label": "m (direct path)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "ws_write",
+     "name": "Workspace write (16 slots x 64)",
+     "label": "s → W_xo",
+     "kind": "forward",
+     "shape_sym": "(B, T, slots, ds)",
+     "shape_num": "(16, 512, 16, 64)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "pass_readout",
+     "name": "Per-pass read-out (deep sup.)",
+     "label": "x_k",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "input_mix",
+     "name": "Core input mix u",
+     "label": "x_k → next pass",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "final_norm",
+     "name": "Final norm normf",
+     "label": "x_K (last pass)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "experts",
+    "membranes",
+    "ws_write"
+   ],
+   "next": [
+    "final_norm",
+    "input_mix",
+    "pass_readout"
+   ]
+  },
+  {
+   "id": "concepts",
+   "name": "Concept hierarchy (4 levels)",
+   "layer": "forward",
+   "group": "after",
+   "pos3": [
+    40,
+    0,
+    22
+   ],
+   "purpose": "After every pass, on the workspace: a shared trunk and 4 level heads predict the brain's OWN final representation (stop-gradient of normf(x_K)) averaged over the next 16 / 32 / 64 / 128 tokens (windows cut at EOT), as a Gaussian (mean μ_l, log-variance ν_l ∈ (−6, 4)). Level l also sees μ_{l−1}. Replaces the single think head (--think-target latent is superseded by --concepts). Loss: Gaussian NLL + VICReg-style variance hinge, weights 1, 1, 0.5, 0.5, scaled by --think-w 0.1, on the passes in the gradient window.",
+   "equations": [
+    "p = flatten(n_s(s))   (B, T, 1024)",
+    "h = GELU(W_t p)        (B, T, 256)",
+    "[μ_l ; ν_raw] = W_l [h ; μ_{l−1}],   ν_l = −1 + 5 tanh(ν_raw / 5)",
+    "target_l(t) = mean of sg(normf(x_K)) over t+1 .. min(t+n_l, T−1, EOT−1),  n = 16/32/64/128",
+    "L_l = ½ Σ (ν + (t − μ)² e^{−ν}) / (d·n_valid)  +  relu(std(t) − std(μ))"
+   ],
+   "param_count": {
+    "start": 1936640,
+    "ckpt": 1936640,
+    "final": 1936640
+   },
+   "sizes": [
+    [
+     "trunk",
+     "[256, 1024]"
+    ],
+    [
+     "level 1",
+     "[768, 256]"
+    ],
+    [
+     "levels 2-4",
+     "[768, 640] each"
+    ],
+    [
+     "horizons",
+     "16, 32, 64, 128"
+    ],
+    [
+     "weights",
+     "1, 1, 0.5, 0.5"
+    ]
+   ],
+   "flags": [
+    [
+     "--concepts",
+     "16,32,64,128"
+    ],
+    [
+     "--concept-weights",
+     "1,1,0.5,0.5"
+    ],
+    [
+     "--think-w",
+     0.1
+    ],
+    [
+     "--think-n",
+     "16 (unused with --concepts)"
+    ],
+    [
+     "--think-target",
+     "latent (superseded)"
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:281-313 (ConceptHier)",
+    "fruit-fly-sim/memory.py:244 (concept_targets)",
+    "fruit-fly-sim/memory.py:272 (concept_loss)",
+    "fruit-fly-sim/loop_brain.py:1114-1147",
+    "fruit-fly-sim/loop_brain.py:1222-1227"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "ws_write",
+     "name": "Workspace write (16 slots x 64)",
+     "label": "flatten n_s(s)",
+     "kind": "forward",
+     "shape_sym": "(B, T, slots·ds)",
+     "shape_num": "(16, 512, 1024)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "uncertainty",
+     "name": "Uncertainty u (2 per level)",
+     "label": "u",
+     "kind": "forward",
+     "shape_sym": "(B, T, 2·L)",
+     "shape_num": "(16, 512, 8)"
+    },
+    {
+     "to": "write_back",
+     "name": "Concept write-back (inject)",
+     "label": "μ_1..4",
+     "kind": "forward",
+     "shape_sym": "(L, B, T, d)",
+     "shape_num": "(4, 16, 512, 384)"
+    },
+    {
+     "to": "translator",
+     "name": "Translator input a = [μ_l ; p̄]",
+     "label": "μ_l (with gradient)",
+     "kind": "memory",
+     "shape_sym": "(L, N, d)",
+     "shape_num": "(4, 8192, 384)"
+    },
+    {
+     "to": "loss_concept",
+     "name": "Concept / think loss (0.1)",
+     "label": "μ_l, ν_l",
+     "kind": "loss",
+     "shape_sym": "(L, B, T, d)",
+     "shape_num": "(4, 16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "ws_write"
+   ],
+   "next": [
+    "loss_concept",
+    "translator",
+    "uncertainty",
+    "write_back"
+   ]
+  },
+  {
+   "id": "uncertainty",
+   "name": "Uncertainty u (2 per level)",
+   "layer": "forward",
+   "group": "after",
+   "pos3": [
+    56,
+    0,
+    30
+   ],
+   "purpose": "Per level: the predicted variance (mean ν, scaled to ~[0,1]) and how much μ still moves since the previous pass. Detached. Feeds (1) the workspace feedback W_fb u into EVERY slot (zero-init, --think-fb 1) and (2) the halting head's features.",
+   "equations": [
+    "u_l = [ (mean ν_l + 6)/10 ,  log1p(|μ_l − μ_l,prev| / |μ_l|) ]",
+    "u = concat_l u_l     (B, T, 8)",
+    "s ← s + W_fb u   (broadcast to 16 slots)"
+   ],
+   "param_count": {
+    "start": 576,
+    "ckpt": 576,
+    "final": 576
+   },
+   "sizes": [
+    [
+     "W_fb",
+     "[64, 8] + bias, zero-init"
+    ]
+   ],
+   "flags": [
+    [
+     "--think-fb",
+     1
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:317-325",
+    "fruit-fly-sim/loop_brain.py:1136",
+    "fruit-fly-sim/loop_brain.py:1143-1144"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "concepts",
+     "name": "Concept hierarchy (4 levels)",
+     "label": "u",
+     "kind": "forward",
+     "shape_sym": "(B, T, 2·L)",
+     "shape_num": "(16, 512, 8)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "ws_write",
+     "name": "Workspace write (16 slots x 64)",
+     "label": "W_fb u → every slot",
+     "kind": "loop",
+     "shape_sym": "(B, T, ds)",
+     "shape_num": "(16, 512, 64)"
+    },
+    {
+     "to": "halt_head",
+     "name": "Halting head ('loop until sure')",
+     "label": "u (detached)",
+     "kind": "forward",
+     "shape_sym": "(B, T, 2·L)",
+     "shape_num": "(16, 512, 8)"
+    }
+   ],
+   "prev": [
+    "concepts"
+   ],
+   "next": [
+    "halt_head",
+    "ws_write"
+   ]
+  },
+  {
+   "id": "write_back",
+   "name": "Concept write-back (inject)",
+   "layer": "forward",
+   "group": "after",
+   "pos3": [
+    56,
+    0,
+    12
+   ],
+   "purpose": "Usefulness path (--think-use 1): the predicted concepts are written back, rank 64 per level, B_l zero-init, into the NEXT pass's core input u, which the membranes scan over the words, so later words can use them. Measured in the loop report as think_usefulness (loss with the write-back switched off minus loss with it).",
+   "equations": [
+    "inject = Σ_l B_l (A_l μ_l)       A_l: [64, 384], B_l: [384, 64] (0 at init)"
+   ],
+   "param_count": {
+    "start": 196608,
+    "ckpt": 196608,
+    "final": 196608
+   },
+   "sizes": [
+    [
+     "inj_a",
+     "[4, 64, 384]"
+    ],
+    [
+     "inj_b",
+     "[4, 384, 64]"
+    ]
+   ],
+   "flags": [
+    [
+     "--think-use",
+     1
+    ],
+    [
+     "--concept-inject-rank",
+     64
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:327-332",
+    "fruit-fly-sim/loop_brain.py:1145-1150"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "concepts",
+     "name": "Concept hierarchy (4 levels)",
+     "label": "μ_1..4",
+     "kind": "forward",
+     "shape_sym": "(L, B, T, d)",
+     "shape_num": "(4, 16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "input_mix",
+     "name": "Core input mix u",
+     "label": "inject (next pass)",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "loss_use",
+     "name": "Usefulness (no own term)",
+     "label": "inject (no own loss)",
+     "kind": "loss",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "concepts"
+   ],
+   "next": [
+    "input_mix",
+    "loss_use"
+   ]
+  },
+  {
+   "id": "pass_readout",
+   "name": "Per-pass read-out (deep sup.)",
+   "layer": "forward",
+   "group": "readout",
+   "pos3": [
+    40,
+    0,
+    -24
+   ],
+   "purpose": "After EVERY pass of a training forward the decoder reads the thought: per-word CE (with gradient only inside the BPTT window), the detached log-probs and the halting features. The (B, T, V) fp32 log-probs are recomputed in backward (activation checkpoint) instead of being kept. Deep supervision: 0.3 x mean CE of the earlier passes in the window (the last pass is the main loss).",
+   "equations": [
+    "lp_k = log_softmax( W_lm normf(x_k) )      (B, T, V)",
+    "ce_k = −lp_k[y]",
+    "L_ds = 0.3 · mean_{k ∈ [K−6, K−2]} mean(ce_k)"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "log-probs",
+     "(16, 512, 16384) fp32 = 537 MB per pass (recomputed in backward)"
+    ]
+   ],
+   "flags": [
+    [
+     "--deep-sup",
+     0.3
+    ],
+    [
+     "--readout-frac",
+     1
+    ],
+    [
+     "--bptt",
+     6
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:839-846 (pass_readout_ce)",
+    "fruit-fly-sim/loop_brain.py:1178-1187",
+    "fruit-fly-sim/loop_brain.py:1195-1198"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "x_update",
+     "name": "Thought update (ws_direct)",
+     "label": "x_k",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "halt_head",
+     "name": "Halting head ('loop until sure')",
+     "label": "KL, entropy, k/16 (+ normf x)",
+     "kind": "forward",
+     "shape_sym": "(B, T, 3)",
+     "shape_num": "(16, 512, 3)"
+    },
+    {
+     "to": "loss_ds",
+     "name": "Deep supervision (0.3)",
+     "label": "ce_k (grad passes)",
+     "kind": "loss",
+     "shape_sym": "(B, T)",
+     "shape_num": "(16, 512)"
+    },
+    {
+     "to": "loss_halt",
+     "name": "Halting loss (1, KL 0.01)",
+     "label": "sg(ce_k)",
+     "kind": "loss",
+     "shape_sym": "(K, B, T)",
+     "shape_num": "(6, 16, 512)"
+    }
+   ],
+   "prev": [
+    "x_update"
+   ],
+   "next": [
+    "halt_head",
+    "loss_ds",
+    "loss_halt"
+   ]
+  },
+  {
+   "id": "halt_head",
+   "name": "Halting head ('loop until sure')",
+   "layer": "forward",
+   "group": "readout",
+   "pos3": [
+    58,
+    0,
+    -34
+   ],
+   "purpose": "PonderNet-style stop head on DETACHED features (it never changes the brain): the normalised thought, the KL of the prediction to the previous pass, its entropy, the pass index and the concept uncertainty u. Trained on every pass (also outside the BPTT window). At eval (loop report) each word stops when its cumulative stop probability reaches 0.5 (max 16 passes).",
+   "equations": [
+    "feat = [normf(x) (384), log1p KL, entropy, k/16, u (8)]   → 395",
+    "λ_k = σ( MLP(395 → 64 → 1) )",
+    "P_k = λ_k Π_{j<k} (1 − λ_j)   (last pass takes the rest)",
+    "L_halt = Σ_k P_k · sg(ce_k)  +  0.01 · KL(P ‖ Geometric(0.2), truncated)"
+   ],
+   "param_count": {
+    "start": 25409,
+    "ckpt": 25409,
+    "final": 25409
+   },
+   "sizes": [
+    [
+     "layer 1",
+     "[64, 395]"
+    ],
+    [
+     "layer 2",
+     "[1, 64]"
+    ]
+   ],
+   "flags": [
+    [
+     "--halt",
+     1
+    ],
+    [
+     "--halt-prior",
+     0.2
+    ],
+    [
+     "--halt-beta",
+     0.01
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:411-413",
+    "fruit-fly-sim/loop_brain.py:866-900",
+    "fruit-fly-sim/loop_brain.py:1199-1209",
+    "fruit-fly-sim/loop_brain.py:903 (halt_eval)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "uncertainty",
+     "name": "Uncertainty u (2 per level)",
+     "label": "u (detached)",
+     "kind": "forward",
+     "shape_sym": "(B, T, 2·L)",
+     "shape_num": "(16, 512, 8)"
+    },
+    {
+     "from": "pass_readout",
+     "name": "Per-pass read-out (deep sup.)",
+     "label": "KL, entropy, k/16 (+ normf x)",
+     "kind": "forward",
+     "shape_sym": "(B, T, 3)",
+     "shape_num": "(16, 512, 3)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "loss_halt",
+     "name": "Halting loss (1, KL 0.01)",
+     "label": "P_k (stop distribution)",
+     "kind": "loss",
+     "shape_sym": "(K, B, T)",
+     "shape_num": "(6, 16, 512)"
+    }
+   ],
+   "prev": [
+    "pass_readout",
+    "uncertainty"
+   ],
+   "next": [
+    "loss_halt"
+   ]
+  },
+  {
+   "id": "final_norm",
+   "name": "Final norm normf",
+   "layer": "output",
+   "group": "readout",
+   "pos3": [
+    98,
+    0,
+    0
+   ],
+   "purpose": "RMSNorm of the last pass's thought x_K. normf(x_K) is also (stop-gradient) the target of the concept heads.",
+   "equations": [
+    "z = normf(x_K)     (B, T, d)"
+   ],
+   "param_count": {
+    "start": 384,
+    "ckpt": 384,
+    "final": 384
+   },
+   "sizes": [],
+   "flags": [],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:284",
+    "fruit-fly-sim/loop_brain.py:1290"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "x_update",
+     "name": "Thought update (ws_direct)",
+     "label": "x_K (last pass)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "from": "pass6",
+     "name": "Pass 6 of K",
+     "label": "x_6",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "lm_head",
+     "name": "LM head (decoder)",
+     "label": "normf(x_K)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "loss_concept",
+     "name": "Concept / think loss (0.1)",
+     "label": "targets: windows of sg(normf x_K)",
+     "kind": "loss",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "pass6",
+    "x_update"
+   ],
+   "next": [
+    "lm_head",
+    "loss_concept"
+   ]
+  },
+  {
+   "id": "lm_head",
+   "name": "LM head (decoder)",
+   "layer": "output",
+   "group": "readout",
+   "pos3": [
+    116,
+    0,
+    0
+   ],
+   "purpose": "Linear d → V (untied from the embedding). The workspace s is never decoded. Main loss = CE of the last pass.",
+   "equations": [
+    "logits = W_lm z     (B, T, V)",
+    "L_LM = CE(logits, y)"
+   ],
+   "param_count": {
+    "start": 6291456,
+    "ckpt": 6291456,
+    "final": 6291456
+   },
+   "sizes": [
+    [
+     "W_lm",
+     "[16384, 384]"
+    ]
+   ],
+   "flags": [],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:285",
+    "fruit-fly-sim/spiking_lm.py:938-942 (forward + CE)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "final_norm",
+     "name": "Final norm normf",
+     "label": "normf(x_K)",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "logits",
+     "name": "Logits [B, T, V]",
+     "label": "logits",
+     "kind": "forward",
+     "shape_sym": "(B, T, V)",
+     "shape_num": "(16, 512, 16384)"
+    }
+   ],
+   "prev": [
+    "final_norm"
+   ],
+   "next": [
+    "logits"
+   ]
+  },
+  {
+   "id": "logits",
+   "name": "Logits [B, T, V]",
+   "layer": "output",
+   "group": "readout",
+   "pos3": [
+    136,
+    0,
+    0
+   ],
+   "purpose": "Next-token distribution per position. Training: CE vs y. Eval: val loss at K = 6 (20 batches of 32).",
+   "equations": [
+    "p(y_t | x_≤t) = softmax(logits_t)"
+   ],
+   "param_count": null,
+   "sizes": [],
+   "flags": [],
+   "code": [
+    "fruit-fly-sim/train_lm.py:542 (evaluate)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [
+    {
+     "from": "lm_head",
+     "name": "LM head (decoder)",
+     "label": "logits",
+     "kind": "forward",
+     "shape_sym": "(B, T, V)",
+     "shape_num": "(16, 512, 16384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "loss_lm",
+     "name": "Next-token loss L_LM (weight 1)",
+     "label": "CE vs y (B, T)",
+     "kind": "loss",
+     "shape_sym": "(B, T, V)",
+     "shape_num": "(16, 512, 16384)"
+    }
+   ],
+   "prev": [
+    "lm_head"
+   ],
+   "next": [
+    "loss_lm"
+   ]
+  },
+  {
+   "id": "pass1",
+   "name": "Pass 1 of K",
+   "layer": "forward",
+   "group": "ring",
+   "pos3": [
+    -19.999999999999996,
+    -8,
+    74
+   ],
+   "purpose": "One of the K passes of the SAME core weights (shown for the eval loop K = 6). Pass 1 computes the always-on head group 0 + routed head group 1 (eval offset 0; training uses a random offset per step). After it, the after-pass block reads the memory with FRESH addresses. Training: K ~ U{2..10}, 5% of steps 12-16; gradients flow only through the last 6 passes (--bptt 6); deep supervision on every earlier backpropagated pass.",
+   "equations": [
+    "x_1, s_1 = Core(x_0, s_0, e, inject_0, pmem_0)",
+    "group = 1 + (k + offset) % 6",
+    "grad on pass k ⇔ k ≥ K − 6"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "eval K",
+     "6"
+    ],
+    [
+     "train K",
+     "2-10 uniform; 5%: 12-16"
+    ],
+    [
+     "head group",
+     "1"
+    ],
+    [
+     "memory read after",
+     "fresh"
+    ]
+   ],
+   "flags": [
+    [
+     "--k-mean",
+     6
+    ],
+    [
+     "--k-min",
+     2
+    ],
+    [
+     "--k-max",
+     10
+    ],
+    [
+     "--bptt",
+     6
+    ],
+    [
+     "--mem-readdr-every",
+     2
+    ],
+    [
+     "--mem-readdr-start",
+     3
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:991-995 (sample_K)",
+    "fruit-fly-sim/loop_brain.py:1066-1076",
+    "fruit-fly-sim/loop_brain.py:1043 (fresh)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "ring",
+   "pos2": [
+    -75,
+    -62.5
+   ],
+   "inputs": [
+    {
+     "from": "embedding",
+     "name": "Token embedding",
+     "label": "x_0 = e, s_0",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "pass2",
+     "name": "Pass 2 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "embedding"
+   ],
+   "next": [
+    "pass2"
+   ]
+  },
+  {
+   "id": "pass2",
+   "name": "Pass 2 of K",
+   "layer": "forward",
+   "group": "ring",
+   "pos3": [
+    -84.08587988004845,
+    -8,
+    37.00000000000002
+   ],
+   "purpose": "One of the K passes of the SAME core weights (shown for the eval loop K = 6). Pass 2 computes the always-on head group 0 + routed head group 2 (eval offset 0; training uses a random offset per step). After it, the after-pass block reads the memory with FRESH addresses. Training: K ~ U{2..10}, 5% of steps 12-16; gradients flow only through the last 6 passes (--bptt 6); deep supervision on every earlier backpropagated pass.",
+   "equations": [
+    "x_2, s_2 = Core(x_1, s_1, e, inject_1, pmem_1)",
+    "group = 1 + (k + offset) % 6",
+    "grad on pass k ⇔ k ≥ K − 6"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "eval K",
+     "6"
+    ],
+    [
+     "train K",
+     "2-10 uniform; 5%: 12-16"
+    ],
+    [
+     "head group",
+     "2"
+    ],
+    [
+     "memory read after",
+     "fresh"
+    ]
+   ],
+   "flags": [
+    [
+     "--k-mean",
+     6
+    ],
+    [
+     "--k-min",
+     2
+    ],
+    [
+     "--k-max",
+     10
+    ],
+    [
+     "--bptt",
+     6
+    ],
+    [
+     "--mem-readdr-every",
+     2
+    ],
+    [
+     "--mem-readdr-start",
+     3
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:991-995 (sample_K)",
+    "fruit-fly-sim/loop_brain.py:1066-1076",
+    "fruit-fly-sim/loop_brain.py:1043 (fresh)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "ring",
+   "pos2": [
+    -51,
+    -62.5
+   ],
+   "inputs": [
+    {
+     "from": "pass1",
+     "name": "Pass 1 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "pass3",
+     "name": "Pass 3 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "pass1"
+   ],
+   "next": [
+    "pass3"
+   ]
+  },
+  {
+   "id": "pass3",
+   "name": "Pass 3 of K",
+   "layer": "forward",
+   "group": "ring",
+   "pos3": [
+    -84.08587988004847,
+    -8,
+    -36.99999999999998
+   ],
+   "purpose": "One of the K passes of the SAME core weights (shown for the eval loop K = 6). Pass 3 computes the always-on head group 0 + routed head group 3 (eval offset 0; training uses a random offset per step). After it, the after-pass block reads the memory with FRESH addresses. Training: K ~ U{2..10}, 5% of steps 12-16; gradients flow only through the last 6 passes (--bptt 6); deep supervision on every earlier backpropagated pass.",
+   "equations": [
+    "x_3, s_3 = Core(x_2, s_2, e, inject_2, pmem_2)",
+    "group = 1 + (k + offset) % 6",
+    "grad on pass k ⇔ k ≥ K − 6"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "eval K",
+     "6"
+    ],
+    [
+     "train K",
+     "2-10 uniform; 5%: 12-16"
+    ],
+    [
+     "head group",
+     "3"
+    ],
+    [
+     "memory read after",
+     "fresh"
+    ]
+   ],
+   "flags": [
+    [
+     "--k-mean",
+     6
+    ],
+    [
+     "--k-min",
+     2
+    ],
+    [
+     "--k-max",
+     10
+    ],
+    [
+     "--bptt",
+     6
+    ],
+    [
+     "--mem-readdr-every",
+     2
+    ],
+    [
+     "--mem-readdr-start",
+     3
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:991-995 (sample_K)",
+    "fruit-fly-sim/loop_brain.py:1066-1076",
+    "fruit-fly-sim/loop_brain.py:1043 (fresh)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "ring",
+   "pos2": [
+    -27,
+    -62.5
+   ],
+   "inputs": [
+    {
+     "from": "pass2",
+     "name": "Pass 2 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "pass4",
+     "name": "Pass 4 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "pass2"
+   ],
+   "next": [
+    "pass4"
+   ]
+  },
+  {
+   "id": "pass4",
+   "name": "Pass 4 of K",
+   "layer": "forward",
+   "group": "ring",
+   "pos3": [
+    -20.000000000000014,
+    -8,
+    -74
+   ],
+   "purpose": "One of the K passes of the SAME core weights (shown for the eval loop K = 6). Pass 4 computes the always-on head group 0 + routed head group 4 (eval offset 0; training uses a random offset per step). After it, the after-pass block reads the memory with FRESH addresses. Training: K ~ U{2..10}, 5% of steps 12-16; gradients flow only through the last 6 passes (--bptt 6); deep supervision on every earlier backpropagated pass.",
+   "equations": [
+    "x_4, s_4 = Core(x_3, s_3, e, inject_3, pmem_3)",
+    "group = 1 + (k + offset) % 6",
+    "grad on pass k ⇔ k ≥ K − 6"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "eval K",
+     "6"
+    ],
+    [
+     "train K",
+     "2-10 uniform; 5%: 12-16"
+    ],
+    [
+     "head group",
+     "4"
+    ],
+    [
+     "memory read after",
+     "fresh"
+    ]
+   ],
+   "flags": [
+    [
+     "--k-mean",
+     6
+    ],
+    [
+     "--k-min",
+     2
+    ],
+    [
+     "--k-max",
+     10
+    ],
+    [
+     "--bptt",
+     6
+    ],
+    [
+     "--mem-readdr-every",
+     2
+    ],
+    [
+     "--mem-readdr-start",
+     3
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:991-995 (sample_K)",
+    "fruit-fly-sim/loop_brain.py:1066-1076",
+    "fruit-fly-sim/loop_brain.py:1043 (fresh)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "ring",
+   "pos2": [
+    -3,
+    -62.5
+   ],
+   "inputs": [
+    {
+     "from": "pass3",
+     "name": "Pass 3 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "pass5",
+     "name": "Pass 5 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "pass3"
+   ],
+   "next": [
+    "pass5"
+   ]
+  },
+  {
+   "id": "pass5",
+   "name": "Pass 5 of K",
+   "layer": "forward",
+   "group": "ring",
+   "pos3": [
+    44.08587988004844,
+    -8,
+    -37.000000000000036
+   ],
+   "purpose": "One of the K passes of the SAME core weights (shown for the eval loop K = 6). Pass 5 computes the always-on head group 0 + routed head group 5 (eval offset 0; training uses a random offset per step). After it, the read REUSES pass 4's row indices (weights from its own thought; --mem-readdr-every 2). Training: K ~ U{2..10}, 5% of steps 12-16; gradients flow only through the last 6 passes (--bptt 6); deep supervision on every earlier backpropagated pass.",
+   "equations": [
+    "x_5, s_5 = Core(x_4, s_4, e, inject_4, pmem_4)",
+    "group = 1 + (k + offset) % 6",
+    "grad on pass k ⇔ k ≥ K − 6"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "eval K",
+     "6"
+    ],
+    [
+     "train K",
+     "2-10 uniform; 5%: 12-16"
+    ],
+    [
+     "head group",
+     "5"
+    ],
+    [
+     "memory read after",
+     "reuse"
+    ]
+   ],
+   "flags": [
+    [
+     "--k-mean",
+     6
+    ],
+    [
+     "--k-min",
+     2
+    ],
+    [
+     "--k-max",
+     10
+    ],
+    [
+     "--bptt",
+     6
+    ],
+    [
+     "--mem-readdr-every",
+     2
+    ],
+    [
+     "--mem-readdr-start",
+     3
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:991-995 (sample_K)",
+    "fruit-fly-sim/loop_brain.py:1066-1076",
+    "fruit-fly-sim/loop_brain.py:1043 (fresh)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "ring",
+   "pos2": [
+    21,
+    -62.5
+   ],
+   "inputs": [
+    {
+     "from": "pass4",
+     "name": "Pass 4 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "pass6",
+     "name": "Pass 6 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "pass4"
+   ],
+   "next": [
+    "pass6"
+   ]
+  },
+  {
+   "id": "pass6",
+   "name": "Pass 6 of K",
+   "layer": "forward",
+   "group": "ring",
+   "pos3": [
+    44.08587988004845,
+    -8,
+    37
+   ],
+   "purpose": "One of the K passes of the SAME core weights (shown for the eval loop K = 6). Pass 6 computes the always-on head group 0 + routed head group 6 (eval offset 0; training uses a random offset per step). After it, last pass: no memory read (nothing after it); x_6 goes to the final read-out. Training: K ~ U{2..10}, 5% of steps 12-16; gradients flow only through the last 6 passes (--bptt 6); deep supervision on every earlier backpropagated pass.",
+   "equations": [
+    "x_6, s_6 = Core(x_5, s_5, e, inject_5, pmem_5)",
+    "group = 1 + (k + offset) % 6",
+    "grad on pass k ⇔ k ≥ K − 6"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "eval K",
+     "6"
+    ],
+    [
+     "train K",
+     "2-10 uniform; 5%: 12-16"
+    ],
+    [
+     "head group",
+     "6"
+    ],
+    [
+     "memory read after",
+     "none (last)"
+    ]
+   ],
+   "flags": [
+    [
+     "--k-mean",
+     6
+    ],
+    [
+     "--k-min",
+     2
+    ],
+    [
+     "--k-max",
+     10
+    ],
+    [
+     "--bptt",
+     6
+    ],
+    [
+     "--mem-readdr-every",
+     2
+    ],
+    [
+     "--mem-readdr-start",
+     3
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:991-995 (sample_K)",
+    "fruit-fly-sim/loop_brain.py:1066-1076",
+    "fruit-fly-sim/loop_brain.py:1043 (fresh)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "ring",
+   "pos2": [
+    45,
+    -62.5
+   ],
+   "inputs": [
+    {
+     "from": "pass5",
+     "name": "Pass 5 of K",
+     "label": "x, s",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "final_norm",
+     "name": "Final norm normf",
+     "label": "x_6",
+     "kind": "forward",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "pass5"
+   ],
+   "next": [
+    "final_norm"
+   ]
+  },
+  {
+   "id": "translator",
+   "name": "Translator input a = [μ_l ; p̄]",
+   "layer": "memory",
+   "group": "addr",
+   "pos3": [
+    54,
+    -75,
+    10
+   ],
+   "purpose": "Memory addressing input per concept level: the level's predicted concept μ_l concatenated with the pooled workspace p̄ = mean over slots of n_s(s), standardised with EMA statistics (rate 0.999, collected in infancy). All addressing runs in fp32 with autocast and TF32 off. The thought keeps its gradient through a → online weights (until the freeze with --mem-addr-sg).",
+   "equations": [
+    "p̄ = mean_slots n_s(s)        (B, T, 64)",
+    "a_l = [μ_l ; p̄]               (L, N, 448)",
+    "â = (a − m_EMA) / √(v_EMA + 1e-5)"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "L levels",
+     "4"
+    ],
+    [
+     "a width",
+     "384 + 64 = 448"
+    ],
+    [
+     "norm_m / norm_v",
+     "[4, 448]"
+    ]
+   ],
+   "flags": [
+    [
+     "--mem-ema",
+     0.999
+    ],
+    [
+     "--mem-addr-sg",
+     1
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:626-633 (prep)",
+    "fruit-fly-sim/loop_brain.py:534-540"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "concepts",
+     "name": "Concept hierarchy (4 levels)",
+     "label": "μ_l (with gradient)",
+     "kind": "memory",
+     "shape_sym": "(L, N, d)",
+     "shape_num": "(4, 8192, 384)"
+    },
+    {
+     "from": "ws_write",
+     "name": "Workspace write (16 slots x 64)",
+     "label": "p̄ = mean_slots n_s(s)",
+     "kind": "memory",
+     "shape_sym": "(N, ds)",
+     "shape_num": "(8192, 64)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "wq",
+     "name": "Fixed random W_q → query 128",
+     "label": "â (fp32)",
+     "kind": "memory",
+     "shape_sym": "(L, N, d+ds)",
+     "shape_num": "(4, 8192, 448)"
+    },
+    {
+     "to": "mem_gates",
+     "name": "Content gates g (per level x head)",
+     "label": "p̄",
+     "kind": "memory",
+     "shape_sym": "(N, ds)",
+     "shape_num": "(8192, 64)"
+    }
+   ],
+   "prev": [
+    "concepts",
+    "ws_write"
+   ],
+   "next": [
+    "mem_gates",
+    "wq"
+   ]
+  },
+  {
+   "id": "wq",
+   "name": "Fixed random W_q → query 128",
+   "layer": "memory",
+   "group": "addr",
+   "pos3": [
+    38,
+    -75,
+    10
+   ],
+   "purpose": "Per level and per head (3 shared heads + 1 coarse head per level) a FIXED random projection (--mem-addr-learn 0: W_q and the sub-keys get no gradient, no margin loss; the EMA copy equals the online one). The 128-d query is normalised and split into two 64-d halves, each normalised again.",
+   "equations": [
+    "q = normalize(W_q â)      (L, H, N, 128)",
+    "q1 = normalize(q[:64]),  q2 = normalize(q[64:])"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "W_q (fine)",
+     "[4, 3, 128, 448] (fixed)"
+    ],
+    [
+     "W_q^c (coarse)",
+     "[4, 1, 128, 448] (fixed)"
+    ],
+    [
+     "frozen params",
+     "917,504 (not counted in n_params)"
+    ]
+   ],
+   "flags": [
+    [
+     "--mem-addr-learn",
+     0
+    ],
+    [
+     "--mem-heads",
+     3
+    ],
+    [
+     "--mem-coarse-heads",
+     1
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:635-644 (_queries)",
+    "fruit-fly-sim/memory.py:388-389",
+    "fruit-fly-sim/memory.py:474-475"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "translator",
+     "name": "Translator input a = [μ_l ; p̄]",
+     "label": "â (fp32)",
+     "kind": "memory",
+     "shape_sym": "(L, N, d+ds)",
+     "shape_num": "(4, 8192, 448)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "pk_select",
+     "name": "Product keys: top-8 per half → top pairs",
+     "label": "q1, q2 halves (each)",
+     "kind": "memory",
+     "shape_sym": "(L, H, N, P)",
+     "shape_num": "(4, 3, 8192, 64)"
+    },
+    {
+     "to": "private_mem",
+     "name": "Private expert memory (512 rows / expert)",
+     "label": "q1 (level 1, head 1) + EMA q̄1",
+     "kind": "memory",
+     "shape_sym": "(N, P)",
+     "shape_num": "(8192, 64)"
+    }
+   ],
+   "prev": [
+    "translator"
+   ],
+   "next": [
+    "pk_select",
+    "private_mem"
+   ]
+  },
+  {
+   "id": "pk_select",
+   "name": "Product keys: top-8 per half → top pairs",
+   "layer": "memory",
+   "group": "addr",
+   "pos3": [
+    20,
+    -75,
+    10
+   ],
+   "purpose": "Each half-query is scored against its codebook of S = 512 unit sub-keys (coarse pool: 64). Top m+1 = 9 per half (stable ties), then the 8 x 8 = 64 candidate pairs are summed and the top 12 pairs kept: ranks 1-6 are READ, ranks 7-12 are only WRITTEN (neighbour writes). Indices come from the EMA side with no gradient; scores of 2 levels at a time stay under 2^26 elements.",
+   "equations": [
+    "s1 = q1 · K1ᵀ,  s2 = q2 · K2ᵀ               (2, L, H, N, 512)",
+    "I1, I2 = top-9 per half",
+    "σ(i, j) = s1[i] + s2[j]  over the 8 x 8 pairs → top-12",
+    "row = l · 512² + i · 512 + j"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "S sub-keys / half",
+     "512 (fine), 64 (coarse)"
+    ],
+    [
+     "top-m",
+     "8"
+    ],
+    [
+     "read top-k",
+     "6"
+    ],
+    [
+     "pairs kept",
+     "12 (--mem-nbr)"
+    ],
+    [
+     "K1, K2",
+     "[4, 3, 512, 64] each"
+    ],
+    [
+     "score buffer",
+     "2 levels at a time: 50M floats"
+    ]
+   ],
+   "flags": [
+    [
+     "--mem-shared",
+     512
+    ],
+    [
+     "--mem-topm",
+     8
+    ],
+    [
+     "--mem-topk",
+     6
+    ],
+    [
+     "--mem-nbr",
+     12
+    ],
+    [
+     "--mem-coarse",
+     64
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:657-693 (select)",
+    "fruit-fly-sim/memory.py:705-725 (_addr)",
+    "fruit-fly-sim/memory.py:111 (pk_topk)",
+    "fruit-fly-sim/memory.py:79 (stable_topk)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "wq",
+     "name": "Fixed random W_q → query 128",
+     "label": "q1, q2 halves (each)",
+     "kind": "memory",
+     "shape_sym": "(L, H, N, P)",
+     "shape_num": "(4, 3, 8192, 64)"
+    },
+    {
+     "from": "readdr",
+     "name": "Address reuse (every 2nd read)",
+     "label": "reuse previous rows on reads k = 4, 6, ...",
+     "kind": "memory",
+     "shape_sym": "(L, H, N, km)",
+     "shape_num": "(4, 3, 8192, 6)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "online_w",
+     "name": "Online read weights (τ = 0.03)",
+     "label": "rows (top-6) + σ",
+     "kind": "memory",
+     "shape_sym": "(L, H, N, km)",
+     "shape_num": "(4, 3, 8192, 6)"
+    },
+    {
+     "to": "coarse_pool",
+     "name": "Coarse pool (S = 64, 1 head)",
+     "label": "coarse rows (own W_q^c, 64 sub-keys)",
+     "kind": "memory",
+     "shape_sym": "(L, Hc, N, km)",
+     "shape_num": "(4, 1, 8192, 6)"
+    }
+   ],
+   "prev": [
+    "readdr",
+    "wq"
+   ],
+   "next": [
+    "coarse_pool",
+    "online_w"
+   ]
+  },
+  {
+   "id": "online_w",
+   "name": "Online read weights (τ = 0.03)",
+   "layer": "memory",
+   "group": "addr",
+   "pos3": [
+    4,
+    -75,
+    10
+   ],
+   "purpose": "Softmax weights over the 6 chosen rows from the (online = fixed) keys and the current query; the gradient reaches the thought through â. In infancy the life cycle multiplies them by each row's pending decay exp(−(Λ − Λ_r)). Neighbour-write weights: 0.15 x softmax over ranks 7-12 (training only).",
+   "equations": [
+    "w = softmax(σ_1..6 / 0.03)               (L, H, N, 6)",
+    "w_read = w · exp(−(Λ(t) − Λ_r))       (infancy)",
+    "w_nbr = 0.15 · softmax(σ_7..12 / 0.03)"
+   ],
+   "param_count": null,
+   "sizes": [],
+   "flags": [
+    [
+     "--mem-tau",
+     0.03
+    ],
+    [
+     "--mem-nbr-w",
+     0.15
+    ],
+    [
+     "--mem-life",
+     1
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:737-787 (online)",
+    "fruit-fly-sim/memory.py:563-568 (_factors)"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "pk_select",
+     "name": "Product keys: top-8 per half → top pairs",
+     "label": "rows (top-6) + σ",
+     "kind": "memory",
+     "shape_sym": "(L, H, N, km)",
+     "shape_num": "(4, 3, 8192, 6)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "shared_pool",
+     "name": "Shared pool V (fine)",
+     "label": "98,304 bags x 6 rows (weights)",
+     "kind": "memory",
+     "shape_sym": "(N·L·H, km)",
+     "shape_num": "(98304, 6)"
+    }
+   ],
+   "prev": [
+    "pk_select"
+   ],
+   "next": [
+    "shared_pool"
+   ]
+  },
+  {
+   "id": "readdr",
+   "name": "Address reuse (every 2nd read)",
+   "layer": "memory",
+   "group": "addr",
+   "pos3": [
+    20,
+    -75,
+    30
+   ],
+   "purpose": "Milder memory (plan 14): the reads after passes 1-3 (k < 3) always address anew; from pass 4 on only every 2nd read does (k = 3, 5, ...); the reads in between reuse the previous indices with weights from their own thought.",
+   "equations": [
+    "fresh(k) = k < 3 or (k − 3) % 2 == 0"
+   ],
+   "param_count": null,
+   "sizes": [],
+   "flags": [
+    [
+     "--mem-readdr-every",
+     2
+    ],
+    [
+     "--mem-readdr-start",
+     3
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:1043",
+    "fruit-fly-sim/loop_brain.py:1119-1121"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [],
+   "outputs": [
+    {
+     "to": "pk_select",
+     "name": "Product keys: top-8 per half → top pairs",
+     "label": "reuse previous rows on reads k = 4, 6, ...",
+     "kind": "memory",
+     "shape_sym": "(L, H, N, km)",
+     "shape_num": "(4, 3, 8192, 6)"
+    }
+   ],
+   "prev": [],
+   "next": [
+    "pk_select"
+   ]
+  },
+  {
+   "id": "shared_pool",
+   "name": "Shared pool V (fine)",
+   "layer": "memory",
+   "group": "pools",
+   "pos3": [
+    -14,
+    -75,
+    2
+   ],
+   "purpose": "One table for the 4 levels: 4 x 512² = 1,048,576 rows of 256 values (a BUFFER, never an nn.Parameter). Read by MemRead: an embedding_bag over N·L·H = 98,304 bags of 6 rows. Its gradient goes into a preallocated dense grad buffer G; MemOpt (row-Adagrad) writes it once per optimizer step from step 200 on. Rows are written during learning (MemOpt row-Adagrad after each optimizer step, with the life cycle's decay).",
+   "equations": [
+    "r[n, l, h] = Σ_j w_j V[row_j]        (N, L, H, 256)"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "rows (fine)",
+     "1,048,576"
+    ],
+    [
+     "rows (coarse, same table)",
+     "16,384 at offset 1,048,576"
+    ],
+    [
+     "V",
+     "[1,064,960, 256] fp32 = 1.09 GB"
+    ],
+    [
+     "G (grad buffer)",
+     "1.09 GB"
+    ],
+    [
+     "per-row buffers",
+     "S_acc, wcount, Λ_r, Ψ_r: 4.3 MB each"
+    ]
+   ],
+   "flags": [
+    [
+     "--mem-shared",
+     512
+    ],
+    [
+     "--mem-heads",
+     3
+    ],
+    [
+     "--mem-dv",
+     256
+    ],
+    [
+     "--mem-write-start",
+     200
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:404-418",
+    "fruit-fly-sim/memory.py:130-168 (MemRead)",
+    "fruit-fly-sim/memory.py:815-836 (read_shared)"
+   ],
+   "vram": "tables + buffers 3.53 GB in total (train.log)",
+   "notes": "rows written during learning (MemOpt)",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "online_w",
+     "name": "Online read weights (τ = 0.03)",
+     "label": "98,304 bags x 6 rows (weights)",
+     "kind": "memory",
+     "shape_sym": "(N·L·H, km)",
+     "shape_num": "(98304, 6)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "mem_gates",
+     "name": "Content gates g (per level x head)",
+     "label": "r",
+     "kind": "memory",
+     "shape_sym": "(N, L, H, dv)",
+     "shape_num": "(8192, 4, 3, 256)"
+    }
+   ],
+   "prev": [
+    "online_w"
+   ],
+   "next": [
+    "mem_gates"
+   ]
+  },
+  {
+   "id": "coarse_pool",
+   "name": "Coarse pool (S = 64, 1 head)",
+   "layer": "memory",
+   "group": "pools",
+   "pos3": [
+    -14,
+    -75,
+    26
+   ],
+   "purpose": "A drift-robust coarse level next to the fine pool (plan 21 §3): per level 64² = 4,096 rows, 1 head, its own fixed translator and sub-keys; rows live in the same table V at an offset. Its read has its own gates and W_o^c, added to M. Rows are written during learning (MemOpt row-Adagrad after each optimizer step, with the life cycle's decay).",
+   "equations": [
+    "M += Σ_l W_o^c,l (g^c r^c)"
+   ],
+   "param_count": {
+    "start": 394500,
+    "ckpt": 394500,
+    "final": 394500
+   },
+   "sizes": [
+    [
+     "rows",
+     "4 x 64² = 16,384"
+    ],
+    [
+     "gates w_c",
+     "[4, 1, 320]"
+    ],
+    [
+     "W_o^c",
+     "[4, 384, 256]"
+    ]
+   ],
+   "flags": [
+    [
+     "--mem-coarse",
+     64
+    ],
+    [
+     "--mem-coarse-heads",
+     1
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:444-464",
+    "fruit-fly-sim/memory.py:847-867"
+   ],
+   "vram": "",
+   "notes": "rows written during learning (MemOpt)",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "pk_select",
+     "name": "Product keys: top-8 per half → top pairs",
+     "label": "coarse rows (own W_q^c, 64 sub-keys)",
+     "kind": "memory",
+     "shape_sym": "(L, Hc, N, km)",
+     "shape_num": "(4, 1, 8192, 6)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "mem_gates",
+     "name": "Content gates g (per level x head)",
+     "label": "r^c (own gates)",
+     "kind": "memory",
+     "shape_sym": "(N, L, Hc, dv)",
+     "shape_num": "(8192, 4, 1, 256)"
+    }
+   ],
+   "prev": [
+    "pk_select"
+   ],
+   "next": [
+    "mem_gates"
+   ]
+  },
+  {
+   "id": "mem_gates",
+   "name": "Content gates g (per level x head)",
+   "layer": "memory",
+   "group": "pools",
+   "pos3": [
+    -32,
+    -75,
+    10
+   ],
+   "purpose": "A sigmoid gate per (token, level, head) from the pooled workspace and the read value itself (bias −2 → σ = 0.12 at init; ≈0.99 mean at step 2500). The gated reads are summed over the heads.",
+   "equations": [
+    "g = σ( w_p̄ · p̄ + w_r · r + b )      (N, L, H)",
+    "u_l = Σ_h g r      (N, L, 256)"
+   ],
+   "param_count": {
+    "start": 3852,
+    "ckpt": 3852,
+    "final": 3852
+   },
+   "sizes": [
+    [
+     "gates.w",
+     "[4, 3, 320]"
+    ],
+    [
+     "gates.b",
+     "[4, 3]"
+    ]
+   ],
+   "flags": [],
+   "code": [
+    "fruit-fly-sim/memory.py:837-845",
+    "fruit-fly-sim/memory.py:415-416"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "shared_pool",
+     "name": "Shared pool V (fine)",
+     "label": "r",
+     "kind": "memory",
+     "shape_sym": "(N, L, H, dv)",
+     "shape_num": "(8192, 4, 3, 256)"
+    },
+    {
+     "from": "coarse_pool",
+     "name": "Coarse pool (S = 64, 1 head)",
+     "label": "r^c (own gates)",
+     "kind": "memory",
+     "shape_sym": "(N, L, Hc, dv)",
+     "shape_num": "(8192, 4, 1, 256)"
+    },
+    {
+     "from": "translator",
+     "name": "Translator input a = [μ_l ; p̄]",
+     "label": "p̄",
+     "kind": "memory",
+     "shape_sym": "(N, ds)",
+     "shape_num": "(8192, 64)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "w_o",
+     "name": "W_o → memory output M",
+     "label": "Σ_h g r",
+     "kind": "memory",
+     "shape_sym": "(N, L, dv)",
+     "shape_num": "(8192, 4, 256)"
+    }
+   ],
+   "prev": [
+    "coarse_pool",
+    "shared_pool",
+    "translator"
+   ],
+   "next": [
+    "w_o"
+   ]
+  },
+  {
+   "id": "w_o",
+   "name": "W_o → memory output M",
+   "layer": "memory",
+   "group": "pools",
+   "pos3": [
+    -50,
+    -75,
+    10
+   ],
+   "purpose": "Per-level output projection (zero-init) of the gated reads to the model width. M is added to the next pass's core input (inject) and, through W_ms, to workspace slot 15.",
+   "equations": [
+    "M = Σ_l W_o,l u_l  (+ coarse)         (N, d) → (B, T, d)"
+   ],
+   "param_count": {
+    "start": 393216,
+    "ckpt": 393216,
+    "final": 393216
+   },
+   "sizes": [
+    [
+     "W_o",
+     "[4, 384, 256], zero-init"
+    ]
+   ],
+   "flags": [],
+   "code": [
+    "fruit-fly-sim/memory.py:846",
+    "fruit-fly-sim/memory.py:417"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "mem_gates",
+     "name": "Content gates g (per level x head)",
+     "label": "Σ_h g r",
+     "kind": "memory",
+     "shape_sym": "(N, L, dv)",
+     "shape_num": "(8192, 4, 256)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "input_mix",
+     "name": "Core input mix u",
+     "label": "M → inject (next pass)",
+     "kind": "loop",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    },
+    {
+     "to": "slot15",
+     "name": "Slot-15 write W_ms M",
+     "label": "M",
+     "kind": "memory",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "prev": [
+    "mem_gates"
+   ],
+   "next": [
+    "input_mix",
+    "slot15"
+   ]
+  },
+  {
+   "id": "slot15",
+   "name": "Slot-15 write W_ms M",
+   "layer": "memory",
+   "group": "pools",
+   "pos3": [
+    -50,
+    -59,
+    30
+   ],
+   "purpose": "The memory output is also written into the LAST workspace slot (slot 15 of 16), out of place, through a zero-initialised 384 → 64 projection.",
+   "equations": [
+    "s[..., 15, :] += W_ms M"
+   ],
+   "param_count": {
+    "start": 24576,
+    "ckpt": 24576,
+    "final": 24576
+   },
+   "sizes": [
+    [
+     "W_ms",
+     "[64, 384], zero-init"
+    ]
+   ],
+   "flags": [],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:782-785 (_slot_write)",
+    "fruit-fly-sim/memory.py:418-419"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "w_o",
+     "name": "W_o → memory output M",
+     "label": "M",
+     "kind": "memory",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "ws_write",
+     "name": "Workspace write (16 slots x 64)",
+     "label": "s[...,15,:] += W_ms M",
+     "kind": "loop",
+     "shape_sym": "(B, T, ds)",
+     "shape_num": "(16, 512, 64)"
+    }
+   ],
+   "prev": [
+    "w_o"
+   ],
+   "next": [
+    "ws_write"
+   ]
+  },
+  {
+   "id": "private_mem",
+   "name": "Private expert memory (512 rows / expert)",
+   "layer": "memory",
+   "group": "pools",
+   "pos3": [
+    -10,
+    -61,
+    -22
+   ],
+   "purpose": "Inside the routed experts on the NEXT pass: each (token, chosen expert) slot reads 4 of its expert's 512 private rows. The query is level 1 / head 1's half-query q1 (EMA side for the indices, online side for the weights); the private keys P ARE learned in infancy (Adam on touched rows, EMA copy for the indices), balanced every 1000 steps (at most 2% of keys per expert, keys used since the last event kept). Preallocated for 768 experts; split births copy the parent's rows. Rows are written during learning (MemOpt row-Adagrad after each optimizer step, with the life cycle's decay).",
+   "equations": [
+    "idx = top-4( q̄1 · P̄[e]ᵀ )        over R = 512",
+    "ρ = Σ_j softmax(q1 · P[e, idx] / 0.03) · V_e[e·512 + idx]       (· decay factors in infancy)",
+    "z[token] = Σ_slots gate · σ(b_e) · ρ ;   out = W_p z    (N, d), W_p zero-init"
+   ],
+   "param_count": {
+    "start": 99072,
+    "ckpt": 99072,
+    "final": 99072
+   },
+   "sizes": [
+    [
+     "R rows / expert",
+     "512"
+    ],
+    [
+     "rows read",
+     "4 per (token, expert)"
+    ],
+    [
+     "V_e",
+     "[393,216, 256] = 0.40 GB"
+    ],
+    [
+     "P, P_ema",
+     "[768, 512, 64] each = 0.10 GB"
+    ],
+    [
+     "Adam P_m / P_v",
+     "[393,216, 64] each"
+    ],
+    [
+     "live experts",
+     "e_live = 311 at step 2000"
+    ],
+    [
+     "W_p",
+     "[384, 256]"
+    ],
+    [
+     "b_e",
+     "[768]"
+    ]
+   ],
+   "flags": [
+    [
+     "--mem-private",
+     512
+    ],
+    [
+     "--mem-balance-every",
+     1000
+    ],
+    [
+     "--mem-balance-max",
+     0.02
+    ],
+    [
+     "--mem-balance-keep",
+     1
+    ],
+    [
+     "--mem-lr",
+     0.01
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/memory.py:871-928 (private)",
+    "fruit-fly-sim/memory.py:420-440",
+    "fruit-fly-sim/memory.py:932-954 (on_grow)",
+    "fruit-fly-sim/loop_brain.py:769-780"
+   ],
+   "vram": "",
+   "notes": "rows written during learning (MemOpt)",
+   "shape": "box",
+   "inputs": [
+    {
+     "from": "wq",
+     "name": "Fixed random W_q → query 128",
+     "label": "q1 (level 1, head 1) + EMA q̄1",
+     "kind": "memory",
+     "shape_sym": "(N, P)",
+     "shape_num": "(8192, 64)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "experts",
+     "name": "Routed experts (spiking, capacity 1.5)",
+     "label": "W_p z (inside experts, next pass)",
+     "kind": "loop",
+     "shape_sym": "(N, d)",
+     "shape_num": "(8192, 384)"
+    }
+   ],
+   "prev": [
+    "wq"
+   ],
+   "next": [
+    "experts"
+   ]
+  },
+  {
+   "id": "loss_lm",
+   "name": "Next-token loss L_LM (weight 1)",
+   "layer": "output",
+   "group": "loss",
+   "pos3": [
+    160,
+    0,
+    0
+   ],
+   "purpose": "The main loss: cross-entropy of the LAST pass's logits against the next tokens y. Everything in the brain is trained mainly through it (including the concept write-back and the memory reads, whose only training signal beyond their own targets is how much they lower this loss).",
+   "equations": [
+    "L_LM = mean_{b,t} −log softmax(W_lm normf(x_K))[y_{b,t}]",
+    "train.log @ step 2500: train 3.66, val 4.19 (K = 6)"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "logits",
+     "(16, 512, 16384)"
+    ],
+    [
+     "weight",
+     "1"
+    ]
+   ],
+   "flags": [],
+   "code": [
+    "fruit-fly-sim/spiking_lm.py:938-942",
+    "fruit-fly-sim/train_lm.py:1315"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [
+    {
+     "from": "logits",
+     "name": "Logits [B, T, V]",
+     "label": "CE vs y (B, T)",
+     "kind": "loss",
+     "shape_sym": "(B, T, V)",
+     "shape_num": "(16, 512, 16384)"
+    },
+    {
+     "from": "loss_use",
+     "name": "Usefulness (no own term)",
+     "label": "trained through L_LM",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    }
+   ],
+   "outputs": [
+    {
+     "to": "loss_total",
+     "name": "Total loss L",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    }
+   ],
+   "prev": [
+    "logits",
+    "loss_use"
+   ],
+   "next": [
+    "loss_total"
+   ]
+  },
+  {
+   "id": "loss_ds",
+   "name": "Deep supervision (0.3)",
+   "layer": "output",
+   "group": "loss",
+   "pos3": [
+    182,
+    0,
+    -62
+   ],
+   "purpose": "Mean LM loss of the EARLIER passes inside the gradient window (k ∈ [K−6, K−2]); the last pass is the main loss. Teaches every pass to be a usable answer, so the loop can stop early.",
+   "equations": [
+    "L_ds = 0.3 · mean_{k=K−6..K−2} mean_{b,t} ce_k"
+   ],
+   "param_count": null,
+   "sizes": [],
+   "flags": [
+    [
+     "--deep-sup",
+     0.3
+    ],
+    [
+     "--bptt",
+     6
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:1195-1198"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [
+    {
+     "from": "pass_readout",
+     "name": "Per-pass read-out (deep sup.)",
+     "label": "ce_k (grad passes)",
+     "kind": "loss",
+     "shape_sym": "(B, T)",
+     "shape_num": "(16, 512)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "loss_total",
+     "name": "Total loss L",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    }
+   ],
+   "prev": [
+    "pass_readout"
+   ],
+   "next": [
+    "loss_total"
+   ]
+  },
+  {
+   "id": "loss_halt",
+   "name": "Halting loss (1, KL 0.01)",
+   "layer": "output",
+   "group": "loss",
+   "pos3": [
+    182,
+    0,
+    -37.2
+   ],
+   "purpose": "Trains only the halting head (the per-pass CEs are detached): the expected CE under the head's stop distribution plus 0.01 x KL to a truncated geometric prior with stop probability 0.2 (≈5 passes). Computed on every pass, also outside the gradient window.",
+   "equations": [
+    "L_halt = Σ_k P_k · sg(ce_k)  +  0.01 · KL(P ‖ q),   q_k = 0.2·0.8^k (last takes the rest)"
+   ],
+   "param_count": null,
+   "sizes": [],
+   "flags": [
+    [
+     "--halt",
+     1
+    ],
+    [
+     "--halt-prior",
+     0.2
+    ],
+    [
+     "--halt-beta",
+     0.01
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:1199-1209"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [
+    {
+     "from": "halt_head",
+     "name": "Halting head ('loop until sure')",
+     "label": "P_k (stop distribution)",
+     "kind": "loss",
+     "shape_sym": "(K, B, T)",
+     "shape_num": "(6, 16, 512)"
+    },
+    {
+     "from": "pass_readout",
+     "name": "Per-pass read-out (deep sup.)",
+     "label": "sg(ce_k)",
+     "kind": "loss",
+     "shape_sym": "(K, B, T)",
+     "shape_num": "(6, 16, 512)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "loss_total",
+     "name": "Total loss L",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    }
+   ],
+   "prev": [
+    "halt_head",
+    "pass_readout"
+   ],
+   "next": [
+    "loss_total"
+   ]
+  },
+  {
+   "id": "loss_concept",
+   "name": "Concept / think loss (0.1)",
+   "layer": "output",
+   "group": "loss",
+   "pos3": [
+    182,
+    0,
+    -12.399999999999999
+   ],
+   "purpose": "The 'think' loss of this run: --think-w 0.1 scales the 4-level concept hierarchy's loss (Gaussian NLL of the windowed future latents + variance hinge), weights 1, 1, 0.5, 0.5, averaged over the passes in the gradient window. (The single latent think head is replaced by the hierarchy when --concepts is set.)",
+   "equations": [
+    "L_c = 0.1 · mean_k Σ_l w_l [ ½(ν + (t−μ)² e^{−ν}) + relu(std t − std μ) ]",
+    "w = (1, 1, 0.5, 0.5)"
+   ],
+   "param_count": null,
+   "sizes": [],
+   "flags": [
+    [
+     "--think-w",
+     0.1
+    ],
+    [
+     "--concepts",
+     "16,32,64,128"
+    ],
+    [
+     "--concept-weights",
+     "1,1,0.5,0.5"
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:1222-1227",
+    "fruit-fly-sim/loop_brain.py:1244-1245",
+    "fruit-fly-sim/memory.py:272-278"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [
+    {
+     "from": "concepts",
+     "name": "Concept hierarchy (4 levels)",
+     "label": "μ_l, ν_l",
+     "kind": "loss",
+     "shape_sym": "(L, B, T, d)",
+     "shape_num": "(4, 16, 512, 384)"
+    },
+    {
+     "from": "final_norm",
+     "name": "Final norm normf",
+     "label": "targets: windows of sg(normf x_K)",
+     "kind": "loss",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "loss_total",
+     "name": "Total loss L",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    }
+   ],
+   "prev": [
+    "concepts",
+    "final_norm"
+   ],
+   "next": [
+    "loss_total"
+   ]
+  },
+  {
+   "id": "loss_use",
+   "name": "Usefulness (no own term)",
+   "layer": "output",
+   "group": "loss",
+   "pos3": [
+    182,
+    0,
+    12.400000000000006
+   ],
+   "purpose": "The concept write-back (--think-use 1) and the memory output M have NO loss of their own: their only training signal is the next-token loss of later words / later passes (the write-back B_l and W_o start at 0, so they grow only if they help). Measured, not trained, in the loop report as 'think usefulness' = loss(write-back off) − loss(on).",
+   "equations": [
+    "∂L_LM / ∂(B_l, A_l, W_o, W_ms, W_p) only"
+   ],
+   "param_count": null,
+   "sizes": [],
+   "flags": [
+    [
+     "--think-use",
+     1
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/loop_brain.py:1146-1151",
+    "fruit-fly-sim/train_lm.py:286-289"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [
+    {
+     "from": "write_back",
+     "name": "Concept write-back (inject)",
+     "label": "inject (no own loss)",
+     "kind": "loss",
+     "shape_sym": "(B, T, d)",
+     "shape_num": "(16, 512, 384)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "loss_lm",
+     "name": "Next-token loss L_LM (weight 1)",
+     "label": "trained through L_LM",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    }
+   ],
+   "prev": [
+    "write_back"
+   ],
+   "next": [
+    "loss_lm"
+   ]
+  },
+  {
+   "id": "loss_balance",
+   "name": "Expert balance (0.02)",
+   "layer": "output",
+   "group": "loss",
+   "pos3": [
+    182,
+    0,
+    37.2
+   ],
+   "purpose": "Classic load-balancing loss (balance mode 'aux' because --route-aux 0.02): the fraction of picks f_e times the mean routing probability P_e, x E; computed on every pass with gradient and averaged over the passes.",
+   "equations": [
+    "L_bal = 0.02 · E · Σ_e f_e P_e,   f_e = count_e / (N·6),  P_e = mean_n score_ne / Σ_e score_ne"
+   ],
+   "param_count": null,
+   "sizes": [],
+   "flags": [
+    [
+     "--route-aux",
+     0.02
+    ],
+    [
+     "--moe",
+     "...,auxfree (overridden to aux)"
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/spiking_lm.py:615-617",
+    "fruit-fly-sim/spiking_lm.py:680-684"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [
+    {
+     "from": "router",
+     "name": "Expert router (top-6 of E)",
+     "label": "f_e, P_e",
+     "kind": "loss",
+     "shape_sym": "(E)",
+     "shape_num": "(192) -> (768)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "loss_total",
+     "name": "Total loss L",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    }
+   ],
+   "prev": [
+    "router"
+   ],
+   "next": [
+    "loss_total"
+   ]
+  },
+  {
+   "id": "loss_z",
+   "name": "Router z-loss (1e-4)",
+   "layer": "output",
+   "group": "loss",
+   "pos3": [
+    182,
+    0,
+    62
+   ],
+   "purpose": "Keeps the router logits small: the squared log-sum-exp of the router's own logits (without the wave terms), averaged over tokens and passes.",
+   "equations": [
+    "L_z = 1e-4 · mean_n (logsumexp_e logits_ne)²"
+   ],
+   "param_count": null,
+   "sizes": [],
+   "flags": [
+    [
+     "--route-z",
+     "1e-4"
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/spiking_lm.py:604-607"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [
+    {
+     "from": "router",
+     "name": "Expert router (top-6 of E)",
+     "label": "router logits",
+     "kind": "loss",
+     "shape_sym": "(N, E)",
+     "shape_num": "(8192, 192) -> (8192, 768)"
+    }
+   ],
+   "outputs": [
+    {
+     "to": "loss_total",
+     "name": "Total loss L",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    }
+   ],
+   "prev": [
+    "router"
+   ],
+   "next": [
+    "loss_total"
+   ]
+  },
+  {
+   "id": "loss_total",
+   "name": "Total loss L",
+   "layer": "output",
+   "group": "loss",
+   "pos3": [
+    206,
+    0,
+    0
+   ],
+   "purpose": "What the forward hands to backward per micro-batch (÷ accum 2). The sub-key margin loss is 0 in this run (fixed addressing) and the memory gate's BCE does not exist (gate off).",
+   "equations": [
+    "L = L_LM + 0.3·L_ds + L_halt + 0.1·L_concept + mean_k(0.02·L_bal + 1e-4·L_z)"
+   ],
+   "param_count": null,
+   "sizes": [
+    [
+     "weights",
+     "LM 1 · deep-sup 0.3 · halt 1 (KL 0.01) · concept 0.1 · balance 0.02 · z 1e-4"
+    ]
+   ],
+   "flags": [
+    [
+     "--accum",
+     2
+    ]
+   ],
+   "code": [
+    "fruit-fly-sim/train_lm.py:1315-1331",
+    "fruit-fly-sim/loop_brain.py:473-477 (aux_loss)",
+    "fruit-fly-sim/loop_brain.py:1190-1247"
+   ],
+   "vram": "",
+   "notes": "",
+   "shape": "sphere",
+   "inputs": [
+    {
+     "from": "loss_lm",
+     "name": "Next-token loss L_LM (weight 1)",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    },
+    {
+     "from": "loss_ds",
+     "name": "Deep supervision (0.3)",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    },
+    {
+     "from": "loss_halt",
+     "name": "Halting loss (1, KL 0.01)",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    },
+    {
+     "from": "loss_concept",
+     "name": "Concept / think loss (0.1)",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    },
+    {
+     "from": "loss_balance",
+     "name": "Expert balance (0.02)",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    },
+    {
+     "from": "loss_z",
+     "name": "Router z-loss (1e-4)",
+     "label": "",
+     "kind": "loss",
+     "shape_sym": "",
+     "shape_num": ""
+    }
+   ],
+   "outputs": [],
+   "prev": [
+    "loss_balance",
+    "loss_concept",
+    "loss_ds",
+    "loss_halt",
+    "loss_lm",
+    "loss_z"
+   ],
+   "next": []
+  }
+ ],
+ "edges": [
+  {
+   "id": "e0",
+   "source": "tokens",
+   "target": "embedding",
+   "kind": "forward",
+   "label": "idx (int64)",
+   "shape_sym": "(B, T)",
+   "shape_num": "(16, 512)",
+   "note": ""
+  },
+  {
+   "id": "e1",
+   "source": "embedding",
+   "target": "ws_init",
+   "kind": "forward",
+   "label": "e",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e2",
+   "source": "embedding",
+   "target": "input_mix",
+   "kind": "forward",
+   "label": "x_0 = e  and  n_e(e) every pass",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e3",
+   "source": "ws_init",
+   "target": "ws_read",
+   "kind": "forward",
+   "label": "s_0",
+   "shape_sym": "(B, T, slots, ds)",
+   "shape_num": "(16, 512, 16, 64)",
+   "note": ""
+  },
+  {
+   "id": "e4",
+   "source": "ws_read",
+   "target": "input_mix",
+   "kind": "forward",
+   "label": "W_ro r",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e5",
+   "source": "input_mix",
+   "target": "membranes",
+   "kind": "forward",
+   "label": "n_t(u)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e6",
+   "source": "input_mix",
+   "target": "router",
+   "kind": "forward",
+   "label": "h = u + m  → n_m(h)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": "h = u + m: the membrane output is added"
+  },
+  {
+   "id": "e7",
+   "source": "membranes",
+   "target": "router",
+   "kind": "forward",
+   "label": "m",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e8",
+   "source": "waves",
+   "target": "router",
+   "kind": "forward",
+   "label": "γ C·used − β f",
+   "shape_sym": "(N, E)",
+   "shape_num": "(8192, 192) -> (8192, 768)",
+   "note": ""
+  },
+  {
+   "id": "e9",
+   "source": "router",
+   "target": "experts",
+   "kind": "forward",
+   "label": "top-6 idx + gates",
+   "shape_sym": "(N, k)",
+   "shape_num": "(8192, 6)",
+   "note": ""
+  },
+  {
+   "id": "e10",
+   "source": "router",
+   "target": "shared_expert",
+   "kind": "forward",
+   "label": "n_m(h)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e11",
+   "source": "experts",
+   "target": "x_update",
+   "kind": "forward",
+   "label": "o = y + shared",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e12",
+   "source": "shared_expert",
+   "target": "experts",
+   "kind": "forward",
+   "label": "shared(n_m h)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e13",
+   "source": "membranes",
+   "target": "x_update",
+   "kind": "forward",
+   "label": "m (direct path)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e14",
+   "source": "experts",
+   "target": "ws_write",
+   "kind": "forward",
+   "label": "c = m + o",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e15",
+   "source": "ws_write",
+   "target": "x_update",
+   "kind": "forward",
+   "label": "s → W_xo",
+   "shape_sym": "(B, T, slots, ds)",
+   "shape_num": "(16, 512, 16, 64)",
+   "note": ""
+  },
+  {
+   "id": "e16",
+   "source": "ws_write",
+   "target": "router",
+   "kind": "forward",
+   "label": "side(s) = n_s(mean slots)",
+   "shape_sym": "(B, T, ds)",
+   "shape_num": "(16, 512, 64)",
+   "note": ""
+  },
+  {
+   "id": "e17",
+   "source": "experts",
+   "target": "waves",
+   "kind": "loop",
+   "label": "used experts → next pass",
+   "shape_sym": "(N, k)",
+   "shape_num": "(8192, 6)",
+   "note": ""
+  },
+  {
+   "id": "e18",
+   "source": "ws_write",
+   "target": "concepts",
+   "kind": "forward",
+   "label": "flatten n_s(s)",
+   "shape_sym": "(B, T, slots·ds)",
+   "shape_num": "(16, 512, 1024)",
+   "note": ""
+  },
+  {
+   "id": "e19",
+   "source": "concepts",
+   "target": "uncertainty",
+   "kind": "forward",
+   "label": "u",
+   "shape_sym": "(B, T, 2·L)",
+   "shape_num": "(16, 512, 8)",
+   "note": ""
+  },
+  {
+   "id": "e20",
+   "source": "concepts",
+   "target": "write_back",
+   "kind": "forward",
+   "label": "μ_1..4",
+   "shape_sym": "(L, B, T, d)",
+   "shape_num": "(4, 16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e21",
+   "source": "uncertainty",
+   "target": "ws_write",
+   "kind": "loop",
+   "label": "W_fb u → every slot",
+   "shape_sym": "(B, T, ds)",
+   "shape_num": "(16, 512, 64)",
+   "note": ""
+  },
+  {
+   "id": "e22",
+   "source": "uncertainty",
+   "target": "halt_head",
+   "kind": "forward",
+   "label": "u (detached)",
+   "shape_sym": "(B, T, 2·L)",
+   "shape_num": "(16, 512, 8)",
+   "note": ""
+  },
+  {
+   "id": "e23",
+   "source": "write_back",
+   "target": "input_mix",
+   "kind": "loop",
+   "label": "inject (next pass)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e24",
+   "source": "x_update",
+   "target": "pass_readout",
+   "kind": "forward",
+   "label": "x_k",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e25",
+   "source": "pass_readout",
+   "target": "halt_head",
+   "kind": "forward",
+   "label": "KL, entropy, k/16 (+ normf x)",
+   "shape_sym": "(B, T, 3)",
+   "shape_num": "(16, 512, 3)",
+   "note": ""
+  },
+  {
+   "id": "e26",
+   "source": "x_update",
+   "target": "input_mix",
+   "kind": "loop",
+   "label": "x_k → next pass",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e27",
+   "source": "ws_write",
+   "target": "ws_read",
+   "kind": "loop",
+   "label": "s_k → next pass",
+   "shape_sym": "(B, T, slots, ds)",
+   "shape_num": "(16, 512, 16, 64)",
+   "note": ""
+  },
+  {
+   "id": "e28",
+   "source": "x_update",
+   "target": "final_norm",
+   "kind": "forward",
+   "label": "x_K (last pass)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e29",
+   "source": "final_norm",
+   "target": "lm_head",
+   "kind": "forward",
+   "label": "normf(x_K)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e30",
+   "source": "lm_head",
+   "target": "logits",
+   "kind": "forward",
+   "label": "logits",
+   "shape_sym": "(B, T, V)",
+   "shape_num": "(16, 512, 16384)",
+   "note": ""
+  },
+  {
+   "id": "e31",
+   "source": "pass1",
+   "target": "pass2",
+   "kind": "loop",
+   "label": "x, s",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e32",
+   "source": "pass2",
+   "target": "pass3",
+   "kind": "loop",
+   "label": "x, s",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e33",
+   "source": "pass3",
+   "target": "pass4",
+   "kind": "loop",
+   "label": "x, s",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e34",
+   "source": "pass4",
+   "target": "pass5",
+   "kind": "loop",
+   "label": "x, s",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e35",
+   "source": "pass5",
+   "target": "pass6",
+   "kind": "loop",
+   "label": "x, s",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e36",
+   "source": "pass6",
+   "target": "final_norm",
+   "kind": "forward",
+   "label": "x_6",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e37",
+   "source": "embedding",
+   "target": "pass1",
+   "kind": "loop",
+   "label": "x_0 = e, s_0",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e38",
+   "source": "concepts",
+   "target": "translator",
+   "kind": "memory",
+   "label": "μ_l (with gradient)",
+   "shape_sym": "(L, N, d)",
+   "shape_num": "(4, 8192, 384)",
+   "note": ""
+  },
+  {
+   "id": "e39",
+   "source": "ws_write",
+   "target": "translator",
+   "kind": "memory",
+   "label": "p̄ = mean_slots n_s(s)",
+   "shape_sym": "(N, ds)",
+   "shape_num": "(8192, 64)",
+   "note": ""
+  },
+  {
+   "id": "e40",
+   "source": "translator",
+   "target": "wq",
+   "kind": "memory",
+   "label": "â (fp32)",
+   "shape_sym": "(L, N, d+ds)",
+   "shape_num": "(4, 8192, 448)",
+   "note": ""
+  },
+  {
+   "id": "e41",
+   "source": "wq",
+   "target": "pk_select",
+   "kind": "memory",
+   "label": "q1, q2 halves (each)",
+   "shape_sym": "(L, H, N, P)",
+   "shape_num": "(4, 3, 8192, 64)",
+   "note": ""
+  },
+  {
+   "id": "e42",
+   "source": "pk_select",
+   "target": "online_w",
+   "kind": "memory",
+   "label": "rows (top-6) + σ",
+   "shape_sym": "(L, H, N, km)",
+   "shape_num": "(4, 3, 8192, 6)",
+   "note": ""
+  },
+  {
+   "id": "e43",
+   "source": "readdr",
+   "target": "pk_select",
+   "kind": "memory",
+   "label": "reuse previous rows on reads k = 4, 6, ...",
+   "shape_sym": "(L, H, N, km)",
+   "shape_num": "(4, 3, 8192, 6)",
+   "note": ""
+  },
+  {
+   "id": "e44",
+   "source": "online_w",
+   "target": "shared_pool",
+   "kind": "memory",
+   "label": "98,304 bags x 6 rows (weights)",
+   "shape_sym": "(N·L·H, km)",
+   "shape_num": "(98304, 6)",
+   "note": ""
+  },
+  {
+   "id": "e45",
+   "source": "pk_select",
+   "target": "coarse_pool",
+   "kind": "memory",
+   "label": "coarse rows (own W_q^c, 64 sub-keys)",
+   "shape_sym": "(L, Hc, N, km)",
+   "shape_num": "(4, 1, 8192, 6)",
+   "note": ""
+  },
+  {
+   "id": "e46",
+   "source": "shared_pool",
+   "target": "mem_gates",
+   "kind": "memory",
+   "label": "r",
+   "shape_sym": "(N, L, H, dv)",
+   "shape_num": "(8192, 4, 3, 256)",
+   "note": ""
+  },
+  {
+   "id": "e47",
+   "source": "coarse_pool",
+   "target": "mem_gates",
+   "kind": "memory",
+   "label": "r^c (own gates)",
+   "shape_sym": "(N, L, Hc, dv)",
+   "shape_num": "(8192, 4, 1, 256)",
+   "note": ""
+  },
+  {
+   "id": "e48",
+   "source": "translator",
+   "target": "mem_gates",
+   "kind": "memory",
+   "label": "p̄",
+   "shape_sym": "(N, ds)",
+   "shape_num": "(8192, 64)",
+   "note": ""
+  },
+  {
+   "id": "e49",
+   "source": "mem_gates",
+   "target": "w_o",
+   "kind": "memory",
+   "label": "Σ_h g r",
+   "shape_sym": "(N, L, dv)",
+   "shape_num": "(8192, 4, 256)",
+   "note": ""
+  },
+  {
+   "id": "e50",
+   "source": "w_o",
+   "target": "input_mix",
+   "kind": "loop",
+   "label": "M → inject (next pass)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e51",
+   "source": "w_o",
+   "target": "slot15",
+   "kind": "memory",
+   "label": "M",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e52",
+   "source": "slot15",
+   "target": "ws_write",
+   "kind": "loop",
+   "label": "s[...,15,:] += W_ms M",
+   "shape_sym": "(B, T, ds)",
+   "shape_num": "(16, 512, 64)",
+   "note": ""
+  },
+  {
+   "id": "e53",
+   "source": "wq",
+   "target": "private_mem",
+   "kind": "memory",
+   "label": "q1 (level 1, head 1) + EMA q̄1",
+   "shape_sym": "(N, P)",
+   "shape_num": "(8192, 64)",
+   "note": ""
+  },
+  {
+   "id": "e54",
+   "source": "private_mem",
+   "target": "experts",
+   "kind": "loop",
+   "label": "W_p z (inside experts, next pass)",
+   "shape_sym": "(N, d)",
+   "shape_num": "(8192, 384)",
+   "note": ""
+  },
+  {
+   "id": "e55",
+   "source": "logits",
+   "target": "loss_lm",
+   "kind": "loss",
+   "label": "CE vs y (B, T)",
+   "shape_sym": "(B, T, V)",
+   "shape_num": "(16, 512, 16384)",
+   "note": ""
+  },
+  {
+   "id": "e56",
+   "source": "pass_readout",
+   "target": "loss_ds",
+   "kind": "loss",
+   "label": "ce_k (grad passes)",
+   "shape_sym": "(B, T)",
+   "shape_num": "(16, 512)",
+   "note": ""
+  },
+  {
+   "id": "e57",
+   "source": "halt_head",
+   "target": "loss_halt",
+   "kind": "loss",
+   "label": "P_k (stop distribution)",
+   "shape_sym": "(K, B, T)",
+   "shape_num": "(6, 16, 512)",
+   "note": ""
+  },
+  {
+   "id": "e58",
+   "source": "pass_readout",
+   "target": "loss_halt",
+   "kind": "loss",
+   "label": "sg(ce_k)",
+   "shape_sym": "(K, B, T)",
+   "shape_num": "(6, 16, 512)",
+   "note": ""
+  },
+  {
+   "id": "e59",
+   "source": "concepts",
+   "target": "loss_concept",
+   "kind": "loss",
+   "label": "μ_l, ν_l",
+   "shape_sym": "(L, B, T, d)",
+   "shape_num": "(4, 16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e60",
+   "source": "final_norm",
+   "target": "loss_concept",
+   "kind": "loss",
+   "label": "targets: windows of sg(normf x_K)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e61",
+   "source": "write_back",
+   "target": "loss_use",
+   "kind": "loss",
+   "label": "inject (no own loss)",
+   "shape_sym": "(B, T, d)",
+   "shape_num": "(16, 512, 384)",
+   "note": ""
+  },
+  {
+   "id": "e62",
+   "source": "router",
+   "target": "loss_balance",
+   "kind": "loss",
+   "label": "f_e, P_e",
+   "shape_sym": "(E)",
+   "shape_num": "(192) -> (768)",
+   "note": ""
+  },
+  {
+   "id": "e63",
+   "source": "router",
+   "target": "loss_z",
+   "kind": "loss",
+   "label": "router logits",
+   "shape_sym": "(N, E)",
+   "shape_num": "(8192, 192) -> (8192, 768)",
+   "note": ""
+  },
+  {
+   "id": "e64",
+   "source": "loss_use",
+   "target": "loss_lm",
+   "kind": "loss",
+   "label": "trained through L_LM",
+   "shape_sym": "",
+   "shape_num": "",
+   "note": ""
+  },
+  {
+   "id": "e65",
+   "source": "loss_lm",
+   "target": "loss_total",
+   "kind": "loss",
+   "label": "",
+   "shape_sym": "",
+   "shape_num": "",
+   "note": ""
+  },
+  {
+   "id": "e66",
+   "source": "loss_ds",
+   "target": "loss_total",
+   "kind": "loss",
+   "label": "",
+   "shape_sym": "",
+   "shape_num": "",
+   "note": ""
+  },
+  {
+   "id": "e67",
+   "source": "loss_halt",
+   "target": "loss_total",
+   "kind": "loss",
+   "label": "",
+   "shape_sym": "",
+   "shape_num": "",
+   "note": ""
+  },
+  {
+   "id": "e68",
+   "source": "loss_concept",
+   "target": "loss_total",
+   "kind": "loss",
+   "label": "",
+   "shape_sym": "",
+   "shape_num": "",
+   "note": ""
+  },
+  {
+   "id": "e69",
+   "source": "loss_balance",
+   "target": "loss_total",
+   "kind": "loss",
+   "label": "",
+   "shape_sym": "",
+   "shape_num": "",
+   "note": ""
+  },
+  {
+   "id": "e70",
+   "source": "loss_z",
+   "target": "loss_total",
+   "kind": "loss",
+   "label": "",
+   "shape_sym": "",
+   "shape_num": "",
+   "note": ""
+  }
+ ],
+ "walkthrough": [
+  {
+   "node": "tokens",
+   "text": "Follow one token: take the word at batch 0, position t = 300 (one of the trace words of the loop report). It arrives as one id in idx (16, 512)."
+  },
+  {
+   "node": "embedding",
+   "text": "It is looked up: e_t is a 384-vector. x_0 = e. The same e is re-added on every pass."
+  },
+  {
+   "node": "ws_init",
+   "text": "Its private workspace starts at s_0 = tanh(W_0 n_e(e_t)): 16 slots x 64."
+  },
+  {
+   "node": "pass1",
+   "text": "Pass 1 begins (eval: K = 6; training: K random 2-10). Head group 0 + group 1 are on."
+  },
+  {
+   "node": "ws_read",
+   "text": "The thought x_t queries its 16 slots (softmax over slots) and reads a 64-d summary back."
+  },
+  {
+   "node": "input_mix",
+   "text": "u_t = n_u(x_t + n_e(e_t) + W_ro r_t + inject_t). On pass 1 inject is empty (read0 off)."
+  },
+  {
+   "node": "membranes",
+   "text": "The SSD heads scan all 512 words: token t now carries context from words 0..t (graded spikes)."
+  },
+  {
+   "node": "waves",
+   "text": "Its router logits get excitation from the experts it used on the previous pass (from pass 2 on) minus fatigue."
+  },
+  {
+   "node": "router",
+   "text": "The router scores up to 768 experts and picks 6 (training: noise 0.3 on the choice)."
+  },
+  {
+   "node": "experts",
+   "text": "Token t is packed into those 6 experts' capacity buffers (C = 96 at E = 768) and computed; the shared expert always runs. From pass 2 on its 6 experts also read 4 private rows each."
+  },
+  {
+   "node": "ws_write",
+   "text": "c_t = m_t + o_t is written into the 16 slots, each with its own gate."
+  },
+  {
+   "node": "x_update",
+   "text": "x_t ← n_x(x_t + α((1−λ)(m+o) + λ W_xo s_t)): the new thought."
+  },
+  {
+   "node": "concepts",
+   "text": "After the pass, 4 concept heads read the workspace and predict where the text goes over the next 16/32/64/128 tokens."
+  },
+  {
+   "node": "uncertainty",
+   "text": "Their vagueness and movement u_t (8 numbers) go back into every slot and to the halting head."
+  },
+  {
+   "node": "translator",
+   "text": "Memory: a_l = [μ_l ; p̄_t] per level, standardised."
+  },
+  {
+   "node": "wq",
+   "text": "A fixed random W_q turns it into a 128-d query per head, split in two 64-d halves."
+  },
+  {
+   "node": "pk_select",
+   "text": "Each half picks its top-8 of 512 sub-keys; the best 6 of the 64 pairs are this token's rows out of 262,144 per level (ranks 7-12 get neighbour writes)."
+  },
+  {
+   "node": "shared_pool",
+   "text": "6 rows x 12 heads are read (plus 6 coarse rows per level), weighted by softmax(σ/0.03) and their decay."
+  },
+  {
+   "node": "mem_gates",
+   "text": "Each head's read is gated by σ(w·[p̄; r] + b) and summed per level."
+  },
+  {
+   "node": "w_o",
+   "text": "W_o maps the 4 levels' reads to M_t (384)."
+  },
+  {
+   "node": "write_back",
+   "text": "Next-pass input: inject_t = Σ_l B_l A_l μ_l + M_t; and slot 15 gets W_ms M_t."
+  },
+  {
+   "node": "pass2",
+   "text": "Pass 2 runs the SAME weights with head group 2 ... the loop repeats (reads after passes 1-4 address anew, after pass 5 they reuse)."
+  },
+  {
+   "node": "pass_readout",
+   "text": "Training: after every pass the LM head reads x_t (deep supervision 0.3 inside the BPTT window)."
+  },
+  {
+   "node": "halt_head",
+   "text": "The halting head estimates whether token t can stop (eval: stop at cumulative 0.5)."
+  },
+  {
+   "node": "final_norm",
+   "text": "After pass K: normf(x_K) - also the stop-gradient target of the concept heads."
+  },
+  {
+   "node": "lm_head",
+   "text": "W_lm gives 16,384 logits: the prediction of token t+1."
+  },
+  {
+   "node": "logits",
+   "text": "Logits (16, 512, 16384): token t's row is its distribution over the next token."
+  },
+  {
+   "node": "loss_lm",
+   "text": "Next-token loss: −log p(y_t), y_t = token t+1. This is the main training signal."
+  },
+  {
+   "node": "loss_total",
+   "text": "Total: L_LM + 0.3 deep supervision + halt + 0.1 concept + 0.02 balance + 1e-4 z (the memory rows token t read are later written by MemOpt during learning)."
+  }
+ ],
+ "checkpoint_shapes": {
+  "step": 2000,
+  "shapes": {
+   "emb.weight": [
+    16384,
+    384
+   ],
+   "blocks.0.alpha": [
+    384
+   ],
+   "blocks.0.router_conn": [
+    311,
+    311
+   ],
+   "blocks.0.wave_gamma": [],
+   "blocks.0.wave_beta": [],
+   "blocks.0.ws_mix": [
+    384
+   ],
+   "blocks.0.pos": [
+    311,
+    2
+   ],
+   "blocks.0.adj2": [
+    311,
+    311
+   ],
+   "blocks.0.n_u.weight": [
+    384
+   ],
+   "blocks.0.n_t.weight": [
+    384
+   ],
+   "blocks.0.n_m.weight": [
+    384
+   ],
+   "blocks.0.n_x.weight": [
+    384
+   ],
+   "blocks.0.n_e.weight": [
+    384
+   ],
+   "blocks.0.mix.A_log": [
+    12
+   ],
+   "blocks.0.mix.dt_bias": [
+    12
+   ],
+   "blocks.0.mix.Dskip": [
+    12
+   ],
+   "blocks.0.mix.norm_w": [
+    12,
+    64
+   ],
+   "blocks.0.mix.hgroup": [
+    12
+   ],
+   "blocks.0.mix.ramp": [
+    768
+   ],
+   "blocks.0.mix.wz.weight": [
+    768,
+    384
+   ],
+   "blocks.0.mix.wx.weight": [
+    768,
+    384
+   ],
+   "blocks.0.mix.wq.weight": [
+    768,
+    384
+   ],
+   "blocks.0.mix.wk.weight": [
+    768,
+    384
+   ],
+   "blocks.0.mix.wdt.weight": [
+    12,
+    384
+   ],
+   "blocks.0.mix.cx.weight": [
+    768,
+    4
+   ],
+   "blocks.0.mix.cx.bias": [
+    768
+   ],
+   "blocks.0.mix.cq.weight": [
+    768,
+    4
+   ],
+   "blocks.0.mix.cq.bias": [
+    768
+   ],
+   "blocks.0.mix.ck.weight": [
+    768,
+    4
+   ],
+   "blocks.0.mix.ck.bias": [
+    768
+   ],
+   "blocks.0.mix.spike.alpha": [
+    768
+   ],
+   "blocks.0.mix.spike.calibrated": [],
+   "blocks.0.mix.spike.ema_rate": [
+    768
+   ],
+   "blocks.0.mix.spike.norm_w": [
+    768
+   ],
+   "blocks.0.mix.wo.weight": [
+    384,
+    768
+   ],
+   "blocks.0.mlp.w_up": [
+    311,
+    384,
+    192
+   ],
+   "blocks.0.mlp.w_down": [
+    311,
+    192,
+    384
+   ],
+   "blocks.0.mlp.pending": [
+    311
+   ],
+   "blocks.0.mlp.pending_elig": [
+    311
+   ],
+   "blocks.0.mlp.bias": [
+    311
+   ],
+   "blocks.0.mlp.debt": [
+    311
+   ],
+   "blocks.0.mlp.load_ema": [
+    311
+   ],
+   "blocks.0.mlp.age": [
+    311
+   ],
+   "blocks.0.mlp.nmask": [
+    311,
+    192
+   ],
+   "blocks.0.mlp.shared.ramp": [
+    384
+   ],
+   "blocks.0.mlp.shared.util": [
+    384
+   ],
+   "blocks.0.mlp.shared.up.weight": [
+    384,
+    384
+   ],
+   "blocks.0.mlp.shared.spike.alpha": [
+    384
+   ],
+   "blocks.0.mlp.shared.spike.calibrated": [],
+   "blocks.0.mlp.shared.spike.ema_rate": [
+    384
+   ],
+   "blocks.0.mlp.shared.spike.norm_w": [
+    384
+   ],
+   "blocks.0.mlp.shared.down.weight": [
+    384,
+    384
+   ],
+   "blocks.0.mlp.router.weight": [
+    311,
+    384
+   ],
+   "blocks.0.mlp.router_s.weight": [
+    311,
+    64
+   ],
+   "blocks.0.mlp.spike_e.alpha": [
+    59712
+   ],
+   "blocks.0.mlp.spike_e.calibrated": [],
+   "blocks.0.mlp.spike_e.ema_rate": [
+    59712
+   ],
+   "blocks.0.mlp.spike_e.norm_w": [
+    59712
+   ],
+   "blocks.0.w_0.weight": [
+    1024,
+    384
+   ],
+   "blocks.0.n_c.weight": [
+    384
+   ],
+   "blocks.0.w_wv.weight": [
+    1024,
+    384
+   ],
+   "blocks.0.w_wg.weight": [
+    16,
+    384
+   ],
+   "blocks.0.w_wg.bias": [
+    16
+   ],
+   "blocks.0.w_rq.weight": [
+    64,
+    384
+   ],
+   "blocks.0.w_ro.weight": [
+    384,
+    64
+   ],
+   "blocks.0.w_xo.weight": [
+    384,
+    1024
+   ],
+   "blocks.0.n_s.weight": [
+    64
+   ],
+   "normf.weight": [
+    384
+   ],
+   "heads.lm.weight": [
+    16384,
+    384
+   ],
+   "halt_head.0.weight": [
+    64,
+    395
+   ],
+   "halt_head.0.bias": [
+    64
+   ],
+   "halt_head.2.weight": [
+    1,
+    64
+   ],
+   "halt_head.2.bias": [
+    1
+   ],
+   "hier.inj_a": [
+    4,
+    64,
+    384
+   ],
+   "hier.inj_b": [
+    4,
+    384,
+    64
+   ],
+   "hier.trunk.weight": [
+    256,
+    1024
+   ],
+   "hier.trunk.bias": [
+    256
+   ],
+   "hier.levels.0.weight": [
+    768,
+    256
+   ],
+   "hier.levels.0.bias": [
+    768
+   ],
+   "hier.levels.1.weight": [
+    768,
+    640
+   ],
+   "hier.levels.1.bias": [
+    768
+   ],
+   "hier.levels.2.weight": [
+    768,
+    640
+   ],
+   "hier.levels.2.bias": [
+    768
+   ],
+   "hier.levels.3.weight": [
+    768,
+    640
+   ],
+   "hier.levels.3.bias": [
+    768
+   ],
+   "hier.fb.weight": [
+    64,
+    8
+   ],
+   "hier.fb.bias": [
+    64
+   ],
+   "mem.w_o": [
+    4,
+    384,
+    256
+   ],
+   "mem.w_o_c": [
+    4,
+    384,
+    256
+   ],
+   "mem.wq_ema": [
+    4,
+    3,
+    128,
+    448
+   ],
+   "mem.k1_ema": [
+    4,
+    3,
+    512,
+    64
+   ],
+   "mem.k2_ema": [
+    4,
+    3,
+    512,
+    64
+   ],
+   "mem.norm_m": [
+    4,
+    448
+   ],
+   "mem.norm_v": [
+    4,
+    448
+   ],
+   "mem.frozen": [],
+   "mem.n_step": [],
+   "mem.s0": [
+    2
+   ],
+   "mem.V": [
+    1064960,
+    256
+   ],
+   "mem.S_acc": [
+    1064960
+   ],
+   "mem.wcount": [
+    1064960
+   ],
+   "mem.U": [
+    4,
+    3,
+    2,
+    512
+   ],
+   "mem.P": [
+    768,
+    512,
+    64
+   ],
+   "mem.P_ema": [
+    768,
+    512,
+    64
+   ],
+   "mem.V_e": [
+    393216,
+    256
+   ],
+   "mem.S_e": [
+    393216
+   ],
+   "mem.wcount_e": [
+    393216
+   ],
+   "mem.P_m": [
+    393216,
+    64
+   ],
+   "mem.P_v": [
+    393216,
+    64
+   ],
+   "mem.P_n": [
+    393216
+   ],
+   "mem.U_e": [
+    768,
+    512
+   ],
+   "mem.e_live": [],
+   "mem.wq_c_ema": [
+    4,
+    1,
+    128,
+    448
+   ],
+   "mem.k1_c_ema": [
+    4,
+    1,
+    64,
+    64
+   ],
+   "mem.k2_c_ema": [
+    4,
+    1,
+    64,
+    64
+   ],
+   "mem.U_c": [
+    4,
+    1,
+    2,
+    64
+   ],
+   "mem.lam_r": [
+    1064960
+   ],
+   "mem.psi_r": [
+    1064960
+   ],
+   "mem.lam_r_e": [
+    393216
+   ],
+   "mem.psi_r_e": [
+    393216
+   ],
+   "mem.keys.wq": [
+    4,
+    3,
+    128,
+    448
+   ],
+   "mem.keys.k1": [
+    4,
+    3,
+    512,
+    64
+   ],
+   "mem.keys.k2": [
+    4,
+    3,
+    512,
+    64
+   ],
+   "mem.keys.wq_c": [
+    4,
+    1,
+    128,
+    448
+   ],
+   "mem.keys.k1_c": [
+    4,
+    1,
+    64,
+    64
+   ],
+   "mem.keys.k2_c": [
+    4,
+    1,
+    64,
+    64
+   ],
+   "mem.gates.w": [
+    4,
+    3,
+    320
+   ],
+   "mem.gates.b": [
+    4,
+    3
+   ],
+   "mem.gates.b_e": [
+    768
+   ],
+   "mem.gates.w_c": [
+    4,
+    1,
+    320
+   ],
+   "mem.gates.b_c": [
+    4,
+    1
+   ],
+   "mem.w_ms.weight": [
+    64,
+    384
+   ],
+   "mem.w_p.weight": [
+    384,
+    256
+   ]
+  }
+ },
+ "unverified": [
+  "Final sizes (36 heads, 768 experts, 129.70M params) are computed from the code's formulas and the schedule; the formula reproduces train.log exactly at step 0 (40.12M) and step 2000 (58.55M), but the run has not reached them yet.",
+  "Capacity C assumes every expert receives tokens (used = E); the code divides by the experts actually used.",
+  "Per-module VRAM is estimated; only the totals (tables + buffers 3.53 GB, peak ~17.7 GB) come from train.log.",
+  "The vocabulary is 16,384 (checkpoint cfg); the tokenizer's name (e.g. 'wiki16k') was not checked.",
+  "The pass ring shows the eval loop (K = 6, head-group offset 0); training draws K and the offset per step."
+ ]
+}

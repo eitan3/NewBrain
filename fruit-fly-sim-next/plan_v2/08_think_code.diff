@@ -1,0 +1,188 @@
+diff --git a/loop_brain.py b/loop_brain.py
+index 47bf4d6..10446e0 100644
+--- a/loop_brain.py
++++ b/loop_brain.py
+@@ -250,3 +250,4 @@ class LoopBrain(SpikingLM):
+                  pops=1, ws_direct=False, head_group=0, head_groups=0, sheet_cols=0, ckpt_route=False,
+-                 deep_sup=0.0, halt=False, halt_prior=0.2, halt_beta=0.01, **_):
++                 deep_sup=0.0, halt=False, halt_prior=0.2, halt_beta=0.01, think_w=0.0, think_n=8,
++                 think_fb=False, **_):
+         nn.Module.__init__(self)
+@@ -260,2 +261,3 @@ class LoopBrain(SpikingLM):
+                         deep_sup=deep_sup, halt=halt, halt_prior=halt_prior, halt_beta=halt_beta,
++                        think_w=think_w, think_n=think_n, think_fb=think_fb,
+                         layers=1, mlp=0, mixer="ssd", concept=None)
+@@ -271,4 +273,16 @@ class LoopBrain(SpikingLM):
+         # outputs the probability of stopping now. Its inputs are detached, so it never changes the brain.
+-        self.halt_head = nn.Sequential(nn.Linear(d + 3, 64), nn.GELU(), nn.Linear(64, 1)) if halt else None
++        # thinking-concept head (plan_v2/08): on the WORKSPACE (internal thought, never decoded), predicts the bag
++        # of the next think_n tokens - the direction of the thought. Its vagueness (entropy) and how much it
++        # still moves between passes are the brain's uncertainty: fed to the stop head and (think_fb) written
++        # back into the workspace so the brain can act on it.
++        self.think = bool(slots) and (think_w > 0 or think_fb)
++        self.think_head = (nn.Sequential(nn.Linear(slots * 64, 128), nn.GELU(), nn.Linear(128, vocab))
++                             if self.think else None)
++        n_feat = d + 3 + (2 if self.think else 0)
++        self.halt_head = nn.Sequential(nn.Linear(n_feat, 64), nn.GELU(), nn.Linear(64, 1)) if halt else None
++        self.think_fb = nn.Linear(2, 64) if (self.think and think_fb) else None
+         self.apply(self._init)
++        if self.think_fb is not None:  # starts silent: the workspace is unchanged until the brain learns to use it
++            nn.init.zeros_(self.think_fb.weight)
++            nn.init.zeros_(self.think_fb.bias)
+         core = self.blocks[0]
+@@ -297,2 +311,3 @@ class LoopBrain(SpikingLM):
+         self.halt_stats = None
++        self.think_u, self.think_last = [], None
+ 
+@@ -342,3 +357,4 @@ class LoopBrain(SpikingLM):
+     def forward(self, idx, targets=None, head="lm"):
+-        per_pass = self.training and targets is not None and (self.cfg["deep_sup"] or self.cfg["halt"])
++        per_pass = self.training and targets is not None and (self.cfg["deep_sup"] or self.cfg["halt"]
++                                                               or self.cfg.get("think_w", 0))
+         self._targets = targets if per_pass else None
+@@ -349,3 +365,26 @@ class LoopBrain(SpikingLM):
+ 
+-    def pass_readout(self, x, prev_lp, k):
++    def think_readout(self, s, prev_cl):
++        """Thinking-concept prediction from the workspace: log-probs over the vocabulary (B, T, V) of the bag of
++        the next words, and its uncertainty u = [normalised entropy, KL to the previous pass] (detached)."""
++        cl = F.log_softmax(self.think_head(self.blocks[0].n_s(s).flatten(-2)).float(), -1)
++        with torch.no_grad():
++            p = cl.exp()
++            ent = -(p * cl).sum(-1) / math.log(cl.size(-1))
++            kl = (p * (cl - prev_cl)).sum(-1).clamp(min=0) if prev_cl is not None else torch.zeros_like(ent)
++            u = torch.stack([ent, torch.log1p(kl)], -1)
++        return cl, u
++
++    def think_loss(self, cl, targets):
++        """Bag-of-next-words cross-entropy: mean over the next think_n tokens (targets[t] is the token after t,
++        so the bag of position t is targets[t .. t+n-1]); positions past the sequence end are masked."""
++        n, T = self.cfg["think_n"], targets.size(1)
++        tot, cnt = 0.0, 0
++        for j in range(n):
++            if j >= T:
++                break
++            tot = tot - cl[:, :T - j].gather(-1, targets[:, j:, None]).sum()
++            cnt += targets[:, j:].numel()
++        return tot / cnt
++
++    def pass_readout(self, x, prev_lp, k, cu=None):
+         """Decoder read-out after a pass: log-probs (B, T, V) and the halting features (detached)."""
+@@ -356,4 +395,7 @@ class LoopBrain(SpikingLM):
+             kl = (p * (lp - prev_lp)).sum(-1) if prev_lp is not None else torch.zeros_like(ent)
+-            feat = torch.cat([self.normf(x).detach().float(), torch.log1p(kl.clamp(min=0))[..., None],
+-                              ent[..., None], torch.full_like(ent, k / 16.0)[..., None]], -1)
++            feat = [self.normf(x).detach().float(), torch.log1p(kl.clamp(min=0))[..., None],
++                    ent[..., None], torch.full_like(ent, k / 16.0)[..., None]]
++            if self.think:  # the thought's own uncertainty (zeros if not computed)
++                feat.append(cu if cu is not None else torch.zeros_like(feat[0][..., :2]))
++            feat = torch.cat(feat, -1)
+         return lp, feat
+@@ -384,3 +426,3 @@ class LoopBrain(SpikingLM):
+         for k, x in enumerate(outs):
+-            lp, feat = self.pass_readout(x, prev, k)
++            lp, feat = self.pass_readout(x, prev, k, self.think_u[k] if self.think else None)
+             lams.append(self.halt_lambda(feat))
+@@ -399,2 +441,38 @@ class LoopBrain(SpikingLM):
+ 
++    @torch.no_grad()
++    def think_diag(self, idx, targets, K_max=16, kmax_eval=8):
++        """Loop-report diagnostic: per word and pass k = 1..kmax_eval, the label "more passes will help by > 0.05
++        nats" (LM loss at k minus the best later pass) and the AUC of each uncertainty signal for it: the
++        concept head's entropy and change (thinking) and the LM prediction's change (output)."""
++        was = self.training
++        self.eval()
++        outs = self.run(idx, K_max, every_tick=True, raw=True)
++        cus = self.think_u
++        prev, ces, kls = None, [], []
++        for k, x in enumerate(outs):
++            lp, _ = self.pass_readout(x, prev, k)
++            ces.append(-lp.gather(-1, targets[..., None]).squeeze(-1))
++            kls.append((lp.exp() * (lp - prev)).sum(-1) if prev is not None else torch.zeros_like(ces[-1]))
++            prev = lp
++        ce = torch.stack(ces, 0)
++        best_later = torch.stack([ce[k + 1:].min(0).values for k in range(K_max - 1)], 0)
++        gain = ce[:-1] - best_later                                               # (K-1, B, T)
++        lab = (gain[1:kmax_eval] > 0.05).flatten()                                # passes 2..kmax_eval
++        sig = dict(concept_entropy=torch.stack([c[..., 0] for c in cus[1:kmax_eval]]),
++                   concept_change=torch.stack([c[..., 1] for c in cus[1:kmax_eval]]),
++                   output_change=torch.stack(kls[1:kmax_eval]))
++
++        def auc(score, label):
++            r = torch.empty_like(score)
++            r[score.argsort()] = torch.arange(len(score), dtype=score.dtype, device=score.device)
++            pos = label.sum()
++            neg = len(label) - pos
++            return ((r[label].sum() - pos * (pos - 1) / 2) / (pos * neg).clamp(min=1)).item()
++
++        out = {f"auc_{n}": auc(v.flatten().double(), lab) for n, v in sig.items()}
++        out["helped_share"] = lab.float().mean().item()
++        out["concept_entropy_by_pass"] = [c[..., 0].mean().item() for c in cus[:kmax_eval]]
++        self.train(was)
++        return out
++
+     def sample_K(self):
+@@ -418,2 +496,4 @@ class LoopBrain(SpikingLM):
+         ces, lams, prev_lp = [], [], None
++        c_w, c_losses, prev_cl, cu = self.cfg.get("think_w", 0.0), [], None, None
++        self.think_u = []
+         if tgt is not None and ds_w:  # deep supervision on every pass replaces the single sampled one
+@@ -439,2 +519,11 @@ class LoopBrain(SpikingLM):
+                             group=group)
++                if self.think:  # the thought's direction and uncertainty (after the pass wrote the workspace)
++                    cl, cu = self.think_readout(s, prev_cl)
++                    if tgt is not None and c_w and k >= K - bptt:
++                        c_losses.append(self.think_loss(cl, tgt))
++                    prev_cl = cl.detach()
++                    self.think_u.append(cu)
++                    if self.think_fb is not None:  # tell the workspace how sure the thought is
++                        s = s + self.think_fb(cu.to(s.dtype))[..., None, :]
++                    del cl
+             if core.mlp.aux is not None and core.mlp.aux.requires_grad:
+@@ -458,3 +547,3 @@ class LoopBrain(SpikingLM):
+                 with torch.set_grad_enabled(torch.is_grad_enabled() and k >= K - bptt):
+-                    lp, feat = self.pass_readout(x, prev_lp, k)
++                    lp, feat = self.pass_readout(x, prev_lp, k, cu)
+                     ces.append(-lp.gather(-1, tgt[..., None]).squeeze(-1))
+@@ -486,2 +575,5 @@ class LoopBrain(SpikingLM):
+                     self.halt_stats = dict(expected_passes=(P * steps).sum(0).mean(), kl=kl.detach())
++            if c_losses:
++                extra = extra + c_w * sum(c_losses) / len(c_losses)
++                self.think_last = c_losses[-1].detach()
+             self.loop_extra = extra if torch.is_tensor(extra) else None
+diff --git a/train_lm.py b/train_lm.py
+index c9e38bd..f420b09 100644
+--- a/train_lm.py
++++ b/train_lm.py
+@@ -207,2 +207,4 @@ def loop_report(model, data, args, batches=4):
+         x, y = data.batch(args.eval_batch, "val", np.random.RandomState(4242))
++        if getattr(model, "think", False):  # does the thought's uncertainty predict that more passes help?
++            out["think"] = model.think_diag(x, y)
+         out["tick_loss"] = model.tick_losses(x, y, 10)
+@@ -348,2 +350,7 @@ def main():
+     ap.add_argument("--halt-beta", type=float, default=0.01, help="halting: weight of the KL to the prior")
++    ap.add_argument("--think-w", type=float, default=0.0,
++                    help="loop: weight of the thinking-concept head (workspace -> bag of the next --think-n words)")
++    ap.add_argument("--think-n", type=int, default=8, help="thinking concept: how many next words")
++    ap.add_argument("--think-fb", type=int, default=0,
++                    help="1 = write the thought's uncertainty back into the workspace each pass")
+     ap.add_argument("--head-groups", type=int, default=0,
+@@ -459,3 +466,4 @@ def main():
+                           head_groups=n_groups, ckpt_route=bool(args.ckpt_route), deep_sup=args.deep_sup,
+-                          halt=bool(args.halt), halt_prior=args.halt_prior, halt_beta=args.halt_beta).to(args.device)
++                          halt=bool(args.halt), halt_prior=args.halt_prior, halt_beta=args.halt_beta,
++                          think_w=args.think_w, think_n=args.think_n, think_fb=bool(args.think_fb)).to(args.device)
+     else:
+@@ -579,2 +587,4 @@ def main():
+                     rec.update(model.diag)
++                    if getattr(model, "think_last", None) is not None:  # bag-of-next-words loss, last train step
++                        rec["think_loss"] = model.think_last.item()
+                     if getattr(model, "halt_stats", None):  # last training step: where the stop head puts its mass
+@@ -596,3 +606,6 @@ def main():
+                               + (f"  | loop until sure: loss {rep['halt']['loss']:.3f} with {rep['halt']['passes']:.2f} passes per word"
+-                                 if "halt" in rep else ""),
++                                 if "halt" in rep else "")
++                              + (f"  | 'more passes help' AUC: thought vagueness {rep['think']['auc_concept_entropy']:.2f}, "
++                                 f"thought change {rep['think']['auc_concept_change']:.2f}, output change "
++                                 f"{rep['think']['auc_output_change']:.2f}" if "think" in rep else ""),
+                               flush=True)

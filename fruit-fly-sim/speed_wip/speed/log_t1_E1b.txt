@@ -1,0 +1,5 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+accum fixes: ['auxgroup', 'concept', 'homeo', 'margin', 'memstats', 'noise', 'qres']
+step  0 K= 3 loss 3.3452 gn 15.556 drop 0.0000
+done 4.5 s, peak alloc 13.60 reserved 14.42

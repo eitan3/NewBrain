@@ -1,0 +1,75 @@
+{
+ "batch": 8,
+ "accum": 4,
+ "K": 6,
+ "n": 185,
+ "sites": [
+  {
+   "site": "memory.py:102 stable_topk",
+   "count": 52,
+   "code": "if bool(eq.any()):  # (rare on real scores) ties among the winners: re-sort; at the boundary: the full sort",
+   "chains": [
+    "memory.py:102(stable_topk) <- memory.py:721(_addr) <- memory.py:675(select) <- loop_brain.py:550(block)",
+    "memory.py:102(stable_topk) <- memory.py:721(_addr) <- memory.py:687(select) <- loop_brain.py:550(block)",
+    "memory.py:102(stable_topk) <- memory.py:885(private) <- loop_brain.py:777(<lambda>) <- spiking_lm.py:679(forward)"
+   ]
+  },
+  {
+   "site": "spiking_lm.py:651 forward",
+   "count": 48,
+   "code": "counts = torch.bincount(flat, minlength=E)",
+   "chains": [
+    "spiking_lm.py:651(forward) <- loop_brain.py:235(forward) <- loop_brain.py:1075(run) <- loop_brain.py:1293(features)"
+   ]
+  },
+  {
+   "site": "spiking_lm.py:653 forward",
+   "count": 24,
+   "code": "cl = counts.tolist()",
+   "chains": [
+    "spiking_lm.py:653(forward) <- loop_brain.py:235(forward) <- loop_brain.py:1075(run) <- loop_brain.py:1293(features)"
+   ]
+  },
+  {
+   "site": "spiking_lm.py:671 forward",
+   "count": 24,
+   "code": "valid[e_k, p_k] = True",
+   "chains": [
+    "spiking_lm.py:671(forward) <- loop_brain.py:235(forward) <- loop_brain.py:1075(run) <- loop_brain.py:1293(features)"
+   ]
+  },
+  {
+   "site": "memory.py:894 private",
+   "count": 20,
+   "code": "has[e_k] = True",
+   "chains": [
+    "memory.py:894(private) <- loop_brain.py:777(<lambda>) <- spiking_lm.py:679(forward) <- loop_brain.py:235(forward)"
+   ]
+  },
+  {
+   "site": "memory.py:104 stable_topk",
+   "count": 15,
+   "code": "r = eq[:, k - 1].nonzero().squeeze(1)",
+   "chains": [
+    "memory.py:104(stable_topk) <- memory.py:721(_addr) <- memory.py:675(select) <- loop_brain.py:550(block)",
+    "memory.py:104(stable_topk) <- memory.py:721(_addr) <- memory.py:687(select) <- loop_brain.py:550(block)"
+   ]
+  },
+  {
+   "site": "sync_trace.py:58 <module>",
+   "count": 1,
+   "code": "torch.cuda.set_sync_debug_mode(\"warn\")",
+   "chains": [
+    ""
+   ]
+  },
+  {
+   "site": "step_lib.py:52 train_step",
+   "count": 1,
+   "code": "vals = torch.cat([lt.double().view(1), cnt.double()]).tolist()",
+   "chains": [
+    ""
+   ]
+  }
+ ]
+}

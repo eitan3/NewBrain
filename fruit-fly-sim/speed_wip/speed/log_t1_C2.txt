@@ -1,0 +1,44 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+accum fixes: ['auxgroup', 'concept', 'homeo', 'margin', 'memstats', 'noise', 'qres']
+step  0 K= 3 loss 3.3583 gn 16.804 drop 0.0490
+step  1 K= 2 loss 3.4727 gn 14.817 drop 0.0643
+step  2 K= 7 loss 2.9324 gn 8.179 drop 0.0598
+step  3 K= 4 loss 3.4939 gn 2.231 drop 0.0690
+step  4 K= 9 loss 3.5370 gn 5.360 drop 0.0562
+step  5 K= 9 loss 3.0787 gn 2.416 drop 0.0595
+step  6 K= 9 loss 3.3097 gn 2.515 drop 0.0482
+step  7 K= 5 loss 3.0146 gn 9.906 drop 0.0629
+step  8 K= 8 loss 3.4695 gn 11.075 drop 0.0413
+step  9 K= 3 loss 3.8557 gn 20.106 drop 0.0743
+step 10 K= 3 loss 3.2607 gn 5.724 drop 0.0486
+step 11 K= 2 loss 3.5229 gn 5.169 drop 0.0445
+step 12 K= 2 loss 3.2623 gn 12.555 drop 0.0480
+step 13 K= 2 loss 3.4953 gn 7.504 drop 0.0568
+step 14 K= 2 loss 3.4594 gn 2.120 drop 0.0538
+step 15 K= 3 loss 3.4210 gn 8.172 drop 0.0547
+step 16 K= 9 loss 3.4713 gn 8.534 drop 0.0494
+step 17 K= 3 loss 3.2272 gn 9.856 drop 0.0592
+step 18 K= 2 loss 3.4208 gn 2.670 drop 0.0497
+step 19 K= 7 loss 3.3216 gn 11.571 drop 0.0469
+step 20 K= 2 loss 3.5010 gn 17.671 drop 0.0543
+step 21 K= 9 loss 3.1773 gn 10.783 drop 0.0393
+step 22 K= 9 loss 3.2733 gn 6.375 drop 0.0355
+step 23 K= 4 loss 3.1959 gn 3.861 drop 0.0469
+step 24 K= 2 loss 3.5961 gn 4.403 drop 0.0530
+step 25 K= 4 loss 3.1464 gn 5.915 drop 0.0587
+step 26 K= 9 loss 3.5631 gn 1.178 drop 0.0373
+step 27 K= 6 loss 3.4816 gn 12.221 drop 0.0437
+step 28 K= 3 loss 3.3324 gn 12.926 drop 0.0427
+step 29 K= 3 loss 3.1752 gn 10.792 drop 0.0767
+step 30 K= 7 loss 3.1550 gn 3.429 drop 0.0681
+step 31 K=16 loss 3.2681 gn 10.137 drop 0.0408
+step 32 K= 5 loss 3.4394 gn 13.541 drop 0.0545
+step 33 K=10 loss 3.5551 gn 11.297 drop 0.0452
+step 34 K=14 loss 3.3882 gn 7.212 drop 0.0463
+step 35 K= 4 loss 3.3706 gn 1.640 drop 0.0711
+step 36 K= 3 loss 2.8822 gn 9.768 drop 0.0673
+step 37 K= 3 loss 3.2465 gn 9.270 drop 0.0743
+step 38 K= 2 loss 3.3359 gn 4.904 drop 0.0466
+step 39 K= 6 loss 3.4080 gn 7.940 drop 0.0349
+done 67.9 s, peak alloc 19.02 reserved 19.69

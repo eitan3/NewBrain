@@ -1,0 +1,8 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+speed variant rms_fused
+speed variant spike_fn
+K=2: 0.636 s
+K=6: 1.981 s
+K=10: 2.501 s
+K=16: 3.273 s
+rms_spike: 9.03k tok/s, first loss 3.321817, syncs/K6-step 180, peak 12.57 GB

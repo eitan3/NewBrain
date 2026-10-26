@@ -1,0 +1,42 @@
+{
+ "rmsnorm_bfloat16": {
+  "eager_ms": 0.3982547378540039,
+  "f_rms_norm_fp32_ms": 0.15706944465637207,
+  "f_rms_norm_native_ms": 0.13642271995544433,
+  "max_dy_fp32": 0.0078125,
+  "max_dx_fp32": 0.015625,
+  "max_dy_native": 0.03125
+ },
+ "rmsnorm_float32": {
+  "eager_ms": 0.3129248046875,
+  "f_rms_norm_fp32_ms": 0.1003337574005127,
+  "f_rms_norm_native_ms": 0.09161888122558594,
+  "max_dy_fp32": 9.5367431640625e-07,
+  "max_dx_fp32": 1.9073486328125e-06,
+  "max_dy_native": 9.5367431640625e-07
+ },
+ "spike_mixer": {
+  "eager_ms": 0.4761286544799805,
+  "autograd_fn_ms": 0.4757747268676758,
+  "fakequant_ms": 0.6797395324707032,
+  "fn_max_dy": 0.0,
+  "fn_max_du": 0.0,
+  "fn_rel_dalpha": 2.4509077434231585e-07,
+  "fakequant_max_dy": 0.0,
+  "fakequant_max_du": 4.15625,
+  "fakequant_rel_dalpha": 0.5537348985671997
+ },
+ "ssd_scan_pass": {
+  "eager_ms": 2.1330101013183596,
+  "cached_mask_ms": 2.0597919464111327,
+  "max_dy": 0.0,
+  "fwd_only_ms": 0.5868074417114257
+ },
+ "experts_pass": {
+  "max_dy": 0.0,
+  "grouped_ms": 51.376102701822916,
+  "bmm_padded_ms": 4.1880948384602865,
+  "capacity": 48,
+  "kept_tokens": 24572
+ }
+}

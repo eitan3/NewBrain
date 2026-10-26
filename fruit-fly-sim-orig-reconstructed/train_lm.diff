@@ -1,0 +1,66 @@
+--- fruit-fly-sim (launch) /train_lm.py
++++ fruit-fly-sim (edited) /train_lm.py
+@@ -270,4 +270,31 @@
+             print(f"keep-ckpts: could not remove {p.name}: {e}", flush=True)
+     return removed
++
++
++def apply_vram_savers(model, args):
++    """The --vram-* savers (activation checkpointing; same maths, no state change). Set on the classes, so experts /
++    heads born later are covered too; every flag is set explicitly (off = the plain code path)."""
++    import loop_brain as _lbm
++    from blob_memory import BlobMemory
++    from loop_brain import LoopBrain as _LB
++    from spiking_lm import RMSNorm as _RN, RoutedMLP as _RM, SSDMixer as _SM
++    allv = bool(getattr(args, "vram_savers", 0))
++    on = lambda n: allv or bool(getattr(args, n, 0))
++    _RN.ckpt = on("vram_ckpt_norm")
++    _SM.ckpt = on("vram_ckpt_mixer")
++    _RM.ckpt_experts = on("vram_ckpt_experts")
++    _LB.ckpt_concept = on("vram_ckpt_concept")
++    BlobMemory.ckpt_dist = on("vram_ckpt_gmdist")
++    _lbm.READOUT_LEAN = on("vram_readout_lean")
++    bm = getattr(model, "bm", None)
++    rows = int(getattr(args, "vram_rerank_rows", 0) or 0) or (1024 if allv else 0)
++    if bm is not None:
++        bm.rerank_rows = rows
++    names = [n for n, v in (("norm", _RN.ckpt), ("mixer", _SM.ckpt), ("experts", _RM.ckpt_experts),
++                            ("concept", _LB.ckpt_concept), ("gmdist", BlobMemory.ckpt_dist),
++                            ("readout-lean", _lbm.READOUT_LEAN)) if v]
++    if names or rows:
++        print(f"VRAM savers: checkpointed {', '.join(names) or '-'}" + (f"; re-rank rows {rows}" if rows else ""),
++              flush=True)
+ 
+ 
+@@ -1040,4 +1067,25 @@
+                     help="loop arch: the training read-outs (final CE, deep supervision, halting) in N-token chunks "
+                          "(no (B, T, V) fp32 log-probs; 0 = off, the plain path)")
++    # VRAM savers (activation checkpointing, same maths, no saved-state change: each off by default = as before)
++    ap.add_argument("--vram-ckpt-norm", type=int, default=0,
++                    help="1 = every RMSNorm's fp32 intermediates recomputed in backward (not kept)")
++    ap.add_argument("--vram-ckpt-mixer", type=int, default=0,
++                    help="1 = the SSD mixer of each backprop pass recomputed in backward (spike thresholds as seen "
++                         "by the first run; homeostasis not repeated)")
++    ap.add_argument("--vram-ckpt-experts", type=int, default=0,
++                    help="1 = the routed experts' hidden layer (up, spike, down) of each backprop pass recomputed in "
++                         "backward (same threshold / homeostasis rule as --vram-ckpt-mixer)")
++    ap.add_argument("--vram-ckpt-concept", type=int, default=0,
++                    help="1 = the concept loss terms (per pass and level) recomputed in backward")
++    ap.add_argument("--vram-readout-lean", type=int, default=0,
++                    help="1 = --chunk-ce's checkpointed chunks do not keep the previous pass's logits and their own "
++                         "detached logits alive until backward (~2 x (B, T, V) bf16 per backprop pass)")
++    ap.add_argument("--vram-ckpt-gmdist", type=int, default=0,
++                    help="1 = the blob memory's model-width (n, k, d) read distances recomputed in backward")
++    ap.add_argument("--vram-rerank-rows", type=int, default=0,
++                    help="blob memory: query rows per block of the model-width re-rank (0 = auto, ~512 MB blocks; "
++                         "the values are the same for any block size)")
++    ap.add_argument("--vram-savers", type=int, default=0,
++                    help="1 = all of the --vram-* savers above (--vram-rerank-rows 1024 unless set)")
+     ap.add_argument("--stop-at", type=int, default=0,
+                     help="save the full resumable last.pt at this step and exit (the schedules keep the full length; "
+@@ -1339,4 +1387,5 @@
+ 
+     bm = getattr(model, "bm", None)  # the blob memory (plan_v2/25d): None unless --gm 1
++    apply_vram_savers(model, args)
+     if args.chunk_ce:
+         assert args.arch == "loop" and not args.teacher, "--chunk-ce needs --arch loop and no --teacher (no logits)"

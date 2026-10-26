@@ -1,0 +1,17 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+speed variant topk_nosync
+speed variant route_static
+W1024 15:05:07.529000 22436 Lib\site-packages\torch\utils\flop_counter.py:29] triton not found; flop counting will not work for triton kernels
+C:\Eitan\Python\NewBrain\.venv\Lib\site-packages\torch\_dynamo\variables\functions.py:2082: UserWarning: Dynamo does not know how to trace the builtin `torch._C.pybind11_detail_function_record_v1_msvc_md_mscver19._get_fp32_precision_getter.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+ERROR RuntimeError('Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "C:\\Eitan\\Python\\NewBrain\\fruit-fly-sim\\loop_brain.py", line 242, in forward\n    x = self.n_x(x + self.alpha * ((1 - lam) * (m + o) + lam * ws))\n  File "C:\\Eitan\\Python\\NewBrain\\fruit-fly-sim\\spiking_lm.py", line 111, in forward\n    return (xf * torch.rsqrt(xf.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight).to(x.dtype). To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.')
+{
+ "mode": "core_cg_mark",
+ "K": 6,
+ "batch": 8,
+ "accum": 4,
+ "nohomeo": false,
+ "error": "RuntimeError('Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File \"C:\\\\Eitan\\\\Python\\\\NewBrain\\\\fruit-fly-sim\\\\loop_brain.py\", line 242, in forward\\n    x = self.n_x(x + self.alpha * ((1 - lam) * (m + o) + lam * ws))\\n  File \"C:\\\\Eitan\\\\Python\\\\NewBrain\\\\fruit-fly-sim\\\\spiking_lm.py\", line 111, in forward\\n    return (xf * torch.rsqrt(xf.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight).to(x.dtype). To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.')"
+}

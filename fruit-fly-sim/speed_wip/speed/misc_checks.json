@@ -1,0 +1,21 @@
+{
+ "torch": "2.11.0+cu128",
+ "cuda": "12.8",
+ "python": "3.13.11",
+ "gpu": "NVIDIA GeForce RTX 5090 Laptop GPU",
+ "cudnn": 91900,
+ "triton_importable": false,
+ "jiterator": {
+  "ok": true,
+  "max_diff": 0.0,
+  "jit_ms": 0.01865863800048828,
+  "eager_chain_ms": 0.05931973457336426
+ },
+ "sync_error_mode": "first sync at step_lib.py:52 vals = torch.cat([lt.double().view(1), cnt.double()]).tolist()",
+ "allocator_per_step": {
+  "num_alloc_retries": 0.0,
+  "num_sync_all_streams": 0.0,
+  "num_device_alloc": 0.25,
+  "num_device_free": 0.0
+ }
+}

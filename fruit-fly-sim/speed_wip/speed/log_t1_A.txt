@@ -1,0 +1,44 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+accum fixes: []
+step  0 K= 3 loss 3.3597 gn 16.472 drop 0.0489
+step  1 K= 2 loss 3.4678 gn 14.947 drop 0.0648
+step  2 K= 7 loss 2.9305 gn 9.014 drop 0.0596
+step  3 K= 4 loss 3.4947 gn 2.703 drop 0.0687
+step  4 K= 9 loss 3.5360 gn 5.546 drop 0.0569
+step  5 K= 9 loss 3.0788 gn 2.652 drop 0.0599
+step  6 K= 9 loss 3.3125 gn 1.730 drop 0.0488
+step  7 K= 5 loss 3.0141 gn 10.144 drop 0.0626
+step  8 K= 8 loss 3.4709 gn 11.427 drop 0.0415
+step  9 K= 3 loss 3.8554 gn 20.293 drop 0.0733
+step 10 K= 3 loss 3.2560 gn 6.163 drop 0.0477
+step 11 K= 2 loss 3.5227 gn 5.410 drop 0.0437
+step 12 K= 2 loss 3.2628 gn 12.413 drop 0.0458
+step 13 K= 2 loss 3.4951 gn 7.958 drop 0.0559
+step 14 K= 2 loss 3.4580 gn 2.805 drop 0.0538
+step 15 K= 3 loss 3.4220 gn 8.569 drop 0.0545
+step 16 K= 9 loss 3.4712 gn 9.323 drop 0.0469
+step 17 K= 3 loss 3.2321 gn 11.047 drop 0.0600
+step 18 K= 2 loss 3.4258 gn 4.155 drop 0.0508
+step 19 K= 7 loss 3.3207 gn 11.028 drop 0.0460
+step 20 K= 2 loss 3.5030 gn 16.447 drop 0.0545
+step 21 K= 9 loss 3.1789 gn 10.005 drop 0.0372
+step 22 K= 9 loss 3.2764 gn 5.430 drop 0.0338
+step 23 K= 4 loss 3.1978 gn 4.307 drop 0.0469
+step 24 K= 2 loss 3.6000 gn 5.430 drop 0.0532
+step 25 K= 4 loss 3.1459 gn 6.895 drop 0.0585
+step 26 K= 9 loss 3.5649 gn 1.302 drop 0.0368
+step 27 K= 6 loss 3.4857 gn 12.344 drop 0.0428
+step 28 K= 3 loss 3.3342 gn 12.835 drop 0.0412
+step 29 K= 3 loss 3.1784 gn 10.196 drop 0.0759
+step 30 K= 7 loss 3.1568 gn 3.208 drop 0.0676
+step 31 K=16 loss 3.2637 gn 10.792 drop 0.0377
+step 32 K= 5 loss 3.4339 gn 13.293 drop 0.0497
+step 33 K=10 loss 3.5532 gn 11.858 drop 0.0421
+step 34 K=14 loss 3.3914 gn 7.723 drop 0.0432
+step 35 K= 4 loss 3.3648 gn 1.293 drop 0.0685
+step 36 K= 3 loss 2.8782 gn 11.058 drop 0.0645
+step 37 K= 3 loss 3.2462 gn 12.764 drop 0.0731
+step 38 K= 2 loss 3.3344 gn 9.645 drop 0.0452
+step 39 K= 6 loss 3.4095 gn 2.425 drop 0.0340
+done 74.3 s, peak alloc 19.02 reserved 19.66

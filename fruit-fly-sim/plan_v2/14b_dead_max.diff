@@ -1,0 +1,88 @@
+--- a/memory.py
++++ b/memory.py
+@@ -190,7 +190,7 @@
+         return dwq, None, None, None, None
+ 
+ 
+-def plan_balance(U, busy=4.0, dead=0.05, max_keys=0, gen=None, keep=None):
++def plan_balance(U, busy=4.0, dead=0.05, max_keys=0, gen=None, keep=None, dead_max=0):
+     """Sub-key balancing plan for codebooks U (C, S) of usage shares (CPU), all codebooks at once. Busy
+     (U > busy x mean) keys split into the least-used keys (busiest first, ties -> the lower index); dead
+     (U < dead x mean) keys not used by a split are re-seeded. (The busy keys lead the descending order and the
+@@ -215,8 +215,8 @@
+     used = isb.clone()
+     used[cc, asc[cc, tt]] = True
+     isd &= ~used
+-    if max_keys:
+-        room = (max_keys - 2 * npair).clamp(min=0)
++    if max_keys or dead_max:  # dead_max > 0: the dead re-seeds get their own cap (--mem-balance-dead-max)
++        room = torch.full_like(npair, dead_max) if dead_max else (max_keys - 2 * npair).clamp(min=0)
+         r = torch.where(isd, torch.rand(C, S, generator=gen), torch.full((C, S), 2.0))
+         isd &= r.argsort(dim=1, stable=True).argsort(1) < room[:, None]    # a random subset of the dead keys
+     return splits, isd.nonzero()
+@@ -337,6 +337,7 @@
+         self.margin_fused = True   # the margin from the online pass's queries and sub-key gather (False = its own
+                                    # pass, as before: the same values, gradients summed in another order; tests)
+         self.balance_max = 0.0     # --mem-balance-max: at most this fraction of the keys per codebook per event (0 = all)
++        self.balance_dead_max = 0.0  # --mem-balance-dead-max: a separate cap for the dead re-seeds (0 = share balance_max)
+         self.balance_keep = False  # --mem-balance-keep: never re-seed a key used since the last balancing event
+         self._touch = None         # MemOpt: the rows written this step (write_counts / after_step)
+         self.ko_shared, self.ko_private, self.ko_levels = False, False, ()
+@@ -864,8 +865,9 @@
+             L, H, S = self.L, self.H, self.S
+             dev = self.V.device
+             cap = max(1, int(self.balance_max * S)) if self.balance_max > 0 else 0
++            dcap = max(1, int(self.balance_dead_max * S)) if self.balance_dead_max > 0 else 0
+             keep = (self.win.view(-1, S) > 0).cpu() if self.balance_keep else None
+-            splits, deads = plan_balance(self.U.view(-1, S).float().cpu(), max_keys=cap, gen=gen, keep=keep)
++            splits, deads = plan_balance(self.U.view(-1, S).float().cpu(), max_keys=cap, gen=gen, keep=keep, dead_max=dcap)
+             K, Ke = (self.keys.k1.data, self.keys.k2.data), (self.k1_ema, self.k2_ema)
+             Uv = self.U.view(-1, S)
+             if len(splits):
+@@ -926,8 +928,9 @@
+             E, R = self._e_live, self.R
+             dev = self.P.device
+             cap = max(1, int(self.balance_max * R)) if self.balance_max > 0 else 0
++            dcap = max(1, int(self.balance_dead_max * R)) if self.balance_dead_max > 0 else 0
+             keep = (self.win_e[:E] > 0).cpu() if self.balance_keep else None
+-            splits, deads = plan_balance(self.U_e[:E].float().cpu(), max_keys=cap, gen=gen, keep=keep)
++            splits, deads = plan_balance(self.U_e[:E].float().cpu(), max_keys=cap, gen=gen, keep=keep, dead_max=dcap)
+             Pv = self.P
+             if len(splits):
+                 e, i, j = (t.to(dev) for t in splits.unbind(1))
+--- a/train_lm.py
++++ b/train_lm.py
+@@ -488,6 +488,9 @@
+     ap.add_argument("--mem-balance-every", type=int, default=250, help="sub-key balancing every N optimizer steps")
+     ap.add_argument("--mem-balance-max", type=float, default=0.0,
+                     help="balancing changes at most this fraction of the keys per codebook per event (0 = no cap)")
++    ap.add_argument("--mem-balance-dead-max", type=float, default=0.0,
++                    help="a separate cap for dead-key re-seeds: at most this fraction of the keys per codebook per "
++                         "event (0 = dead re-seeds share --mem-balance-max with the splits)")
+     ap.add_argument("--mem-balance-keep", type=int, default=0,
+                     help="1 = never re-seed a key that was used since the last balancing event")
+     ap.add_argument("--sizes", default="", help="expert sizes, e.g. 96x16,192x32,384x16 (count per size)")
+@@ -653,6 +656,7 @@
+     probes, freeze_step = None, None
+     if mem is not None:
+         mem.lr, mem.clip, mem.s0_cfg = args.mem_lr, args.mem_clip, args.mem_s0
++        mem.balance_dead_max = args.mem_balance_dead_max
+         mem.balance_every, mem.balance_max, mem.balance_keep = (args.mem_balance_every, args.mem_balance_max,
+                                                                 bool(args.mem_balance_keep))
+         model.mem_readdr_every, model.mem_readdr_start, model.mem_margin_passes = (
+--- a/test_speed.py
++++ b/test_speed.py
+@@ -548,6 +548,13 @@
+     assert torch.equal(dd, dd2) and not torch.equal(dd, dd3)                      # the dedicated RNG decides
+     assert len(sp) == 9 and all(int((dd[:, 0] == c).sum()) == 4 for c in range(3))
+     assert set(map(tuple, dd.tolist())) <= set(map(tuple, dd0.tolist()))
++    # --mem-balance-dead-max: the dead re-seeds get their own cap; the splits keep theirs
++    sp, dd = plan_balance(U, max_keys=2, gen=torch.Generator().manual_seed(1), dead_max=7)
++    assert torch.equal(sp, sp0.view(3, 3, 3)[:, :1].reshape(-1, 3))              # 1 split (2 keys) per codebook
++    assert all(int((dd[:, 0] == c).sum()) == 7 for c in range(3))                 # + 7 dead keys, independently
++    assert set(map(tuple, dd.tolist())) <= set(map(tuple, dd0.tolist()))
++    sp, dd = plan_balance(U, gen=torch.Generator().manual_seed(1), dead_max=7)
++    assert torch.equal(sp, sp0) and len(dd) == 21                                 # splits uncapped, deads capped
+     keep = torch.zeros(3, 64, dtype=torch.bool)
+     keep[0, 30] = True
+     _, ddk = plan_balance(U, keep=keep)

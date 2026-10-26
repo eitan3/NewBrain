@@ -1,0 +1,64 @@
+PRIMARY: cloze (held-out templates, after <|endoftext|>); ranking by the summed answer log-prob
+type/group                         n  exact   tok1  lp/tok | n_rk     C   top1 chance   top5 chance    rank  chance
+cloze_city/late                    2  0.000  0.000  -2.880 |    1   300  0.000  0.003  0.000  0.017    20.0   150.5
+cloze_friend/late                  2  0.000  0.000  -1.641 |    1     6  1.000  0.167  1.000  0.833     1.0     3.5
+cloze_job/late                     2  0.000  0.000  -2.726 |    1   200  0.000  0.005  0.000  0.025   131.0   100.5
+cloze_pet/late                     2  0.000  0.000  -1.946 |    1    40  0.000  0.025  0.000  0.125    38.0    20.5
+cloze_year/late                    2  0.500  0.500  -3.370 |    1    86  1.000  0.012  1.000  0.058     1.0    43.5
+geo_country/geo                    2  0.000  0.000  -2.630 |    1    40  0.000  0.025  0.000  0.125    22.0    20.5
+cloze_early_city/early             1  0.000  0.000  -5.168 | 
+cloze_early_job/early              1  0.000  0.000  -4.650 | 
+cloze_early_retention/early        2  0.000  0.000  -4.974 |    1   300  0.000  0.003  0.000  0.017   295.0   150.5
+cloze_single_all/late             10  0.100  0.100  -2.406 | 
+ALL/early                          2  0.000  0.000  -4.974 | 
+ALL/late                          10  0.100  0.100  -2.406 | 
+
+SECONDARY: Q: ... A: questions (choice = compare: log p(older) > log p(other), chance 0.5)
+type/group                         n  exact   tok1  lp/tok     logp choice
+compare/all                        2  0.000  0.000  -1.486   -6.687  0.500
+single_city/all                    2  0.000  0.000  -4.255  -19.148    nan
+single_friend/all                  2  0.000  0.000  -3.754  -15.017    nan
+single_job/all                     2  0.000  0.000  -4.778  -14.333    nan
+single_pet/all                     2  0.000  0.000  -6.561  -16.403    nan
+single_year/all                    2  0.000  0.000  -9.237   -9.237    nan
+two_hop/all                        2  0.000  0.000  -6.617  -19.851    nan
+single_all/late                   10  0.000  0.000  -4.942  -14.827    nan
+early_retention/early              2  0.000  0.000  -6.304  -25.217    nan
+ALL/late                          14  0.000  0.000  -4.474  -14.382    nan
+ALL/early                          2  0.000  0.000  -6.304  -25.217    nan
+q_two_hop/late (40 countries)                              | n_rk     C   top1 chance   top5 chance    rank  chance
+                                                           |    1    40  0.000  0.025  0.000  0.125    24.0    20.5
+cloze vs exposure (at 200000000 tokens; single-hop + retention): n exact tok1 lp/tok
+  exposure_10-30                   2  0.000  0.000  -4.974
+  exposure_100-300                10  0.100  0.100  -2.406
+val loss: world 3.0441  wikipedia 5.3338  (gap -2.2896)
+
+knockout deltas (knockout - memory on; negative d lp/tok, d exact, d top1 = the memory helped)
+cloze d lp/tok           city     friend        job        pet       year geo_countr early_city  early_job early_rete single_all        ALL        ALL
+  ko_wave             +0.0000    +0.0208    +0.0248    +0.0000    -0.0122    +0.0386    +0.0000    +0.0906    +0.0340    +0.0102    +0.0340    +0.0102
+  private_only        +0.0000    +0.0000    +0.0166    +0.0000    -0.0122    +0.0349    +0.0000    +0.0475    +0.0178    +0.0030    +0.0178    +0.0030
+  global_only         +0.0000    +0.0208    +0.0082    +0.0000    +0.0000    +0.0009    +0.0000    +0.2679    +0.1005    +0.0072    +0.1005    +0.0072
+cloze d exact            city     friend        job        pet       year geo_countr early_city  early_job early_rete single_all        ALL        ALL
+  ko_wave             +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+  private_only        +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+  global_only         +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+rank d top1              city early_rete     friend        job        pet       year geo_countr  q_two_hop
+  ko_wave             +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+  private_only        +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+  global_only         +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+rank d mean rank         city early_rete     friend        job        pet       year geo_countr  q_two_hop
+  ko_wave             +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    -5.0000    +0.0000
+  private_only        +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    -5.0000    +0.0000
+  global_only         +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+Q d lp/tok         single_all early_rete    two_hop    compare        ALL
+  ko_wave             -0.0051    -0.0381    +0.0229    +0.0055    +0.0008
+  private_only        -0.0051    -0.0381    +0.0229    +0.0007    -0.0002
+  global_only         +0.0000    +0.0000    +0.0000    +0.0088    +0.0018
+Q d exact          single_all early_rete    two_hop    compare        ALL
+  ko_wave             +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+  private_only        +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+  global_only         +0.0000    +0.0000    +0.0000    +0.0000    +0.0000
+val d loss              world  wikipedia
+  ko_wave             -0.0100    -0.0051
+  private_only        -0.0051    -0.0036
+  global_only         +0.0005    -0.0004

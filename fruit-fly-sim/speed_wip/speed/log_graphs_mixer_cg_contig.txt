@@ -1,0 +1,11 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+W1024 15:04:16.816000 27344 Lib\site-packages\torch\utils\flop_counter.py:29] triton not found; flop counting will not work for triton kernels
+ERROR RuntimeError("view size is not compatible with input tensor's size and stride (at least one dimension spans across two contiguous subspaces). Use .reshape(...) instead.")
+{
+ "mode": "mixer_cg_contig",
+ "K": 6,
+ "batch": 8,
+ "accum": 4,
+ "nohomeo": false,
+ "error": "RuntimeError(\"view size is not compatible with input tensor's size and stride (at least one dimension spans across two contiguous subspaces). Use .reshape(...) instead.\")"
+}

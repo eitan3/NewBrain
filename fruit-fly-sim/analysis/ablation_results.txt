@@ -1,0 +1,33 @@
+run | step | experts | val | dead | drop | max/mean | worst dead | worst drop | newborn load: <500 | 500-1k | >=1k | dead >=1k
+A_lift | 2197 | 576 | 1.7291 | 0.95 | 0.863 | 95.6 | 0.95 | 0.945 | - | - | 0.19 | 0.29
+ABlogit | 2197 | 576 | 1.6340 | 0.03 | 0.079 | 3.2 | 0.59 | 0.118 | - | - | 0.70 | 0.00
+B_shield | 2197 | 576 | 1.6510 | 0.03 | 0.087 | 3.3 | 0.67 | 0.124 | - | - | 0.64 | 0.00
+bug | 2197 | 576 | 1.6803 | 0.03 | 0.113 | 4.0 | 0.71 | 0.346 | - | - | 0.63 | 0.00
+C_noise | 2197 | 576 | 1.6608 | 0.03 | 0.100 | 3.8 | 0.70 | 0.366 | - | - | 0.64 | 0.00
+ctl576 | 2197 | 576 | 1.5680 | 0.02 | 0.047 | 3.4 | 0.04 | 0.116 | - | - | - | -
+D_split | 2197 | 576 | 1.5848 | 0.01 | 0.031 | 2.8 | 0.03 | 0.076 | - | - | 0.99 | 0.00
+E_bothlogit | 2197 | 576 | 1.6078 | 0.02 | 0.047 | 3.4 | 0.10 | 0.114 | - | - | 1.01 | 0.00
+F_z | 2197 | 576 | 1.6429 | 0.02 | 0.078 | 3.4 | 0.66 | 0.163 | - | - | 0.66 | 0.00
+G_split_z | 2197 | 576 | 1.5795 | 0.02 | 0.032 | 2.6 | 0.02 | 0.061 | - | - | 1.00 | 0.00
+A_lift: loss by passes K1:2.000 K2:1.848 K4:1.764 K6:1.752 K8:1.759 K10:1.771 K12:1.784 K16:1.809
+ABlogit: loss by passes K1:1.911 K2:1.767 K4:1.676 K6:1.658 K8:1.658 K10:1.663 K12:1.668 K16:1.678
+B_shield: loss by passes K1:1.920 K2:1.783 K4:1.697 K6:1.677 K8:1.676 K10:1.679 K12:1.685 K16:1.696
+bug: loss by passes K1:1.946 K2:1.817 K4:1.728 K6:1.708 K8:1.706 K10:1.710 K12:1.716 K16:1.730
+C_noise: loss by passes K1:1.923 K2:1.793 K4:1.705 K6:1.686 K8:1.684 K10:1.689 K12:1.696 K16:1.709
+ctl576: loss by passes K1:1.840 K2:1.690 K4:1.602 K6:1.587 K8:1.587 K10:1.592 K12:1.597 K16:1.606
+D_split: loss by passes K1:1.855 K2:1.711 K4:1.626 K6:1.609 K8:1.609 K10:1.614 K12:1.619 K16:1.627
+E_bothlogit: loss by passes K1:1.878 K2:1.734 K4:1.651 K6:1.637 K8:1.637 K10:1.641 K12:1.646 K16:1.658
+F_z: loss by passes K1:1.903 K2:1.774 K4:1.691 K6:1.672 K8:1.671 K10:1.675 K12:1.681 K16:1.693
+G_split_z: loss by passes K1:1.851 K2:1.704 K4:1.617 K6:1.600 K8:1.600 K10:1.604 K12:1.609 K16:1.617
+
+longer-term view: val slope over the last 25% (nats / 10M tokens, includes LR decay), gap to the control at 50/75/100% (+ = worse), val - train, live experts (load > 0.2x average)
+  A_lift     slope -0.1846  gap50 0.1116  gap75 0.1305  gap100 0.1612  val-train -0.0369  live 156/576
+  ABlogit    slope -0.2228  gap50 0.0430  gap75 0.0727  gap100 0.0661  val-train -0.0381  live 576/576
+  B_shield   slope -0.2171  gap50 0.0413  gap75 0.0796  gap100 0.0830  val-train -0.0367  live 571/576
+  bug        slope -0.2024  gap50 0.0801  gap75 0.1084  gap100 0.1123  val-train -0.0355  live 576/576
+  C_noise    slope -0.2050  gap50 0.0640  gap75 0.0901  gap100 0.0929  val-train -0.0360  live 576/576
+  ctl576     slope -0.2066  gap50 0.0000  gap75 0.0000  gap100 0.0000  val-train -0.0400  live 576/576
+  D_split    slope -0.2284  gap50 0.0182  gap75 0.0249  gap100 0.0168  val-train -0.0345  live 576/576
+  E_bothlogit slope -0.2159  gap50 0.0403  gap75 0.0424  gap100 0.0399  val-train -0.0348  live 576/576
+  F_z        slope -0.2130  gap50 0.0755  gap75 0.0832  gap100 0.0750  val-train -0.0365  live 576/576
+  G_split_z  slope -0.2032  gap50 0.0145  gap75 0.0072  gap100 0.0115  val-train -0.0317  live 576/576

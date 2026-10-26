@@ -1,0 +1,40 @@
+run v3c_waves_ws2, 12288 tokens, K up to 16
+fixed K loss: K1:1.719 K2:1.499 K3:1.430 K4:1.412 K5:1.407 K6:1.406 K7:1.407 K8:1.409 K9:1.410 K10:1.412 K11:1.413 K12:1.413 K13:1.414 K14:1.414 K15:1.415 K16:1.418
+
+how well 'unsure at pass k' predicts gain from more passes (Spearman rho vs loss_k - loss_16; AUC for gain > 0.05 nats)
+ pass  1 (helped 0.70, mean gain to K16 +0.301): entropy rho +0.27 auc 0.75  kl rho -0.27 auc 0.25  neg_gap rho -0.07 auc 0.43  rent rho +0.08 auc 0.57
+ pass  2 (helped 0.57, mean gain to K16 +0.081): entropy rho +0.14 auc 0.77  kl rho +0.18 auc 0.74  neg_gap rho -0.06 auc 0.43  rent rho +0.04 auc 0.57
+ pass  3 (helped 0.51, mean gain to K16 +0.013): entropy rho +0.05 auc 0.79  kl rho +0.08 auc 0.75  neg_gap rho -0.01 auc 0.44  rent rho +0.01 auc 0.57
+ pass  4 (helped 0.48, mean gain to K16 -0.006): entropy rho +0.01 auc 0.80  kl rho +0.02 auc 0.76  neg_gap rho +0.01 auc 0.45  rent rho -0.02 auc 0.56
+ pass  6 (helped 0.46, mean gain to K16 -0.012): entropy rho -0.01 auc 0.81  kl rho -0.01 auc 0.77  neg_gap rho +0.03 auc 0.46  rent rho -0.03 auc 0.56
+ pass  8 (helped 0.45, mean gain to K16 -0.009): entropy rho -0.01 auc 0.81  kl rho -0.02 auc 0.78  neg_gap rho +0.02 auc 0.45  rent rho -0.02 auc 0.56
+
+exit rule (posthoc): mean loss / mean passes per word / fixed-K loss at the same passes
+  kl      tau 0.3    loss 1.4854  passes 2.10  fixed 1.4918  (+0.0064 vs fixed)
+  kl      tau 0.1    loss 1.4459  passes 2.49  fixed 1.4648  (+0.0189 vs fixed)
+  kl      tau 0.05   loss 1.4306  passes 2.91  fixed 1.4368  (+0.0062 vs fixed)
+  kl      tau 0.02   loss 1.4162  passes 3.71  fixed 1.4175  (+0.0013 vs fixed)
+  kl      tau 0.01   loss 1.4110  passes 4.84  fixed 1.4077  (-0.0033 vs fixed)
+  kl      tau 0.005  loss 1.4143  passes 6.78  fixed 1.4065  (-0.0078 vs fixed)
+  kl      tau 0.002  loss 1.4179  passes 9.72  fixed 1.4112  (-0.0067 vs fixed)
+  entropy tau 2.5    loss 1.4659  passes 4.37  fixed 1.4103  (-0.0556 vs fixed)
+  entropy tau 2.0    loss 1.4521  passes 5.64  fixed 1.4063  (-0.0458 vs fixed)
+  entropy tau 1.5    loss 1.4411  passes 7.36  fixed 1.4074  (-0.0337 vs fixed)
+  entropy tau 1.0    loss 1.4274  passes 9.53  fixed 1.4109  (-0.0165 vs fixed)
+  entropy tau 0.5    loss 1.4205  passes 11.79  fixed 1.4132  (-0.0073 vs fixed)
+  entropy tau 0.25   loss 1.4189  passes 13.14  fixed 1.4137  (-0.0051 vs fixed)
+
+exit rule (frozen): mean loss / mean passes per word / fixed-K loss at the same passes
+  kl      tau 0.3    loss 1.4855  passes 2.10  fixed 1.4918  (+0.0063 vs fixed)
+  kl      tau 0.1    loss 1.4459  passes 2.49  fixed 1.4648  (+0.0189 vs fixed)
+  kl      tau 0.05   loss 1.4289  passes 2.90  fixed 1.4369  (+0.0080 vs fixed)
+  kl      tau 0.02   loss 1.4152  passes 3.69  fixed 1.4178  (+0.0026 vs fixed)
+  kl      tau 0.01   loss 1.4121  passes 4.74  fixed 1.4083  (-0.0039 vs fixed)
+  kl      tau 0.005  loss 1.4128  passes 6.54  fixed 1.4063  (-0.0065 vs fixed)
+  kl      tau 0.002  loss 1.4164  passes 9.51  fixed 1.4108  (-0.0055 vs fixed)
+  entropy tau 2.5    loss 1.4678  passes 4.38  fixed 1.4102  (-0.0576 vs fixed)
+  entropy tau 2.0    loss 1.4558  passes 5.67  fixed 1.4063  (-0.0496 vs fixed)
+  entropy tau 1.5    loss 1.4435  passes 7.37  fixed 1.4074  (-0.0361 vs fixed)
+  entropy tau 1.0    loss 1.4304  passes 9.56  fixed 1.4109  (-0.0195 vs fixed)
+  entropy tau 0.5    loss 1.4203  passes 11.82  fixed 1.4132  (-0.0071 vs fixed)
+  entropy tau 0.25   loss 1.4198  passes 13.14  fixed 1.4137  (-0.0060 vs fixed)

@@ -1,0 +1,16 @@
+--- fruit-fly-sim (launch) /blob_memory.py
++++ fruit-fly-sim (edited) /blob_memory.py
+@@ -1193,5 +1193,12 @@
+             if name == "g" and self.kernel_dist == "full" and qfull is not None and self.xfull is not None:
+                 qf = qfull if self.match_grad else qfull.detach()
+-                d = (qf[:, None, :] - self.xfull[safe].to(qf.dtype)).pow(2).sum(-1)    # bf16 keys, fp32 distance
++                dist = lambda qf_, safe_: (qf_[:, None, :] - self.xfull[safe_].to(qf_.dtype)).pow(2).sum(-1)
++                if getattr(self, "ckpt_dist", False) and qf.requires_grad:
++                    # (VRAM saver --vram-ckpt-gmdist: the (n, k, d) fp32 difference is recomputed in backward
++                    # instead of being kept for it; same maths. xfull only changes at the step end.)
++                    from spiking_lm import ck_ready, ck_run
++                    d = ck_run(dist, qf, safe) if ck_ready() else dist(qf, safe)
++                else:
++                    d = dist(qf, safe)                                                 # bf16 keys, fp32 distance
+             else:
+                 d = (qq[:, None, :] - keys).pow(2).sum(-1)

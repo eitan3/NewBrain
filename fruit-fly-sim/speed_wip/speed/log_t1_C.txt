@@ -1,0 +1,44 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+accum fixes: ['concept', 'homeo', 'margin', 'memstats', 'noise', 'qres']
+step  0 K= 3 loss 3.3583 gn 16.809 drop 0.0490
+step  1 K= 2 loss 3.4712 gn 14.907 drop 0.0643
+step  2 K= 7 loss 2.9309 gn 8.931 drop 0.0598
+step  3 K= 4 loss 3.4925 gn 2.044 drop 0.0691
+step  4 K= 9 loss 3.5367 gn 5.968 drop 0.0562
+step  5 K= 9 loss 3.0787 gn 2.599 drop 0.0591
+step  6 K= 9 loss 3.3121 gn 2.557 drop 0.0476
+step  7 K= 5 loss 3.0141 gn 9.747 drop 0.0638
+step  8 K= 8 loss 3.4683 gn 10.939 drop 0.0407
+step  9 K= 3 loss 3.8557 gn 20.208 drop 0.0731
+step 10 K= 3 loss 3.2606 gn 6.397 drop 0.0488
+step 11 K= 2 loss 3.5240 gn 5.355 drop 0.0445
+step 12 K= 2 loss 3.2644 gn 12.522 drop 0.0488
+step 13 K= 2 loss 3.4953 gn 7.568 drop 0.0560
+step 14 K= 2 loss 3.4596 gn 1.989 drop 0.0540
+step 15 K= 3 loss 3.4204 gn 8.305 drop 0.0543
+step 16 K= 9 loss 3.4715 gn 8.198 drop 0.0482
+step 17 K= 3 loss 3.2301 gn 9.833 drop 0.0604
+step 18 K= 2 loss 3.4241 gn 2.898 drop 0.0494
+step 19 K= 7 loss 3.3205 gn 11.915 drop 0.0465
+step 20 K= 2 loss 3.4990 gn 18.368 drop 0.0544
+step 21 K= 9 loss 3.1796 gn 11.500 drop 0.0384
+step 22 K= 9 loss 3.2741 gn 6.670 drop 0.0341
+step 23 K= 4 loss 3.1963 gn 3.034 drop 0.0467
+step 24 K= 2 loss 3.5966 gn 3.739 drop 0.0534
+step 25 K= 4 loss 3.1481 gn 5.943 drop 0.0583
+step 26 K= 9 loss 3.5629 gn 0.890 drop 0.0355
+step 27 K= 6 loss 3.4840 gn 10.828 drop 0.0440
+step 28 K= 3 loss 3.3321 gn 9.304 drop 0.0426
+step 29 K= 3 loss 3.1753 gn 5.151 drop 0.0787
+step 30 K= 7 loss 3.1563 gn 2.792 drop 0.0702
+step 31 K=16 loss 3.2669 gn 9.139 drop 0.0407
+step 32 K= 5 loss 3.4326 gn 4.337 drop 0.0536
+step 33 K=10 loss 3.5506 gn 3.406 drop 0.0435
+step 34 K=14 loss 3.3810 gn 2.004 drop 0.0437
+step 35 K= 4 loss 3.3563 gn 1.790 drop 0.0685
+step 36 K= 3 loss 2.8702 gn 2.384 drop 0.0658
+step 37 K= 3 loss 3.2317 gn 2.806 drop 0.0705
+step 38 K= 2 loss 3.3176 gn 0.936 drop 0.0428
+step 39 K= 6 loss 3.3947 gn 1.010 drop 0.0302
+done 67.1 s, peak alloc 19.03 reserved 19.72

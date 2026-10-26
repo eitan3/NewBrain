@@ -1,0 +1,475 @@
+diff --git a/brain_opt.py b/brain_opt.py
+index 9184d6f..ec9a09d 100644
+--- a/brain_opt.py
++++ b/brain_opt.py
+@@ -13,5 +13,6 @@
+   counts from its birth (start of training, or the growth step that created it). Young neurons
+   learn fast, mature ones settle.
+-Optimizer state is stored per parameter name, so growth just pads it (carry_brain_state).
++Optimizer state is stored per parameter name, so growth just pads it (carry_brain_state). Memory: the birth
++times exist only with maturity on, and the AdamW step count is kept at the lazy mask's resolution (count_shape).
+ """
+ import math
+@@ -60,7 +61,19 @@ class BrainOpt:
+         if not self.k_mat:
+             return 1.0
++        if "born" not in st:  # (state carried from an optimizer without maturity: born now)
++            st["born"] = torch.full_like(p, float(self.t - 1), dtype=torch.float32)
+         age = (self.t - st["born"]).clamp(min=0)
+         return 1 + (self.k_mat - 1) * torch.exp(-age / self.tau)
+ 
++    def count_shape(self, name, p):
++        """Shape of an AdamW parameter's step count "n". n only advances where the lazy mask is active, so it
++        needs the mask's resolution: per element for the fine (head-group) parameters, per row for other
++        matrices (one count per row instead of per weight), one per tensor for vectors / scalars."""
++        if name in self.fine:
++            return tuple(p.shape)
++        if self.lazy and p.dim() >= 2:
++            return (p.size(0),) + (1,) * (p.dim() - 1)
++        return (1,) * p.dim()
++
+     def _active_rows(self, g, fine=False):
+         """Mask of rows (dim 0) that received any gradient, broadcastable to g. fine (head-group membranes):
+@@ -87,6 +100,7 @@ class BrainOpt:
+                 continue
+             st = self.state.get(name)
+-            if st is None:
+-                st = self.state[name] = {"born": torch.full_like(p, float(self.t - 1), dtype=torch.float32)}
++            if st is None:  # (no per-element birth times without maturity: lr_mult is 1 then)
++                st = self.state[name] = ({"born": torch.full_like(p, float(self.t - 1), dtype=torch.float32)}
++                                         if self.k_mat else {})
+             fine = name in self.fine
+             mask = self._active_rows(g, fine) if self.lazy else None
+@@ -107,10 +121,14 @@ class BrainOpt:
+                 m = st.setdefault("m", torch.zeros_like(p))
+                 v = st.setdefault("v", torch.zeros_like(p))
+-                n = st.setdefault("n", torch.zeros_like(p, dtype=torch.float32))  # per-element step count
++                n = st.get("n")  # step count at the lazy mask's resolution (count_shape)
++                if n is None:
++                    n = st["n"] = torch.zeros(self.count_shape(name, p), dtype=torch.float32, device=p.device)
+                 act = mask if mask is not None else torch.ones((), dtype=torch.bool, device=p.device)
+                 n.add_(act.float())
+                 m.copy_(torch.where(act, b1 * m + (1 - b1) * g, m))
+                 v.copy_(torch.where(act, b2 * v + (1 - b2) * g * g, v))
+-                nn_ = n.clamp(min=1)
++                # (a full-size temporary, as before: CPU pow differs in the last bit between its vectorised
++                # and scalar paths, so the bias correction is computed on exactly the old layout)
++                nn_ = n.clamp(min=1).expand(p.shape).contiguous()
+                 mh = m / (1 - b1 ** nn_)
+                 vh = v / (1 - b2 ** nn_)
+@@ -146,9 +164,16 @@ def carry_brain_state(old_opt, model, new_opt):
+         ns = {}
+         for key, old in st.items():
+-            if old.shape == p.shape:
++            shape = p.shape
++            if key == "n":  # the step count lives at the lazy mask's resolution (per row / per tensor)
++                shape, old_shape = new_opt.count_shape(name, p), st["m"].shape  # (m: the old parameter's shape)
++                # a count shared along a dimension stays shared only while that dimension does not grow (new
++                # columns of old rows start at 0, as with a per-element count); a finer count stays per element
++                if any(c == 1 and (o != 1 or a != b) for c, o, a, b in zip(shape, old.shape, p.shape, old_shape)):
++                    old, shape = old.expand(old_shape), p.shape
++            if old.shape == shape:
+                 ns[key] = old.clone()
+                 continue
+             fill = {"v": old.median().item(), "born": float(old_opt.t)}.get(key, 0.0)
+-            buf = torch.full(p.shape, fill, dtype=old.dtype, device=old.device)
++            buf = torch.full(shape, fill, dtype=old.dtype, device=old.device)
+             buf[tuple(slice(0, s) for s in old.shape)] = old
+             ns[key] = buf
+diff --git a/loop_brain.py b/loop_brain.py
+index 23baf32..47e6c27 100644
+--- a/loop_brain.py
++++ b/loop_brain.py
+@@ -31,4 +31,5 @@ import torch
+ import torch.nn as nn
+ import torch.nn.functional as F
++import torch.utils.checkpoint
+ 
+ from spiking_lm import RMSNorm, RoutedMLP, SpikingLM, SSDMixer
+@@ -252,5 +253,5 @@ class LoopBrain(SpikingLM):
+                  pops=1, ws_direct=False, head_group=0, head_groups=0, sheet_cols=0, ckpt_route=False,
+                  deep_sup=0.0, halt=False, halt_prior=0.2, halt_beta=0.01, think_w=0.0, think_n=8,
+-                 think_fb=False, think_target="bag", think_use=False, **_):
++                 think_fb=False, think_target="bag", think_use=False, readout_frac=1.0, **_):
+         nn.Module.__init__(self)
+         moe = dict(moe or dict(n_exp=384, k=6, hidden=192, shared=384, capacity=0))
+@@ -263,5 +264,5 @@ class LoopBrain(SpikingLM):
+                         deep_sup=deep_sup, halt=halt, halt_prior=halt_prior, halt_beta=halt_beta,
+                         think_w=think_w, think_n=think_n, think_fb=think_fb, think_target=think_target,
+-                        think_use=think_use,
++                        think_use=think_use, readout_frac=readout_frac,
+                         layers=1, mlp=0, mixer="ssd", concept=None)
+         self.has_state = bool(state) or bool(slots)
+@@ -328,4 +329,8 @@ class LoopBrain(SpikingLM):
+         self.think_u, self.think_last, self.think_stats = [], None, None
+         self.think_zero = False   # diagnostic: switch the concept write-back off (usefulness = loss it saves)
++        # memory: the training read-out's (B, T, V) fp32 log-probs are recomputed in backward, not kept
++        # (one copy per backprop pass); False = the plain path (tests compare the two)
++        self.ckpt_readout = True
++        self._halt_q = {}         # (passes, device) -> halting prior (built once: a list -> GPU copy is a host sync)
+ 
+     def sample_aux_k(self, K):
+@@ -421,12 +426,13 @@ class LoopBrain(SpikingLM):
+ 
+     @staticmethod
+-    def think_latent_loss(mu, lv, target, mask):
++    def think_latent_loss(mu, lv, target, mask, n_valid=None):
+         """Gaussian NLL of the target under the predicted mean / log-variance, plus a VICReg-style variance hinge
+         on the predictions (each dimension should vary across words at least as much as the target does), so the
+-        prediction cannot collapse to a constant."""
++        prediction cannot collapse to a constant. n_valid: the mask is its first n_valid positions (known on the
++        host: a slice instead of mask.nonzero(), which is a host sync)."""
+         nll = 0.5 * (lv + (target - mu) ** 2 / lv.exp())
+         m = mask[None, :, None].to(nll.dtype).expand_as(nll)
+         nll = (nll * m).sum() / m.sum().clamp(min=1)
+-        sel = mask.nonzero().squeeze(1)
++        sel = mask.nonzero().squeeze(1) if n_valid is None else slice(0, n_valid)
+         mu_s, tg_s = mu[:, sel].flatten(0, 1), target[:, sel].flatten(0, 1)
+         hinge = F.relu(tg_s.std(0).detach() - mu_s.std(0)).mean() if mu_s.size(0) > 1 else mu.sum() * 0
+@@ -445,7 +451,27 @@ class LoopBrain(SpikingLM):
+         return tot / cnt
+ 
++    def readout_lp(self, x):
++        return F.log_softmax(self.heads["lm"](self.normf(x)).float(), -1)
++
++    def _readout_ce(self, x, tgt):
++        lp = self.readout_lp(x)
++        return -lp.gather(-1, tgt[..., None]).squeeze(-1), lp.detach()
++
+     def pass_readout(self, x, prev_lp, k, cu=None):
+         """Decoder read-out after a pass: log-probs (B, T, V) and the halting features (detached)."""
+-        lp = F.log_softmax(self.heads["lm"](self.normf(x)).float(), -1)
++        lp = self.readout_lp(x)
++        return lp, self.halt_features(x, lp, prev_lp, k, cu)
++
++    def pass_readout_ce(self, x, tgt, prev_lp, k, cu=None):
++        """Training read-out: per-word CE (with gradient), the detached log-probs and the halting features. With
++        ckpt_readout the (..., V) fp32 log-probs are recomputed in backward instead of being kept for it."""
++        if self.ckpt_readout and torch.is_grad_enabled():
++            ce, lp = torch.utils.checkpoint.checkpoint(self._readout_ce, x, tgt, use_reentrant=False)
++        else:
++            ce, lp = self._readout_ce(x, tgt)
++        return ce, lp, self.halt_features(x, lp, prev_lp, k, cu)
++
++    def halt_features(self, x, lp, prev_lp, k, cu=None):
++        """Halting features of a read-out (detached): thought, KL to the previous pass, entropy, pass index."""
+         with torch.no_grad():
+             p = lp.exp()
+@@ -456,6 +482,5 @@ class LoopBrain(SpikingLM):
+             if self.think:  # the thought's own uncertainty (zeros if not computed)
+                 feat.append(cu if cu is not None else torch.zeros_like(feat[0][..., :2]))
+-            feat = torch.cat(feat, -1)
+-        return lp, feat
++            return torch.cat(feat, -1)
+ 
+     def halt_lambda(self, feat):
+@@ -472,4 +497,14 @@ class LoopBrain(SpikingLM):
+         return torch.stack(p, 0)                                          # (K, B, T), sums to 1
+ 
++    def halt_prior_q(self, K, device):
++        """Truncated geometric prior over K passes, cached per (K, device)."""
++        key = (K, str(device))
++        if key not in self._halt_q:
++            lp_ = self.cfg["halt_prior"]
++            q = torch.tensor([lp_ * (1 - lp_) ** i for i in range(K)], device=device)
++            q[-1] = 1 - q[:-1].sum()
++            self._halt_q[key] = q
++        return self._halt_q[key]
++
+     @torch.no_grad()
+     def halt_eval(self, idx, targets, K_max=16, threshold=0.5):
+@@ -558,4 +593,10 @@ class LoopBrain(SpikingLM):
+         self.think_u = []
+         lat_preds, inject = [], None                                          # (mu, lv) of backprop passes
++        sub, tgt_r = None, tgt
++        frac = self.cfg.get("readout_frac", 1.0)
++        if tgt is not None and frac < 1:  # the per-pass read-outs see a random subset of the words (the same on
++            n = max(1, round(frac * tgt.numel()))                             # every pass of this forward)
++            sub = torch.randperm(tgt.numel(), device=tgt.device)[:n].sort().values
++            tgt_r = tgt.flatten()[sub]
+         if tgt is not None and ds_w:  # deep supervision on every pass replaces the single sampled one
+             aux_k = -1
+@@ -617,10 +658,12 @@ class LoopBrain(SpikingLM):
+             if tgt is not None:  # per-pass read-out: deep supervision / halting (gradient only where backprop runs)
+                 with torch.set_grad_enabled(torch.is_grad_enabled() and k >= K - bptt):
+-                    lp, feat = self.pass_readout(x, prev_lp, k, cu)
+-                    ces.append(-lp.gather(-1, tgt[..., None]).squeeze(-1))
++                    xr, cur = x, cu
++                    if sub is not None:
++                        xr = x.flatten(0, 1)[sub]
++                        cur = cu.flatten(0, 1)[sub] if cu is not None else None
++                    ce, prev_lp, feat = self.pass_readout_ce(xr, tgt_r, prev_lp, k, cur)  # prev_lp: detached
++                    ces.append(ce)
+                 if halt:  # outside the bptt window too: the head must learn to stop on the EARLY passes (feat is detached)
+                     lams.append(self.halt_lambda(feat))
+-                prev_lp = lp.detach()
+-                del lp
+             if every_tick:
+                 outs.append(x if raw else self.normf(x))
+@@ -638,19 +681,19 @@ class LoopBrain(SpikingLM):
+                 ce = torch.stack(ces, 0).detach()                                    # the head does not shape the LM
+                 rec = (P * ce).sum(0).mean()
+-                lp_ = self.cfg["halt_prior"]
+-                q = torch.tensor([lp_ * (1 - lp_) ** i for i in range(len(lams))], device=P.device)
+-                q[-1] = 1 - q[:-1].sum()                                             # truncated geometric prior
+-                kl = (P * (P.clamp_min(1e-9).log() - q.log()[:, None, None])).sum(0).mean()
++                col = (-1,) + (1,) * (P.dim() - 1)                                   # (K, B, T) or (K, words)
++                q = self.halt_prior_q(len(lams), P.device)
++                kl = (P * (P.clamp_min(1e-9).log() - q.log().view(col))).sum(0).mean()
+                 extra = extra + rec + self.cfg["halt_beta"] * kl
+                 with torch.no_grad():
+-                    steps = torch.arange(1, len(lams) + 1, device=P.device)[:, None, None]
++                    steps = torch.arange(1, len(lams) + 1, device=P.device).view(col)
+                     self.halt_stats = dict(expected_passes=(P * steps).sum(0).mean(), kl=kl.detach())
+             if lat_preds:  # latent target: the final pass's own representation of the next words (stop-gradient)
+                 target, mask = self.think_target(x)
++                n_valid = x.size(1) - 1 if self.cfg["think_n"] > 0 else 0       # the mask is this prefix
+                 for mu, lv in lat_preds:
+-                    c_losses.append(self.think_latent_loss(mu, lv, target, mask))
++                    c_losses.append(self.think_latent_loss(mu, lv, target, mask, n_valid))
+                 with torch.no_grad():
+                     mu = lat_preds[-1][0]
+-                    sel = mask.nonzero().squeeze(1)
++                    sel = slice(0, n_valid)
+                     self.think_stats = dict(
+                         target_std=target[:, sel].flatten(0, 1).std(0).mean(),           # collapse detector
+diff --git a/spiking_lm.py b/spiking_lm.py
+index a9fa22c..6cba612 100644
+--- a/spiking_lm.py
++++ b/spiking_lm.py
+@@ -135,4 +135,14 @@ class Spike(nn.Module):
+         # (ramp_in), so a birth does not change how the existing channels are normalised
+         self.register_buffer("norm_w", torch.ones(n))
++        self._calibrated = False  # host mirror of `calibrated` once it is True (reading the buffer is a host sync)
++
++    def is_calibrated(self):
++        if not self._calibrated:
++            self._calibrated = bool(self.calibrated)
++        return self._calibrated
++
++    def _load_from_state_dict(self, *args, **kwargs):
++        super()._load_from_state_dict(*args, **kwargs)
++        self._calibrated = False  # re-read the loaded flag
+ 
+     @torch.no_grad()
+@@ -173,5 +183,5 @@ class Spike(nn.Module):
+         else:
+             u = x
+-        if self.training and not self.calibrated:
++        if self.training and not self.is_calibrated():
+             self.calibrate(u, lo < 0, ch=ch)
+         alpha = (self.alpha if ch is None else self.alpha[ch]).abs() + 1e-4
+@@ -204,7 +214,7 @@ class Spike(nn.Module):
+                         # firing too much -> raise the threshold, too little -> lower it
+                         self.alpha.data.mul_(torch.exp(self.homeo * (r - self.target) / self.target).clamp(0.9, 1.1))
+-                    else:
+-                        quiet = self.ema_rate < self.floor
+-                        self.alpha.data[quiet] *= 1 - self.homeo
++                    else:  # (torch.where, not a boolean index: no host sync)
++                        a = self.alpha.data
++                        a.copy_(torch.where(self.ema_rate < self.floor, a * (1 - self.homeo), a))
+                 else:  # only the channels computed this pass are observed, so only they adapt
+                     self.ema_rate[ch] = self.ema_rate[ch].lerp(r, 0.01)
+@@ -212,6 +222,6 @@ class Spike(nn.Module):
+                         self.alpha.data[ch] *= torch.exp(self.homeo * (r - self.target) / self.target).clamp(0.9, 1.1)
+                     else:
+-                        quiet = ch[self.ema_rate[ch] < self.floor]
+-                        self.alpha.data[quiet] *= 1 - self.homeo
++                        a = self.alpha.data[ch]
++                        self.alpha.data[ch] = torch.where(self.ema_rate[ch] < self.floor, a * (1 - self.homeo), a)
+         return s if self.lam >= 1 else analog + self.lam * (s - analog)
+ 
+@@ -471,5 +481,5 @@ class ExpertSpike(Spike):
+             return analog
+         lo, hi = LEVELS[self.mode]
+-        if self.training and not self.calibrated:
++        if self.training and not self.is_calibrated():
+             with torch.no_grad():
+                 vals = x.detach().float()
+@@ -488,9 +498,10 @@ class ExpertSpike(Spike):
+                 self.rate = r[used][nmask[used] > 0] if nmask is not None else r[used].flatten()
+             if self.homeo and self.training:
+-                with torch.no_grad():
++                with torch.no_grad():  # (torch.where, not boolean indexing: no host sync)
+                     ema = self.ema_rate.view(self.E, self.hd)
+-                    ema[used] = ema[used].lerp(r[used].to(ema.dtype), 0.01)
++                    ema.copy_(torch.where(used[:, None], ema.lerp(r.to(ema.dtype), 0.01), ema))
+                     quiet = (ema < self.floor).flatten()
+-                    self.alpha.data[quiet] *= 1 - self.homeo
++                    a = self.alpha.data
++                    a.copy_(torch.where(quiet, a * (1 - self.homeo), a))
+         return s if self.lam >= 1 else analog + self.lam * (s - analog)
+ 
+@@ -556,4 +567,5 @@ class RoutedMLP(nn.Module):
+         # deferred balancing (loop brain): counts are summed over all passes, bias updated once per step
+         self.defer = False
++        self._pending_any = False  # a training forward added counts since the last apply_balance
+         self.register_buffer("pending", torch.zeros(n_exp))
+         self.register_buffer("pending_elig", torch.zeros(n_exp))  # tokens for which each expert was allowed
+@@ -636,14 +648,20 @@ class RoutedMLP(nn.Module):
+         e_sorted, tok = flat[order], order // k
+         counts = torch.bincount(flat, minlength=E)
++        # the buffer shapes come from the counts: ONE host sync per forward (the counts), the rest on the host
++        cl = counts.tolist()
+         # capacity per expert, counted over experts that actually receive tokens: unselected newborn
+         # experts must not shrink everyone else's capacity (that would change the function at birth)
+-        used = max(1, int((counts > 0).sum()))
++        used = max(1, sum(c > 0 for c in cl))
+         if self.cap and self.cap > 0:
+-            C = max(1, min(int(counts.max()), math.ceil(self.cap * N * k / used)))
++            C = max(1, min(max(cl), math.ceil(self.cap * N * k / used)))
+         else:  # dropless: every routed token is computed (drops would compound over the loop's passes)
+-            C = max(1, int(counts.max()))
++            C = max(1, max(cl))
+         pos = torch.arange(N * k, device=x.device) - (counts.cumsum(0) - counts)[e_sorted]
+         keep = pos < C
+-        e_k, p_k, t_k = e_sorted[keep], pos[keep], tok[keep]
++        # the kept slots in order, without a boolean index (a host sync each): their number is known here
++        n_keep = sum(min(c, C) for c in cl)
++        kidx = None if n_keep == N * k else (~keep).to(torch.uint8).argsort(stable=True)[:n_keep]
++        kept = lambda t: t if kidx is None else t[kidx]
++        e_k, p_k, t_k = kept(e_sorted), kept(pos), kept(tok)
+         buf = xf.new_zeros(E, C, D)
+         buf[e_k, p_k] = xf[t_k]
+@@ -655,5 +673,5 @@ class RoutedMLP(nn.Module):
+         out = torch.bmm(h, self.w_down.to(h.dtype))
+         y = torch.zeros(N, D, device=x.device, dtype=acc)
+-        y.index_add_(0, t_k, out[e_k, p_k].to(acc) * gate.flatten()[order][keep][:, None])
++        y.index_add_(0, t_k, out[e_k, p_k].to(acc) * kept(gate.flatten()[order])[:, None])
+         aux = zl
+         if self.balance in ("aux", "both"):
+@@ -662,4 +680,5 @@ class RoutedMLP(nn.Module):
+         self.aux = aux
+         if self.training and self.defer:
++            self._pending_any = True  # (so apply_balance needs no host sync to know it has counts)
+             with torch.no_grad():
+                 self.pending += counts.float()
+@@ -686,9 +705,9 @@ class RoutedMLP(nn.Module):
+             self.bias += self.u * err.clamp(-4.0, 1.0) * (self.debt <= 0)
+             # a newborn that already gets its fair share stops ramping; the balancer takes over
+-            self.debt[counts >= mean] = 0
++            self.debt.masked_fill_(counts >= mean, 0)
+         elif self.lift > 0:  # aux mode: lift under-used experts (never below 0: overload is the aux loss's job)
+             # a newborn that already gets its fair share stops paying back its debt (as in auxfree): fresh rows
+             # score far above the trained ones, so paying back in full would flood them with tokens
+-            self.debt[counts >= mean] = 0
++            self.debt.masked_fill_(counts >= mean, 0)
+             thr = self.lift * mean
+             up = ((thr - counts) / thr.clamp(min=1e-6)).clamp(0.0, 1.0) * (self.debt <= 0)
+@@ -709,6 +728,7 @@ class RoutedMLP(nn.Module):
+         """Deferred mode: one balancer / ramp / load / age update per optimizer step, from the counts
+         summed over all passes of that step."""
+-        if self.pending.sum() == 0:
++        if not self._pending_any and self.pending.sum() == 0:
+             return
++        self._pending_any = False
+         # load per ELIGIBLE token: under the refractory rule a popular expert is forbidden for some tokens,
+         # and raw counts would make it look under-used (the balancer would then over-boost it)
+diff --git a/neurogenesis.py b/neurogenesis.py
+index 26cbeac..bcdcce0 100644
+--- a/neurogenesis.py
++++ b/neurogenesis.py
+@@ -46,4 +46,5 @@ class Neurogenesis:
+         self.hooks = []
+         self.births = self.renewals = 0
++        self.ramp_calls = 0
+         # heads: birth times staggered over layers
+         n_head_births = sum(final["heads"] - b.mix.h for b in model.blocks)
+@@ -157,16 +158,29 @@ class Neurogenesis:
+     @torch.no_grad()
+     def ramps(self):
+-        """Newborns ramp in a little more every step (smooth, intended change of the function)."""
++        """Newborns ramp in a little more every step (smooth, intended change of the function).
++        No host syncs on most steps: "still ramping?" is read every `every` calls (a finished ramp that is
++        still flagged multiplies by exactly 1.0), and the NGC weights are clamped at 1 anyway."""
++        self.ramp_calls += 1
++        check = self.ramp_calls % self.every == 0
+         for b in self.m.blocks:  # ramps
+             if isinstance(b.mlp, MLP) and b.mlp.ramping:
+                 b.mlp.ramp.add_(1.0 / self.ramp_steps).clamp_(max=1.0)
+-                b.mlp.ramping = bool((b.mlp.ramp < 1).any())
++                if check:
++                    b.mlp.ramping = bool((b.mlp.ramp < 1).any())
+             mix = b.mix
+             if getattr(mix, "ramping", False):
+                 mix.ramp.add_(1.0 / self.ramp_steps).clamp_(max=1.0)
+-                mix.ramping = bool((mix.ramp < 1).any())
++                if check:
++                    mix.ramping = bool((mix.ramp < 1).any())
+         for s in self.m.spikes():  # newborn channels join the NGC normalisation gradually
+-            if s.norm_w.min() < 1:
+-                s.ramp_in(1.0 / self.ramp_steps)
++            s.ramp_in(1.0 / self.ramp_steps)  # (a no-op once every weight is 1: they never exceed it)
++
++    def done(self):
++        """True once no more births can happen: the parameter set has stopped changing."""
++        if self.head_times:
++            return False
++        if self.routed:
++            return all(b.mlp.E >= self.exp_target for b in self.m.blocks)
++        return all(b.mlp.up.out_features >= self.mlp_target for b in self.m.blocks)
+ 
+     @torch.no_grad()
+@@ -263,4 +277,6 @@ def reset_opt_rows(opt, model, layer, idx):
+             st = opt.state.get(name, {})
+             for key, buf in st.items():
++                if buf.shape != params[name].shape:  # a shared step count (per row / tensor): per element now
++                    buf = st[key] = buf.expand(params[name].shape).clone()
+                 buf[sl] = {"born": float(opt.t), "v": buf.median().item()}.get(key, 0.0)
+         else:
+diff --git a/train_lm.py b/train_lm.py
+index 2c0848f..0bea55b 100644
+--- a/train_lm.py
++++ b/train_lm.py
+@@ -367,4 +367,7 @@ def main():
+     ap.add_argument("--ckpt-route", type=int, default=0,
+                     help="loop: recompute the router (tokens x experts tensors) in backward to save memory")
++    ap.add_argument("--readout-frac", type=float, default=1.0,
++                    help="loop: the per-pass read-outs (deep supervision, halting) use this random fraction of the "
++                         "words, drawn once per forward (1 = all)")
+     ap.add_argument("--sizes", default="", help="expert sizes, e.g. 96x16,192x32,384x16 (count per size)")
+     ap.add_argument("--moe", default="", help="routed MLP: n_exp,k,hidden,shared,balance  e.g. 64,6,192,384,auxfree")
+@@ -475,5 +478,6 @@ def main():
+                           halt=bool(args.halt), halt_prior=args.halt_prior, halt_beta=args.halt_beta,
+                           think_w=args.think_w, think_n=args.think_n, think_fb=bool(args.think_fb),
+-                          think_target=args.think_target, think_use=bool(args.think_use)).to(args.device)
++                          think_target=args.think_target, think_use=bool(args.think_use),
++                          readout_frac=args.readout_frac).to(args.device)
+     else:
+       model = SpikingLM(tok.get_vocab_size(), args.d, start["layers"], start["heads"], args.head_dim, start["mlp"],
+@@ -503,5 +507,5 @@ def main():
+     flops, last_grow, t_start, t_log, ema = 0.0, -10**9, time.time(), time.time(), None
+     report_steps = {round(steps * f / args.eval_every) * args.eval_every for f in (0.25, 0.5, 0.75)} | {steps}
+-    tok_since = 0
++    tok_since, settle = 0, False
+     with open(run / "metrics.jsonl", "a") as mlog:
+         for step in range(steps + 1):
+@@ -544,4 +548,7 @@ def main():
+                         opt = carry_brain_state(opt, model, build_opt(model, args))
+                     free_cache(args.device)
++                    # the last birth: free the cache once more after the next step, when the tensors at the
++                    # pre-growth sizes (old gradients, activations) are gone too; the sizes do not change after it
++                    settle = neuro.done()
+                 for i, idx in neuro.pop_renewed():
+                     reset_opt_rows(opt, model, i, idx)
+@@ -588,4 +595,5 @@ def main():
+                            params=n_params(model), tok_s=tok_since / dt if dt > 0 else 0,
+                            mem_gb=torch.cuda.max_memory_allocated() / 1e9 if args.device == "cuda" else 0,
++                           mem_reserved_gb=torch.cuda.memory_reserved() / 1e9 if args.device == "cuda" else 0,
+                            active=model.n_active(), elapsed=time.time() - t_start, **model.cfg, **sp)
+                 if model.cfg.get("concept") and model.concept_acc is not None:
+@@ -657,5 +665,5 @@ def main():
+                 print(f"step {step:6d}/{steps}  tok {rec['tokens']/1e6:7.1f}M  val {val:.4f}  "
+                       f"train {ema if ema is None else round(ema, 4)}  lr {lr:.2e}  lam {lam:.2f}  "
+-                      f"{rec['tok_s']/1e3:.0f}k tok/s  mem {rec['mem_gb']:.1f}GB  "
++                      f"{rec['tok_s']/1e3:.0f}k tok/s  mem {rec['mem_gb']:.1f}GB res {rec['mem_reserved_gb']:.1f}GB  "
+                       f"{rec['elapsed']/60:.1f} min{spk}{spk_r}", flush=True)
+                 t_log, tok_since = time.time(), 0
+@@ -706,4 +714,7 @@ def main():
+             if args.arch == "loop":
+                 model.blocks[0].mlp.apply_balance()  # pending counts summed over all micro-batches
++            if settle:
++                free_cache(args.device)
++                settle = False
+             li = (sum(micro) / len(micro)).item()
+             if not math.isfinite(li):

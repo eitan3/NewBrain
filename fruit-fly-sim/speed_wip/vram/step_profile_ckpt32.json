@@ -1,0 +1,261 @@
+{
+ "variant": "chunk_ce,ckpt_pass",
+ "batch": 32,
+ "accum": 1,
+ "after_load": {
+  "tag": "after_load",
+  "alloc": 4.697853952,
+  "reserved": 5.57842432,
+  "peak_alloc": 7.19821312,
+  "peak_reserved": 7.69654784
+ },
+ "persistent": {
+  "params": 550928700,
+  "grads": 0,
+  "opt_state": 602092740,
+  "opt_state_by_key": {
+   "m": 54867260,
+   "v": 54867260,
+   "n": 3243596,
+   "mom": 489114624
+  },
+  "mem_buffers": 3534998316,
+  "mem_buffers_top": {
+   "V": 1090519040,
+   "G": 1090519040,
+   "V_e": 402653184,
+   "G_e": 402653184,
+   "P": 100663296,
+   "P_ema": 100663296,
+   "P_m": 100663296,
+   "P_v": 100663296,
+   "G_P": 100663296,
+   "qres": 6291456,
+   "S_acc": 4259840,
+   "wcount": 4259840,
+   "lam_r": 4259840,
+   "psi_r": 4259840,
+   "wq_ema": 2752512,
+   "qres_c": 2097152
+  },
+  "other_buffers": 4190499,
+  "mem_params": 10607680,
+  "emb_head_params": 50331648,
+  "expert_params": 452984832
+ },
+ "warmup_s": 3.610337257385254,
+ "after_warmup": {
+  "tag": "after_warmup",
+  "alloc": 7.185896448,
+  "reserved": 14.768144384,
+  "peak_alloc": 14.181409792,
+  "peak_reserved": 14.768144384
+ },
+ "phases": {
+  "6": {
+   "rows": [
+    {
+     "tag": "fwd0",
+     "alloc": 10.541518336,
+     "reserved": 14.768144384,
+     "peak_alloc": 12.307180032,
+     "peak_reserved": 14.768144384
+    },
+    {
+     "tag": "bwd0",
+     "alloc": 7.217350656,
+     "reserved": 14.770241536,
+     "peak_alloc": 14.191190528,
+     "peak_reserved": 14.770241536
+    },
+    {
+     "tag": "clip",
+     "alloc": 7.19218432,
+     "reserved": 14.770241536,
+     "peak_alloc": 7.217350656,
+     "peak_reserved": 14.770241536
+    },
+    {
+     "tag": "opt",
+     "alloc": 7.19218432,
+     "reserved": 14.770241536,
+     "peak_alloc": 9.370116096,
+     "peak_reserved": 14.770241536
+    },
+    {
+     "tag": "write_counts",
+     "alloc": 7.194036224,
+     "reserved": 14.770241536,
+     "peak_alloc": 7.202558464,
+     "peak_reserved": 14.770241536
+    },
+    {
+     "tag": "mem_after_step",
+     "alloc": 7.192184832,
+     "reserved": 14.770241536,
+     "peak_alloc": 7.872464896,
+     "peak_reserved": 14.770241536
+    }
+   ],
+   "peak_alloc": 14.191190528,
+   "peak_reserved": 14.770241536,
+   "seconds": 2.5158965587615967,
+   "after": {
+    "tag": "after",
+    "alloc": 7.192051712,
+    "reserved": 14.770241536,
+    "peak_alloc": 7.192184832,
+    "peak_reserved": 14.770241536
+   }
+  },
+  "10": {
+   "rows": [
+    {
+     "tag": "fwd0",
+     "alloc": 10.585944576,
+     "reserved": 14.770241536,
+     "peak_alloc": 12.402822656,
+     "peak_reserved": 14.770241536
+    },
+    {
+     "tag": "bwd0",
+     "alloc": 7.243894272,
+     "reserved": 14.776532992,
+     "peak_alloc": 14.229464064,
+     "peak_reserved": 14.776532992
+    },
+    {
+     "tag": "clip",
+     "alloc": 7.218727936,
+     "reserved": 14.776532992,
+     "peak_alloc": 7.243894272,
+     "peak_reserved": 14.776532992
+    },
+    {
+     "tag": "opt",
+     "alloc": 7.218727936,
+     "reserved": 14.776532992,
+     "peak_alloc": 9.390498304,
+     "peak_reserved": 14.776532992
+    },
+    {
+     "tag": "write_counts",
+     "alloc": 7.220624896,
+     "reserved": 14.776532992,
+     "peak_alloc": 7.229147136,
+     "peak_reserved": 14.776532992
+    },
+    {
+     "tag": "mem_after_step",
+     "alloc": 7.218728448,
+     "reserved": 14.776532992,
+     "peak_alloc": 7.898925568,
+     "peak_reserved": 14.776532992
+    }
+   ],
+   "peak_alloc": 14.229464064,
+   "peak_reserved": 14.776532992,
+   "seconds": 3.0542993545532227,
+   "after": {
+    "tag": "after",
+    "alloc": 7.218595328,
+    "reserved": 14.776532992,
+    "peak_alloc": 7.218728448,
+    "peak_reserved": 14.776532992
+   }
+  },
+  "16": {
+   "rows": [
+    {
+     "tag": "fwd0",
+     "alloc": 10.689190912,
+     "reserved": 14.776532992,
+     "peak_alloc": 12.582320128,
+     "peak_reserved": 14.776532992
+    },
+    {
+     "tag": "bwd0",
+     "alloc": 7.246658048,
+     "reserved": 15.080620032,
+     "peak_alloc": 14.335724544,
+     "peak_reserved": 15.080620032
+    },
+    {
+     "tag": "clip",
+     "alloc": 7.221491712,
+     "reserved": 15.080620032,
+     "peak_alloc": 7.246658048,
+     "peak_reserved": 15.080620032
+    },
+    {
+     "tag": "opt",
+     "alloc": 7.221491712,
+     "reserved": 15.080620032,
+     "peak_alloc": 9.394732544,
+     "peak_reserved": 15.080620032
+    },
+    {
+     "tag": "write_counts",
+     "alloc": 7.223491072,
+     "reserved": 15.080620032,
+     "peak_alloc": 7.23204608,
+     "peak_reserved": 15.080620032
+    },
+    {
+     "tag": "mem_after_step",
+     "alloc": 7.221492224,
+     "reserved": 15.080620032,
+     "peak_alloc": 7.901530624,
+     "peak_reserved": 15.080620032
+    }
+   ],
+   "peak_alloc": 14.335724544,
+   "peak_reserved": 15.080620032,
+   "seconds": 3.845165967941284,
+   "after": {
+    "tag": "after",
+    "alloc": 7.221359104,
+    "reserved": 15.080620032,
+    "peak_alloc": 7.221492224,
+    "peak_reserved": 15.080620032
+   }
+  }
+ },
+ "alloc_stats": {
+  "6": {
+   "num_alloc_retries": 0,
+   "num_ooms": 0,
+   "num_device_alloc": 134,
+   "num_device_free": 11,
+   "inactive_split_bytes.all.peak": 2960128000,
+   "reserved_bytes.all.peak": 14770241536,
+   "allocated_bytes.all.peak": 7192184832
+  },
+  "10": {
+   "num_alloc_retries": 0,
+   "num_ooms": 0,
+   "num_device_alloc": 137,
+   "num_device_free": 11,
+   "inactive_split_bytes.all.peak": 3613194752,
+   "reserved_bytes.all.peak": 14776532992,
+   "allocated_bytes.all.peak": 7218728448
+  },
+  "16": {
+   "num_alloc_retries": 0,
+   "num_ooms": 0,
+   "num_device_alloc": 139,
+   "num_device_free": 11,
+   "inactive_split_bytes.all.peak": 3650276864,
+   "reserved_bytes.all.peak": 15080620032,
+   "allocated_bytes.all.peak": 7221492224
+  }
+ },
+ "times": {
+  "2": 0.891383171081543,
+  "6": 2.468604803085327,
+  "10": 3.013573169708252,
+  "16": 3.8179261684417725
+ },
+ "expected_step_s": 2.250264820787642,
+ "tok_s": 7280.920827027479
+}

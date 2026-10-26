@@ -1,0 +1,48 @@
+{
+ "mem K=6": {
+  "backward(unlabelled)": 11287,
+  "other": 4935,
+  "select(EMA,no-grad)": 1860,
+  "margin [recompute]": 672,
+  "margin": 600,
+  "online_w [recompute]": 546,
+  "concept_heads [recompute]": 418,
+  "private": 414,
+  "read_shared [recompute]": 414,
+  "online_w": 354,
+  "read_shared": 354,
+  "concept_heads": 315,
+  "concept_inject": 174,
+  "prep": 96,
+  "prep [recompute]": 96,
+  "after_step(MemOpt)": 83,
+  "slot_write": 54
+ },
+ "mem K=10": {
+  "backward(unlabelled)": 10738,
+  "other": 7073,
+  "select(EMA,no-grad)": 2960,
+  "private": 610,
+  "online_w": 590,
+  "read_shared": 590,
+  "margin [recompute]": 560,
+  "margin": 500,
+  "concept_heads": 495,
+  "online_w [recompute]": 455,
+  "concept_heads [recompute]": 358,
+  "read_shared [recompute]": 345,
+  "concept_inject": 290,
+  "prep": 160,
+  "slot_write": 90,
+  "after_step(MemOpt)": 83,
+  "prep [recompute]": 80
+ },
+ "nomem K=6": {
+  "backward(unlabelled)": 5826,
+  "other": 3530
+ },
+ "nomem K=10": {
+  "backward(unlabelled)": 5891,
+  "other": 5584
+ }
+}

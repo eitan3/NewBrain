@@ -1,0 +1,6 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+K=2: 0.753 s
+K=6: 2.049 s
+K=10: 2.675 s
+K=16: 3.407 s
+base: 8.50k tok/s, first loss 3.322934, syncs/K6-step 187, peak 13.20 GB

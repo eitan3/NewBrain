@@ -1,0 +1,26 @@
+{
+ "batch": 16,
+ "accum": 2,
+ "fix": "all",
+ "seed": 0,
+ "cuda_seed": 0,
+ "chunk_ce": 1,
+ "dropless": 1,
+ "steps": [
+  {
+   "K": 3,
+   "loss": 3.3452038764953613,
+   "grad_norm": 15.555813789367676,
+   "drop": 0.0,
+   "tok_chk": 160527755457.0,
+   "touched": [
+    440469,
+    107938,
+    107938
+   ]
+  }
+ ],
+ "seconds": 4.479168891906738,
+ "peak_alloc_gb": 13.602527232,
+ "peak_reserved_gb": 14.41792
+}

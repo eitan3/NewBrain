@@ -1,0 +1,18 @@
+CHANGING-FACTS eval (FastMem per stream): C:\Eitan\Python\NewBrain\runs\world_fastmem_change_12k\ckpt_1000.pt (step 1000); 4 streams x 12 seqs, 354 questions; device cpu; K 6
+checks: brain UNCHANGED, memory params+D UNCHANGED, memory bufs UNCHANGED, memory file 334711be60a8443f -> 334711be60a8443f; on_write commits 12; {'seq0_on_write_vs_on_nowrite_maxdiff': 0.0, 'seq0_on_nowrite_vs_off_maxdiff': 1.3103656768798828}
+key                    off exact  on_nowrite exact    on_write exact         off crank1  on_nowrite crank1    on_write crank1  chance
+ALL                       0.0141            0.0141            0.0141             0.0480             0.0424             0.0424  0.0264   (n 354; lp/tok off -3.740, on_nowrite -3.734, on_write -3.774; mean crank off 39.7, on_nowrite 39.4, on_write 39.2)
+dist_1                    0.0211            0.0282            0.0211             0.0563             0.0634             0.0563  0.0269   (n 142; lp/tok off -3.762, on_nowrite -3.760, on_write -3.807; mean crank off 36.6, on_nowrite 36.5, on_write 36.5)
+dist_2                    0.0095            0.0000            0.0095             0.0476             0.0381             0.0476  0.0260   (n 105; lp/tok off -3.683, on_nowrite -3.675, on_write -3.704; mean crank off 41.8, on_nowrite 41.3, on_write 41.1)
+dist_3                    0.0139            0.0139            0.0139             0.0556             0.0278             0.0278  0.0261   (n 72; lp/tok off -3.716, on_nowrite -3.707, on_write -3.751; mean crank off 43.6, on_nowrite 43.4, on_write 42.9)
+dist_4                    0.0000            0.0000            0.0000             0.0000             0.0000             0.0000  0.0263   (n 35; lp/tok off -3.874, on_nowrite -3.862, on_write -3.896; mean crank off 37.7, on_nowrite 37.4, on_write 37.4)
+form_Q                    0.0105            0.0053            0.0053             0.0421             0.0316             0.0316  0.0287   (n 190; lp/tok off -3.931, on_nowrite -3.923, on_write -4.013; mean crank off 37.7, on_nowrite 37.6, on_write 37.9)
+form_cloze                0.0183            0.0244            0.0244             0.0549             0.0549             0.0549  0.0237   (n 164; lp/tok off -3.520, on_nowrite -3.515, on_write -3.497; mean crank off 42.1, on_nowrite 41.6, on_write 40.8)
+rel_city                  0.0135            0.0135            0.0135             0.0676             0.0541             0.0541  0.0093   (n 74; lp/tok off -1.788, on_nowrite -1.785, on_write -1.739; mean crank off 33.4, on_nowrite 33.2, on_write 33.3)
+rel_friend                0.0000            0.0000            0.0000             0.0986             0.0845             0.0845  0.0782   (n 71; lp/tok off -7.374, on_nowrite -7.370, on_write -7.405; mean crank off 6.8, on_nowrite 7.0, on_write 7.0)
+rel_job                   0.0000            0.0000            0.0000             0.0143             0.0143             0.0143  0.0054   (n 70; lp/tok off -3.053, on_nowrite -3.038, on_write -3.018; mean crank off 97.3, on_nowrite 96.1, on_write 95.2)
+rel_pet                   0.0435            0.0290            0.0290             0.0435             0.0290             0.0290  0.0278   (n 69; lp/tok off -1.946, on_nowrite -1.936, on_write -2.172; mean crank off 17.5, on_nowrite 17.5, on_write 17.2)
+rel_year                  0.0143            0.0286            0.0286             0.0143             0.0286             0.0286  0.0116   (n 70; lp/tok off -4.576, on_nowrite -4.576, on_write -4.578; mean crank off 44.0, on_nowrite 43.9, on_write 44.0)
+on_write - off: exact +0.0000, crank top1 -0.0056, logp/tok -0.0336
+on_write - on_nowrite: exact +0.0000, crank top1 +0.0000, logp/tok -0.0400
+total 189s

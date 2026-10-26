@@ -1,0 +1,2092 @@
+--- plan_v2/baseline_mem_v4/brain_opt.py	2026-10-23 15:41:39.221359600 +0300
++++ brain_opt.py	2026-10-24 04:01:57.981367100 +0300
+@@ -44,6 +44,8 @@
+         self.t = 0
+         self.groups = {}  # name -> (param, kind)
+         for name, p in model.named_parameters():
++            if name.startswith("mem_gate."):  # the memory gate's router (plan_v2/22): its own AdamW in the trainer
++                continue
+             hidden = p.dim() >= 2 and not name.startswith(("emb.", "heads.")) and "conv" not in name and \
+                 ".cx." not in name and ".cq." not in name and ".ck." not in name and \
+                 not name.endswith("norm_w") and "router" not in name  # routers on AdamW: Muon's big normalised
+--- plan_v2/baseline_mem_v4/eval_world.py	2026-10-24 00:13:06.644813700 +0300
++++ eval_world.py	2026-10-24 04:19:20.284535200 +0300
+@@ -83,12 +83,16 @@
+     return model, ck.get("step"), run_cfg, missing, unexpected
+ 
+ 
+-def knockouts(model):
+-    """[(name, attr, value)] like train_lm.loop_report; the first entry is the intact model."""
++def knockouts(model, gate_modes=True):
++    """[(name, attr, value)] like train_lm.loop_report; the first entry is the intact model. With the memory gate
++    (plan_v2/22): also the eval gating modes forced open / memory off / random / inverted (attr "model.<name>": an
++    attribute of the model)."""
+     mem = getattr(model, "mem", None)
+     out = [("mem_on" if mem is not None else "model", None, None)]
+     if mem is None:
+         return out
++    if gate_modes and getattr(model, "mem_gate", None) is not None:
++        out += [(f"gate_{m}", "model.mem_gate_eval", m) for m in ("open", "off", "random", "inverted")]
+     if mem.S:
+         out.append(("ko_shared", "ko_shared", True))
+     if mem.R:
+@@ -103,6 +107,8 @@
+ class KO:
+     def __init__(self, model, attr, value):
+         self.mem, self.attr, self.value = getattr(model, "mem", None), attr, value
++        if attr and attr.startswith("model."):  # (the gate's eval mode: an attribute of the model)
++            self.mem, self.attr = model, attr[len("model."):]
+ 
+     def __enter__(self):
+         if self.attr:
+@@ -115,6 +121,36 @@
+ 
+ 
+ @torch.no_grad()
++def gate_type_rates(model, typed, a, eot, batch=None):
++    """The memory gate's open rate by position type (plan_v2/22 section 7). typed: [(token list, {position: type})]
++    (positions index the input x = seq[:-1]). Every forward records the open mask of each read (model.gate_open); a
++    position's rate is its mean over the reads. Returns {type: dict(n, rate, by_pass)}."""
++    batch = batch or a.batch
++    acc = defaultdict(lambda: [0, 0.0, None])
++    order = sorted(range(len(typed)), key=lambda i: len(typed[i][0]))
++    for b in range(0, len(order), batch):
++        chunk = [typed[i] for i in order[b:b + batch]]
++        T = max(len(sq) for sq, _ in chunk) - 1
++        x = torch.full((len(chunk), T), eot, dtype=torch.long)
++        for r, (sq, _) in enumerate(chunk):
++            x[r, :len(sq) - 1] = torch.tensor(sq[:-1])
++        with torch.autocast("cuda", dtype=torch.bfloat16, enabled=a.device == "cuda"):
++            model(x.to(a.device))
++        reads = [torch.ones(x.numel(), dtype=torch.bool) if rr["mask"] is None else rr["mask"].cpu()
++                 for rr in model.gate_open]
++        if not reads:
++            continue
++        mk = torch.stack(reads).float().view(len(reads), len(chunk), T)
++        for r, (_, types) in enumerate(chunk):
++            for pos, ty in types.items():
++                d = acc[ty]
++                d[0] += 1
++                d[1] += mk[:, r, pos].mean().item()
++                d[2] = mk[:, r, pos].clone() if d[2] is None else d[2] + mk[:, r, pos]
++    return {ty: dict(n=n, rate=tot / n, by_pass=(bp / n).tolist()) for ty, (n, tot, bp) in sorted(acc.items())}
++
++
++@torch.no_grad()
+ def score(model, seqs, n_ans, a, eot, batch=None):
+     """seqs: token lists (prefix + answer); the last n_ans[i] tokens are the answer. Returns per sequence
+     (sum log p, first-token correct, all argmax correct, n answer tokens). Sequences are batched by length."""
+@@ -266,6 +302,10 @@
+     ap.add_argument("--questions", type=int, default=1, help="1 = also the secondary Q: A: metrics")
+     ap.add_argument("--capacity", default="dropless", choices=["dropless", "train"])
+     ap.add_argument("--knockouts", type=int, default=1, help="1 = also every memory knockout (if the model has one)")
++    ap.add_argument("--gate-modes", type=int, default=1,
++                    help="memory gate (plan_v2/22): 1 = also the eval gating modes as knockouts, and the open rates by "
++                         "position type")
++    ap.add_argument("--gate-items", type=int, default=400, help="memory gate: items / sequences for the open rates")
+     ap.add_argument("--val-batches", type=int, default=8)
+     ap.add_argument("--val-batch", type=int, default=16)
+     ap.add_argument("--seq", type=int, default=512)
+@@ -393,7 +433,7 @@
+ 
+     # ---- every knockout
+     results = {}
+-    kos = knockouts(model) if a.knockouts else knockouts(model)[:1]
++    kos = knockouts(model, bool(a.gate_modes)) if a.knockouts else knockouts(model)[:1]
+     nan = float("nan")
+     for name, attr, value in kos:
+         t1 = time.time()
+@@ -415,6 +455,37 @@
+               f"{rk.get('cloze_city/late', {}).get('top1', nan):.3f}; val world {vw:.4f} wiki {vk:.4f} "
+               f"(cloze {t_c:.0f}s, ranking {t_r:.0f}s, total {time.time()-t1:.0f}s)", flush=True)
+ 
++    # ---- the memory gate (plan_v2/22): open rate by position type (learned mode)
++    gate_rates = None
++    if a.gate_modes and getattr(model, "mem_gate", None) is not None:
++        digit = {}
++
++        def kind(t):
++            if t not in digit:
++                digit[t] = bool(re.search(r"[0-9]", tok.decode([t])))
++            return digit[t]
++        typed = []
++        for it, sq in list(zip(clz, c_seqs))[:a.gate_items]:  # cloze: [eot] + prefix + answer
++            n_pre = len(sq) - len(it["answer_ids"])
++            ty = {p: ("number" if kind(sq[p]) else "other_world") for p in range(1, n_pre - 1)}
++            ty[n_pre - 1] = "pre_attribute"
++            ty.update({p: "attribute" for p in range(n_pre, len(sq) - 1)})
++            typed.append((sq, ty))
++        for q, sq in list(zip(qs, seqs))[:a.gate_items]:  # Q: ... A: (the "A:" position predicts the answer)
++            n_pre = len(sq) - len(q["answer_ids"])
++            ty = {p: ("number" if kind(sq[p]) else "q_text") for p in range(1, n_pre - 1)}
++            ty[n_pre - 1] = "q_A:"
++            typed.append((sq, ty))
++        for name, d in (("world_val", vworld), ("wikipedia", wval)):
++            gen = np.random.RandomState(a.seed + 77)
++            for _ in range(max(1, min(a.gate_items // 50, 8))):
++                if len(d) > a.seq + 1:
++                    i0 = int(gen.randint(0, len(d) - a.seq - 1))
++                    typed.append((d[i0:i0 + a.seq + 1].astype(np.int64).tolist(), {p: name for p in range(a.seq)}))
++        gate_rates = gate_type_rates(model, typed, a, eot)
++        print("memory gate open rate by position type: " + "  ".join(f"{k} {v['rate']:.3f} (n {v['n']})"
++                                                                     for k, v in gate_rates.items()), flush=True)
++
+     # ---- tables
+     base = results[kos[0][0]]
+ 
+@@ -499,7 +570,7 @@
+     out.write_text(json.dumps(dict(ckpt=str(ck), step=step, k=a.k, device=a.device, limit=a.limit, shots=a.shots,
+                                    capacity=a.capacity, data=str(data), n_questions=len(qs), n_cloze=len(clz),
+                                    rank_limit=a.rank_limit, rank_budget=a.rank_budget, friend_distractors=a.friend_distractors,
+-                                   results=results,
++                                   results=results, gate_open_by_type=gate_rates,
+                                    examples=examples, table=table, runtime_s=time.time() - t0), indent=1))
+     out.with_suffix(".txt").write_text(table + "\n")
+     print(f"wrote {out} (+ .txt) in {time.time()-t0:.0f}s", flush=True)
+--- plan_v2/baseline_mem_v4/loop_brain.py	2026-10-24 03:23:37.938859100 +0300
++++ loop_brain.py	2026-10-24 04:32:18.495776700 +0300
+@@ -32,7 +32,8 @@
+ import torch.nn.functional as F
+ import torch.utils.checkpoint
+ 
+-from memory import ConceptHier, Memory, concept_loss, concept_targets, masked_std
++from memory import (GATE_FEATS, GATE_MODES, ConceptHier, Memory, MemGate, _orderable, concept_loss, concept_targets,
++                    gate_sizes, gate_trace, masked_std)
+ from spiking_lm import RMSNorm, RoutedMLP, SpikingLM, SSDMixer
+ 
+ 
+@@ -261,7 +262,8 @@
+                  concept_weights=None, concept_inject_rank=64, concept_eot=0, mem_shared=0, mem_heads=3, mem_topm=8,
+                  mem_topk=6, mem_tau=0.03, mem_read0=1, mem_private=0, mem_dv=256, mem_addr_sg=1,
+                  mem_margin=(0.01, 0.01), mem_ema=0.999, mem_max_experts=0, mem_life=0, mem_addr_learn=1, mem_restart=0,
+-                 mem_coarse=0, mem_coarse_heads=1, mem_nbr=0, mem_nbr_w=0.15, **_):
++                 mem_coarse=0, mem_coarse_heads=1, mem_nbr=0, mem_nbr_w=0.15, mem_gate=0,
++                 mem_gate_feat=",".join(GATE_FEATS), mem_gate_trace=8, mem_gate_thr_ema=0.02, **_):
+         nn.Module.__init__(self)
+         moe = dict(moe or dict(n_exp=384, k=6, hidden=192, shared=384, capacity=0))
+         if waves and not sheet_cols:  # fixed expert sheet, set by the starting pool (kept when it grows)
+@@ -356,6 +358,16 @@
+         self.mem_readdr_every = 1
+         self.mem_readdr_start = 4
+         self.mem_margin_passes = 0
++        # the memory access gate (plan_v2/22; set by the trainer, defaults = gate off / fully open): mem_gate_c = this
++        # step's open rate c (1 = every position reads), mem_gate_explore = the uniform floor once c < 1, mem_gate_w = the
++        # router BCE weight, mem_gate_eval = the eval gating mode, gate_quant = the size quantum of the open sets,
++        # gate_oracle_b = the measured benefit (B, T) for the "oracle" eval mode, gate_eval_rate = the open rate of the
++        # random / inverted / oracle modes (None = the learned gate's rate on the same read), gate_chunk = positions per
++        # chunk of the eval read-outs, gate_diag = record the residual -<dL/dM, M> (a tensor hook; logging steps)
++        self.mem_gate = None
++        self.mem_gate_c, self.mem_gate_explore, self.mem_gate_w, self.mem_gate_eval = 1.0, 0.10, 0.1, "learned"
++        self.gate_quant, self.gate_oracle_b, self.gate_eval_rate, self.gate_chunk, self.gate_diag = 64, None, None, 2048, False
++        self.gate_stats, self.gate_open, self.gate_loss = [], [], None
+         if concepts:
+             assert slots, "--concepts needs the workspace (--slots)"
+             self._build_memory(d, slots, moe, halt, think_fb, think_use, concepts, concept_weights,
+@@ -363,13 +375,16 @@
+                                mem_read0, mem_private, mem_dv, mem_addr_sg, mem_margin, mem_ema, mem_max_experts,
+                                dict(mem_life=mem_life, mem_addr_learn=mem_addr_learn, mem_restart=mem_restart,
+                                     mem_coarse=mem_coarse, mem_coarse_heads=mem_coarse_heads, mem_nbr=mem_nbr,
+-                                    mem_nbr_w=mem_nbr_w))
++                                    mem_nbr_w=mem_nbr_w),
++                               dict(mem_gate=int(mem_gate), mem_gate_feat=mem_gate_feat, mem_gate_trace=mem_gate_trace,
++                                    mem_gate_thr_ema=mem_gate_thr_ema))
+         else:
+             assert not (mem_shared or mem_private), "the memory needs --concepts (its queries come from the levels)"
++            assert not mem_gate, "--mem-gate needs the memory"
+ 
+     def _build_memory(self, d, slots, moe, halt, think_fb, think_use, concepts, concept_weights, rank, eot,
+                       mem_shared, mem_heads, mem_topm, mem_topk, mem_tau, mem_read0, mem_private, mem_dv,
+-                      mem_addr_sg, mem_margin, mem_ema, mem_max_experts, life):
++                      mem_addr_sg, mem_margin, mem_ema, mem_max_experts, life, gate):
+         concepts = [int(n) for n in concepts]
+         L = len(concepts)
+         weights = [float(w) for w in (concept_weights or [1.0, 1.0, 0.5, 0.5][:L] + [0.5] * max(0, L - 4))]
+@@ -405,6 +420,15 @@
+                                   nbr_w=life["mem_nbr_w"])
+                 if mem_private:
+                     self.blocks[0].mem_hook = self._mem_grow
++        # plan_v2/22, the memory access gate: in cfg only when on (or not at the default), built after every other module
++        # (its weights come from its own generator: the global stream is not touched either way)
++        gdf = dict(mem_gate=0, mem_gate_feat=",".join(GATE_FEATS), mem_gate_trace=8, mem_gate_thr_ema=0.02)
++        self.cfg.update({k: v for k, v in gate.items() if v != gdf[k]})
++        if gate["mem_gate"]:
++            assert self.mem is not None and mem_shared, "--mem-gate needs the shared memory (--mem-shared > 0)"
++            feats = [f.strip() for f in str(gate["mem_gate_feat"]).split(",") if f.strip()]
++            assert all(f in GATE_FEATS for f in feats), f"--mem-gate-feat: unknown feature in {feats}"
++            self.mem_gate = MemGate(L, feats, trace=gate["mem_gate_trace"], thr_ema=gate["mem_gate_thr_ema"], seed=base)
+ 
+     def _mem_grow(self, src, E0):
+         self.mem.on_grow(src, E0, split=self.blocks[0].mlp.birth_mode == "split")
+@@ -486,18 +510,26 @@
+             u = torch.stack([var_u, torch.log1p(move)], -1)
+         return mu, lv, u
+ 
+-    def _hier_step(self, s, read, address, k=0, sel=None, margin=True):
++    def _hier_step(self, s, read, address, k=0, sel=None, margin=True, gate=None):
+         """Concept level heads on the workspace s (plan_v2/12 section 1) and, with address, the memory: indices
+         (EMA translator, no gradient, fp32), online weights, the shared read, gates and W_o (section 3). With gradient
+         it is ONE activation-checkpointed block; the indices are chosen on its first run (no_grad) and reused when
+         backward recomputes it. sel: reuse these indices (--mem-readdr-every: no select, so no usage statistics; the
+         weights still come from this thought); margin False: no margin term on this read (--mem-margin-passes).
++        gate (plan_v2/22, the memory access gate): a dict of this read's gate inputs (the external features, the
++        previous thought / concepts, the forward's context). Inside the block: the router's features phi, its score s
++        (no_grad), the open set O (on the first run only: the training top-c + exploration, or the inference threshold
++        / eval mode; cached for the recompute), then the plan-21 read on the open positions only (gathered: select /
++        online / read_shared / the private query on n_open rows; the EMA norm statistics over ALL positions) and M, q1
++        scattered back into zeros. Outside the block: the router's BCE onto the detached mean content gate of the open
++        positions (training). Writes into gate: open (None = all), omask, pbar.
+         Returns (mus, nus, M, q1, margin) and the selection (or None)."""
+         hier, mem, core = self.hier, self.mem, self.blocks[0]
+         address = address and mem is not None
+         collect = self.training and self._targets is not None and torch.is_grad_enabled()
+         cache = {} if sel is None else {"sel": sel}
+         reused = sel is not None
++        G = gate if address else None
+ 
+         def block(s):
+             ns = core.n_s(s)
+@@ -506,8 +538,17 @@
+                 return mus, nus, None, None, None
+             pbar = ns.mean(-2)
+             a, a_hat = mem.prep(mus, pbar)
++            O = None if G is None else self._gate_open(G, cache, mus, nus, pbar, a_hat, k)
++            if O is not None and O.numel() == 0:  # (eval: every position closed on this read)
++                return mus, nus, None, None, None
++            pbo, a_all = pbar, a
++            if O is not None:  # the open positions only (the EMA norm statistics over all of them first)
++                a, a_hat, pbo = a[:, O], a_hat[:, O], pbar.flatten(0, -2)[O]
+             if "sel" not in cache:
+-                cache["sel"] = mem.select(a.detach(), a_hat.detach(), collect)
++                if O is not None and collect:
++                    mem.norm_collect(a_all.detach())
++                cache["sel"] = (mem.select(a.detach(), a_hat.detach(), collect) if O is None
++                                else mem.select(a.detach(), a_hat.detach(), collect, stats=False))
+             sel = cache["sel"]
+             # the margin (infancy, on sg(a): keys only), from the online pass's queries (mem.margin_fused)
+             mg = collect and margin and mem.S and mem.lam_m and not mem.is_frozen
+@@ -517,10 +558,20 @@
+                                 margin=mg and mem.margin_fused)
+             M = g = None
+             if read and mem.S and not mem.ko_shared:
+-                M, g = mem.read_shared(on["w"], sel, pbar, on)
++                M, g = mem.read_shared(on["w"], sel, pbo, on)
+             mterm = None
+             if mg:
+                 mterm = on["margin"] if mem.margin_fused else mem.margin_loss(a_hat.detach(), sel)
++            q1 = on["q1"]
++            if G is not None:
++                if g is not None and "gbar" not in cache:  # the router's target: the mean content gate (detached)
++                    gs = [g.flatten(1)] + ([on["c"]["g"].flatten(1)] if "g" in on.get("c", {}) else [])
++                    cache["gbar"] = torch.cat(gs, 1).mean(1).detach().float()
++                if O is not None:  # scattered back: closed positions get no memory output and no private query
++                    n_all = pbar.flatten(0, -2).size(0)
++                    if M is not None:
++                        M = M.new_zeros(n_all, M.size(1)).index_copy(0, O, M)
++                    q1 = q1.new_zeros(n_all, q1.size(1)).index_copy(0, O, q1)
+             if mem.record is not None and "diag" not in cache:
+                 pos = mem.record["pos"]
+                 with torch.no_grad():
+@@ -538,8 +589,10 @@
+                             rf = mem.select(a.detach(), a_hat.detach(), False)["rows"][:, :, pos].permute(2, 0, 1, 3).cpu()
+                             d["rows_fresh"] = rf
+                             d["reuse_ovl"] = (d["rows"][..., :, None] == rf[..., None, :]).any(-1).float().mean(-1)
++                    if "rec_open" in cache:  # (plan_v2/22) the probes read ungated; would the gate open them?
++                        d["open"] = cache["rec_open"][pos].cpu()
+                     cache["diag"] = d
+-            return mus, nus, M, on["q1"], mterm
++            return mus, nus, M, q1, mterm
+ 
+         if torch.is_grad_enabled() and self.mem_ckpt:
+             out = torch.utils.checkpoint.checkpoint(block, s, use_reentrant=False)
+@@ -547,15 +600,184 @@
+             out = block(s)
+         if "diag" in cache:
+             mem.record["reads"].append(cache["diag"])
++        if G is not None and "phi" in cache:
++            self._gate_after(G, cache, out, k)
+         return out, cache.get("sel")
+ 
+-    def _private_fn(self, q1, sel):
+-        """The next pass's private read (called inside the routed experts), or None."""
++    # ---------------------------------------------------------------- the memory access gate (plan_v2/22)
++    def _gate_phi(self, mus, nus, pbar, a_hat, G, k):
++        """The router's features phi (N, dim), detached, in the router's precision, and the raw scalar features (N, n_s)
++        (the EMA statistics' input): pbar standardised by the translator's norm (the pbar part of a_hat, level 1), the
++        concept uncertainty nu_l and change dmu_l (ConceptHier.uncertainty), the thought change, the last-token surprise
++        (+ its flag), its trace, the next-token entropy (standardised by the EMA statistics), the pass one-hot."""
++        gate = self.mem_gate
++        dt = gate.weight.dtype
++        N = a_hat.size(1)
++        f, ext = gate.feats, G["ext"]
++        parts, raw = [], []
++        if "pbar" in f:
++            parts.append(a_hat[0, :, self.mem.d:].detach().to(dt))
++        if "nu" in f or "dmu" in f:
++            u = ConceptHier.uncertainty([m.detach() for m in mus], [n.detach() for n in nus], G["prev_mu"])
++            u = u.flatten(0, -2).to(dt)
++            if "nu" in f:
++                raw.append(u[:, 0::2])
++            if "dmu" in f:
++                raw.append(u[:, 1::2])
++        if "dthought" in f:
++            pb = pbar.detach().flatten(0, -2).to(dt)
++            prev = G["prev_pbar"]
++            raw.append(torch.zeros(N, 1, dtype=dt, device=pb.device) if prev is None else torch.log1p(
++                (pb - prev.flatten(0, -2).to(dt)).norm(dim=-1) / pb.norm(dim=-1).clamp(min=1e-6))[:, None])
++        for n in ("surp", "trace", "ent"):
++            if n in f:
++                raw.append(ext[n].reshape(-1, 1).to(dt))
++        raw = torch.cat(raw, 1) if raw else a_hat.new_zeros(N, 0, dtype=dt)
++        parts.append(gate.standardize(raw).to(dt))
++        if "surp" in f:
++            parts.append(ext["flag"].reshape(-1, 1).to(dt))
++        if "pass" in f:
++            oh = torch.zeros(N, 16, dtype=dt, device=raw.device)
++            oh[:, min(max(k, 0), 15)] = 1
++            parts.append(oh)
++        return torch.cat(parts, 1), raw
++
++    @torch.no_grad()
++    def _gate_open(self, G, cache, mus, nus, pbar, a_hat, k):
++        """The open set O of read k (sorted indices into the N positions; None = all open), chosen on the block's first
++        run and cached (the checkpoint recompute reuses it, the generator is not advanced again). Training forward with
++        targets: c >= 1 -> all; else the top n_c by s + n_e uniform (the fixed tie key; device-side), and the first-run
++        updates: theta_k from the cut-off, the feature statistics. Probes (mem.record): ungated (the threshold decision
++        is recorded). Otherwise the eval mode: learned (s > theta_k), random (a seeded Bernoulli at the learned rate),
++        inverted (the bottom n by s), oracle (the top n by gate_oracle_b), open."""
++        if "open" in cache:
++            return cache["open"]
++        gate, mem = self.mem_gate, self.mem
++        phi, raw = self._gate_phi(mus, nus, pbar, a_hat, G, k)
++        s = gate.score(phi).float()
++        N, dev = s.numel(), s.device
++        cache.update(phi=phi, s=s, pbar=pbar.detach(), isA=None)
++        thr = gate.thr(k)
++        O = None
++        if mem.record is not None:
++            cache["rec_open"] = s > thr
++        elif G["train"]:
++            c = float(self.mem_gate_c)
++            st = dict(k=k, c=c, theta_valid=gate.theta_ok[min(max(k, 0), len(gate.theta_ok) - 1)].clone())
++            st["above"] = (s > thr).float().mean()                   # the train-time fraction above theta_k
++            st["s"] = s                                              # (the score quantiles: computed when logged)
++            if c < 1:
++                n_c, n_e = gate_sizes(c, self.mem_gate_explore, N, self.gate_quant)
++                O, isA, tau = gate.select_train(s, n_c, n_e)
++                gate.update_theta(k, tau)
++                cache["isA"] = isA
++                st.update(n_c=n_c, n_e=n_e, tau=tau)
++            st["theta"] = gate.thr(k).clone()
++            gate.stats_update(raw)
++            G["ctx"]["stats"].append(st)
++        else:
++            mode = self.mem_gate_eval
++            assert mode in GATE_MODES and mode != "off", mode
++            if mode == "learned":
++                O = (s > thr).nonzero().squeeze(1)
++            elif mode != "open":
++                n = int((s > thr).sum()) if self.gate_eval_rate is None else int(round(self.gate_eval_rate * N))
++                if mode == "random":
++                    g = torch.Generator().manual_seed(1234 + 7 * max(k, 0) + N)
++                    O = (torch.rand(N, generator=g) < n / N).to(dev).nonzero().squeeze(1)
++                elif mode == "inverted":
++                    O = torch.topk(-(_orderable(s) * (1 << 32) + gate.tie_key(N, dev)), n).indices.sort().values
++                else:  # oracle: the top n positions by the measured benefit (non-causal: an upper bound)
++                    assert self.gate_oracle_b is not None, "--mem-gate-eval oracle needs gate_oracle_b"
++                    b = self.gate_oracle_b.reshape(-1).to(dev).float()
++                    O = torch.topk(b, n).indices.sort().values
++            if O is not None and O.numel() == N:
++                O = None
++        cache["open"] = O
++        return O
++
++    def _gate_after(self, G, cache, out, k):
++        """After the block: the outputs for run() (open set, mask, this thought) and, in a training forward, the router's
++        BCE (with gradient, outside the checkpoint; a local enable_grad on the reads outside the bptt window) and the
++        per-read diagnostics (tensors; read on logging steps only)."""
++        O, s, N = cache["open"], cache["s"], cache["s"].numel()
++        omask = None if O is None else torch.zeros(N, dtype=torch.bool, device=s.device).index_fill_(0, O, True)
++        G.update(open=O, omask=omask, pbar=cache["pbar"])
++        self.gate_open.append(dict(k=k, mask=omask, s=s))
++        if not G["train"] or "gbar" not in cache:
++            return
++        gbar = cache["gbar"]
++        with torch.enable_grad():
++            sg = self.mem_gate.score(cache["phi"])
++            so = sg if O is None else sg[O]
++            bce = F.binary_cross_entropy_with_logits(so, gbar.to(so.dtype))
++        G["ctx"]["bce"].append(bce)
++        st = G["ctx"]["stats"][-1]
++        with torch.no_grad():
++            sO = s if O is None else s[O]
++            st.update(bce=bce.detach(), n_open=N if O is None else O.numel(), calib_pred=torch.sigmoid(sO).mean(),
++                      calib_gbar=gbar.mean())
++            if cache["isA"] is not None:
++                a_in = cache["isA"][O]
++                st["gbar_top"] = (gbar * a_in).sum() / a_in.sum().clamp(min=1)
++                st["gbar_explore"] = (gbar * ~a_in).sum() / (~a_in).sum().clamp(min=1)
++            prev = G["ctx"].get("prev_mask")
++            cur = omask if omask is not None else torch.ones(N, dtype=torch.bool, device=s.device)
++            if prev is not None:
++                st["overlap_prev"] = (prev & cur).sum().float() / prev.sum().clamp(min=1).float()
++            G["ctx"]["prev_mask"] = cur
++        M = out[2]
++        if self.gate_diag and M is not None and M.requires_grad:  # the residual -<dL/dM, M> per position (backward)
++            Md = M.detach()
++
++            def hook(gr, st=st, Md=Md, isA=cache["isA"]):
++                st["resid"] = -(gr.detach() * Md).sum(-1).float()
++                st["resid_isA"] = isA
++            M.register_hook(hook)
++            st["s_all"] = s
++
++    def _gate_readout(self, x, idx, need_ce):
++        """Eval / no targets: one chunked read-out of a pass (gate_chunk positions at a time: the (B, T, V) fp32
++        log-probs are never materialised): the normalised next-token entropy (B, T) and, need_ce, the CE of the KNOWN
++        next input token ce[t] = -log p(idx[t + 1]) (the last column is unused)."""
++        B, T = x.shape[:2]
++        xf = x.reshape(B * T, -1)
++        nxt = torch.cat([idx[:, 1:], idx[:, :1]], 1).reshape(-1)
++        ents, ces = [], []
++        with torch.no_grad():
++            for c in range(0, B * T, max(1, self.gate_chunk)):
++                lp = self.readout_lp(xf[c:c + self.gate_chunk])
++                p = lp.exp()
++                ents.append(-(p * lp).sum(-1) / math.log(lp.size(-1)))
++                if need_ce:
++                    ces.append(-lp.gather(-1, nxt[c:c + self.gate_chunk, None]).squeeze(-1))
++        return torch.cat(ents).view(B, T), (torch.cat(ces).view(B, T) if need_ce else None)
++
++    def _gate_surprise(self, ce0, idx, ctx):
++        """sigma_t = ce_0[t - 1] (the pass-0 CE of the known token t), the flag (t = 0 or idx[t - 1] = EOT; sigma there
++        := its EMA mean) and the windowed surprise trace (plan_v2/22 section 2.3); into ctx."""
++        gate = self.mem_gate
++        B, T = idx.shape
++        eot = self.cfg.get("concept_eot", 0)
++        flag = torch.cat([torch.ones(B, 1, dtype=torch.bool, device=idx.device), idx[:, :-1] == eot], 1)
++        sig = torch.cat([ce0.new_zeros(B, 1), ce0[:, :-1]], 1).detach().to(gate.fm.dtype)
++        sig = torch.where(flag, gate.stat_mean("surp").to(sig.dtype), sig)
++        ctx.update(surp=sig, flag=flag)
++        if "trace" in gate.feats:
++            ctx["trace"] = gate_trace(sig, flag, math.exp(-1.0 / gate.trace), 3 * gate.trace)
++
++    def _private_fn(self, q1, sel, gopen=None):
++        """The next pass's private read (called inside the routed experts), or None. gopen (the gate, plan_v2/22): the
++        open positions of this read (q1 is already scattered into zeros; the EMA query is scattered here)."""
+         mem = self.mem
+         if mem is None or not mem.R or mem.ko_private or q1 is None:
+             return None
+         qb1 = sel["qb1"]
+-        return lambda *a: mem.private(q1, qb1, *a)
++        if gopen is None:
++            return lambda *a: mem.private(q1, qb1, *a)
++        qb1 = qb1.new_zeros(q1.size(0), qb1.size(1)).index_copy(0, gopen, qb1)
++        omask = torch.zeros(q1.size(0), dtype=torch.bool, device=q1.device).index_fill_(0, gopen, True)
++        return lambda *a: mem.private(q1, qb1, *a, omask=omask)
+ 
+     def _slot_write(self, s, M):
+         """Memory output into the LAST workspace slot (slot 15 of 16), out of place: s[..., -1, :] += W_ms M."""
+@@ -623,13 +845,30 @@
+             ce, lp = self._readout_ce(x, tgt)
+         return ce, lp, self.halt_features(x, lp, prev_lp, k, cu)
+ 
+-    def halt_features(self, x, lp, prev_lp, k, cu=None):
+-        """Halting features of a read-out (detached): thought, KL to the previous pass, entropy, pass index."""
++    def _readout_pair(self, x, tgt):
++        """pass_readout_ce's read-out alone: (per-word CE with gradient, detached log-probs) (plan_v2/22: computed before
++        the memory read, the halting features after it)."""
++        if self.ckpt_readout and torch.is_grad_enabled():
++            return torch.utils.checkpoint.checkpoint(self._readout_ce, x, tgt, use_reentrant=False)
++        return self._readout_ce(x, tgt)
++
++    @staticmethod
++    @torch.no_grad()
++    def _halt_parts(lp, prev_lp):
++        """halt_features' read-out part: (log1p of the KL to the previous pass, the normalised entropy) (B, T) each
++        (plan_v2/22: computed right after the read-out, so the (B, T, V) probabilities are freed before the memory read;
++        the entropy is also a feature of the gate's router)."""
++        p = lp.exp()
++        ent = -(p * lp).sum(-1) / math.log(lp.size(-1))
++        kl = (p * (lp - prev_lp)).sum(-1) if prev_lp is not None else torch.zeros_like(ent)
++        return torch.log1p(kl.clamp(min=0)), ent
++
++    def halt_features(self, x, lp, prev_lp, k, cu=None, parts=None):
++        """Halting features of a read-out (detached): thought, KL to the previous pass, entropy, pass index.
++        parts: _halt_parts(lp, prev_lp) already computed (then lp / prev_lp are not used)."""
+         with torch.no_grad():
+-            p = lp.exp()
+-            ent = -(p * lp).sum(-1) / math.log(lp.size(-1))
+-            kl = (p * (lp - prev_lp)).sum(-1) if prev_lp is not None else torch.zeros_like(ent)
+-            feat = [self.normf(x).detach().float(), torch.log1p(kl.clamp(min=0))[..., None],
++            lkl, ent = self._halt_parts(lp, prev_lp) if parts is None else parts
++            feat = [self.normf(x).detach().float(), lkl[..., None],
+                     ent[..., None], torch.full_like(ent, k / 16.0)[..., None]]
+             if self.think:  # the thought's own uncertainty (zeros if not computed)
+                 feat.append(cu if cu is not None else torch.zeros_like(feat[0][..., :2]))
+@@ -681,10 +920,19 @@
+         exit_loss = ce.gather(0, stop[None]).squeeze(0)
+         self.train(was)
+         steps = torch.arange(1, K_max + 1, device=P.device)[:, None, None]
+-        return dict(halt_loss=exit_loss.mean().item(), halt_passes=(stop.float() + 1).mean().item(),
+-                    halt_expected_passes=(P * steps).sum(0).mean().item(),
+-                    fixed_loss={k + 1: ce[k].mean().item() for k in range(K_max)},
+-                    passes_hist=torch.bincount(stop.flatten() + 1, minlength=K_max + 1)[1:].tolist())
++        out = dict(halt_loss=exit_loss.mean().item(), halt_passes=(stop.float() + 1).mean().item(),
++                   halt_expected_passes=(P * steps).sum(0).mean().item(),
++                   fixed_loss={k + 1: ce[k].mean().item() for k in range(K_max)},
++                   passes_hist=torch.bincount(stop.flatten() + 1, minlength=K_max + 1)[1:].tolist())
++        if self.mem_gate is not None:  # (plan_v2/22) the open rate of the read at each word's exit pass, by exit pass
++            st, rates = stop.flatten(), []
++            for e in range(K_max):
++                rec = [r for r in self.gate_open if r["k"] == e]
++                w = st == e
++                rates.append(float("nan") if not rec or not bool(w.any()) else
++                             1.0 if rec[0]["mask"] is None else rec[0]["mask"][w].float().mean().item())
++            out["gate_open_by_exit"] = rates
++        return out
+ 
+     @torch.no_grad()
+     def think_diag(self, idx, targets, K_max=16, kmax_eval=8, chunk=0):
+@@ -782,6 +1030,16 @@
+         hier_preds, margins, prev_mu, pm = [], [], None, None   # concept / memory (plan_v2/12); pm: private read
+         r_every, prev_sel, mg_at = max(1, self.mem_readdr_every), None, None   # mg_at: reads with a margin (None = all)
+         r_start = max(0, self.mem_readdr_start)
++        gate = self.mem_gate if mem is not None else None   # the memory access gate (plan_v2/22)
++        gctx, g_off = None, False
++        if gate is not None:
++            assert sub is None, "--mem-gate needs --readout-frac 1 (the router's features use every pass's read-out)"
++            r_every = 1                                     # (address reuse is off under the gate: the open sets differ)
++            gctx = dict(train=self.training and tgt is not None, bce=[], stats=[], prev_pbar=None)
++            g_off = not gctx["train"] and self.mem_gate_eval == "off" and mem.record is None
++            self.gate_open = []
++            if gctx["train"]:
++                self.gate_stats = gctx["stats"]
+         fresh = lambda k: k < r_start or (k - r_start) % r_every == 0         # thought read k addresses anew
+         if mem is not None:
+             mem.begin_forward(self.training and tgt is not None)
+@@ -816,6 +1074,24 @@
+                 wave = (prev_idx, fatigue) if (core.waves and prev is not None) else None
+                 x, s = core(x, s, e, None if core.waves else forbid, last=(k == K - 1), wave=wave, ko=ko,
+                             group=group, inject=inject, pmem=pm)
++                g_read = False
++                if gate is not None:  # (plan_v2/22) this pass's read-out BEFORE the memory read: the router's features
++                    g_ce = g_parts = g_ent = None
++                    if tgt is not None:  # (training: the same read-out as below, moved; the halting features after it)
++                        g_ce, g_lp = self._readout_pair(x, tgt)
++                        g_parts = self._halt_parts(g_lp, prev_lp)       # (KL, entropy): the (B, T, V) p is freed here
++                        prev_lp = g_lp                                   # (and the previous log-probs)
++                        del g_lp
++                    g_read = k < K - 1 and not g_off and (gctx["train"] or self.mem_gate_eval != "open"
++                                                           or mem.record is not None)
++                    if g_read:
++                        need0 = k == 0 and "surp" in gate.feats
++                        if g_parts is not None:
++                            g_ent, ce0 = g_parts[1], g_ce
++                        else:  # (eval: one chunked read-out, nothing kept)
++                            g_ent, ce0 = self._gate_readout(x, idx, need0)
++                        if need0:
++                            self._gate_surprise(ce0, idx, gctx)
+                 if self.think_latent:  # the predicted latent of the next words, with its uncertainty
+                     mu, lv, cu = self.think_latent_readout(s, prev_cl)
+                     if tgt is not None and c_w and k >= K - bptt:
+@@ -840,11 +1116,20 @@
+                         mem.record["calls"].append(dict(
+                             experts=core.mlp.last_idx[mem.record["pos"]].sort(-1).values.cpu(),
+                             prows=mem.__dict__.pop("_prows", None)))
+-                    addr = mem is not None and k < K - 1
++                    addr = mem is not None and k < K - 1 and not g_off
+                     reuse = addr and not fresh(k) and prev_sel is not None
+                     kw = dict(sel=prev_sel, margin=False) if reuse else {} if mg_at is None else dict(margin=k in mg_at)
++                    gk = None
++                    if g_read and addr:  # (eval mode "open": the plan-21 read, no router)
++                        ext = {n: gctx.get(n) for n in ("surp", "flag", "trace")}
++                        ext["ent"] = g_ent
++                        gk = kw["gate"] = dict(ext=ext, prev_mu=prev_mu, prev_pbar=gctx["prev_pbar"], train=gctx["train"],
++                                               ctx=gctx)
+                     (mus, nus, M, q1, mg), sel = self._hier_step(s, read=addr, address=addr, k=k, **kw)
+-                    if addr and not reuse:  # (an EMA-query copy for the frozen online pass is never carried over)
++                    if gk is not None and "pbar" in gk:
++                        gctx["prev_pbar"] = gk["pbar"]
++                    if addr and not reuse and sel is not None:  # (an EMA-query copy for the frozen online pass is never
++                        # carried over; sel None: the gate closed every position of this read)
+                         prev_sel = {n: v for n, v in sel.items() if n != "q"}
+                         if "c" in prev_sel:  # (nor the coarse pool's)
+                             prev_sel["c"] = {n: v for n, v in prev_sel["c"].items() if n != "q"}
+@@ -864,7 +1149,10 @@
+                         M = M.view(x.shape)
+                         inject = M.to(x.dtype) if inject is None else inject + M.to(x.dtype)
+                         s = self._slot_write(s, M)
+-                    pm = self._private_fn(q1, sel) if addr else None
++                    if gk is not None:
++                        pm = self._private_fn(q1, sel, gk.get("open")) if addr else None
++                    else:
++                        pm = self._private_fn(q1, sel) if addr else None
+             if core.mlp.aux is not None and core.mlp.aux.requires_grad:
+                 aux_terms.append(core.mlp.aux)
+             used = torch.zeros(x.shape[0] * x.shape[1], core.mlp.E, dtype=torch.bool, device=x.device)
+@@ -882,7 +1170,12 @@
+                 self.trace.append([core.mlp.last_idx[b * T + t].tolist() for b, t in self.trace_tokens])
+             if k == aux_k and torch.is_grad_enabled():
+                 self.aux_x = self.normf(x)
+-            if tgt is not None:  # per-pass read-out: deep supervision / halting (gradient only where backprop runs)
++            if tgt is not None and gate is not None:  # (plan_v2/22: the read-out came before the read; the halting
++                feat = self.halt_features(x, None, None, k, cu, parts=g_parts)   # features after it, with its cu)
++                ces.append(g_ce)
++                if halt:
++                    lams.append(self.halt_lambda(feat))
++            elif tgt is not None:  # per-pass read-out: deep supervision / halting (gradient only where backprop runs)
+                 with torch.set_grad_enabled(torch.is_grad_enabled() and k >= K - bptt):
+                     xr, cur = x, cu
+                     if sub is not None:
+@@ -944,6 +1237,10 @@
+                     self.think_stats = st
+             if margins:  # sub-key margin loss (infancy), mean over the passes that computed it
+                 extra = extra + sum(margins) / len(margins)
++            if gctx is not None and gctx["bce"]:  # the router's BCE (plan_v2/22): its gradient reaches the router only
++                lr_ = sum(gctx["bce"]) / len(gctx["bce"])
++                self.gate_loss = lr_.detach()
++                extra = extra + self.mem_gate_w * lr_
+             if c_losses:
+                 extra = extra + c_w * sum(c_losses) / len(c_losses)
+                 self.think_last = c_losses[-1].detach()
+--- plan_v2/baseline_mem_v4/memory.py	2026-10-24 03:23:37.824720900 +0300
++++ memory.py	2026-10-24 04:20:28.410492600 +0300
+@@ -644,14 +644,25 @@
+         return (qr, q1, q2) if raw else (q1, q2)
+ 
+     @torch.no_grad()
+-    def select(self, a, a_hat, collect):
++    def norm_collect(self, a):
++        """select()'s EMA norm statistics of a (L, N, d + 64), on their own (plan_v2/22: the gate gathers the open
++        positions before select(), the statistics stay over ALL positions)."""
++        with fp32_math(a.device.type):
++            if self._collect:
++                self.ns_sum += a.sum(1)
++                self.ns_sq += ((a - self.norm_m[:, None]) ** 2).sum(1)
++                self.ns_cnt += a.size(1)
++
++    @torch.no_grad()
++    def select(self, a, a_hat, collect, stats=True):
+         """Row indices from the EMA translator theta_bar (no gradient). Returns i, j (L, H, N, km + 1) top pairs, I1,
+         I2 (L, H, N, m + 1) per-half top lists, rows (L, H, N, km) and qb1 (N, 64), the EMA private query; after the
+-        freeze with sg addressing also q = (q1, q2), the queries (online = EMA then: online() reuses them)."""
++        freeze with sg addressing also q = (q1, q2), the queries (online = EMA then: online() reuses them).
++        stats False (the gate): no norm statistics here (norm_collect() takes them over all positions)."""
+         L, H, S, m, km = self.L, self.H, self.S, self.m, self.km
+         out = {}
+         with fp32_math(a_hat.device.type):
+-            if collect and self._collect:  # EMA norm statistics (applied once per optimizer step)
++            if collect and self._collect and stats:  # EMA norm statistics (applied once per optimizer step)
+                 self.ns_sum += a.sum(1)
+                 self.ns_sq += ((a - self.norm_m[:, None]) ** 2).sum(1)
+                 self.ns_cnt += a.size(1)
+@@ -857,13 +868,16 @@
+         return M, g
+ 
+     # ------------------------------------------------------------ private expert memory (4)
+-    def private(self, q1, qb1, e_k, p_k, t_k, g_k, fpos, N, k, E, C):
++    def private(self, q1, qb1, e_k, p_k, t_k, g_k, fpos, N, k, E, C, omask=None):
+         """Called inside RoutedMLP with its capacity layout (kept slots: expert e_k, slot p_k, token t_k, gate g_k,
+         flat (token, choice) position fpos). Indices from the EMA side (qb1 with P_bar, bmm over the capacity
+-        layout, top-4, stable tie-break), weights from the online side. Returns W_p(sum_e gate sigma(b_e) rho)."""
++        layout, top-4, stable tie-break), weights from the online side. Returns W_p(sum_e gate sigma(b_e) rho).
++        omask (plan_v2/22, the memory gate): (N,) bool, the open tokens; a closed token's slots get no output (so no
++        G_e / G_P rows and no b_e gradient from it), no usage count, and the re-seed query comes from open slots."""
+         R, dev = self.R, q1.device
+         dt = self.P.dtype
+         collect = self._collect and torch.is_grad_enabled()      # a training pass inside the gradient window
++        ok = None if omask is None else omask[t_k]
+         with torch.no_grad(), fp32_math(dev.type):
+             Q = qb1.new_zeros(E, C, 64)
+             Q[e_k, p_k] = qb1[t_k]
+@@ -872,10 +886,15 @@
+             rows = e_k[:, None] * R + idx                                            # slots are never read
+             del sc
+             if collect:
+-                self.pend_e.view(-1).index_add_(0, rows.flatten(),
+-                                                torch.ones(rows.numel(), dtype=self.pend_e.dtype, device=dev))
+-                has = torch.zeros(E, dtype=torch.bool, device=dev)
+-                has[e_k] = True
++                ones = (torch.ones(rows.numel(), dtype=self.pend_e.dtype, device=dev) if ok is None
++                        else ok[:, None].expand_as(rows).flatten().to(self.pend_e.dtype))
++                self.pend_e.view(-1).index_add_(0, rows.flatten(), ones)
++                if ok is None:
++                    has = torch.zeros(E, dtype=torch.bool, device=dev)
++                    has[e_k] = True
++                else:  # (slot 0 open: its query is a real one; no boolean index, no host sync)
++                    has = torch.zeros(E, dtype=torch.float32, device=dev).index_add_(
++                        0, e_k, (ok & (p_k == 0)).float()) > 0
+                 self.lastq[:E] = torch.where(has[:, None], Q[:, 0].to(self.lastq.dtype), self.lastq[:E])
+                 self.lastq_ok[:E] |= has
+             if self.record is not None:
+@@ -898,8 +917,10 @@
+                 else:
+                     rho = MemRead.apply(_anchor(dev, write), w * fe, self.V_e, self.G_e if write else None, rows,
+                                         w.detach())
+-                z = rho.new_zeros(N, self.dv).index_add_(
+-                    0, t_k, rho * (g_k.to(dt) * torch.sigmoid(b_e[e_k].to(dt)))[:, None])
++                gs = g_k.to(dt) * torch.sigmoid(b_e[e_k].to(dt))
++                if ok is not None:  # (the gate: closed tokens' slots contribute nothing, forward or backward)
++                    gs = gs * ok.to(dt)
++                z = rho.new_zeros(N, self.dv).index_add_(0, t_k, rho * gs[:, None])
+             return self.w_p(z.to(self.w_p.weight.dtype))
+ 
+         if torch.is_grad_enabled() and self.ckpt:
+@@ -1320,6 +1341,172 @@
+         return out
+ 
+ 
++# ---------------------------------------------------------------- the memory access gate (plan_v2/22)
++GATE_FEATS = ("pbar", "nu", "dmu", "dthought", "surp", "trace", "ent", "pass")
++GATE_MODES = ("learned", "random", "inverted", "oracle", "open", "off")
++GATE_NTHETA = 11      # theta_k for k = 0 .. 9; reads k >= 10 share theta_10
++GATE_STAT_RATE = 1e-3  # the EMA rate of the scalar feature statistics
++
++
++def _orderable(s):
++    """float32 (N,) -> int64 keys with the same order (-0.0 == +0.0): the sign-magnitude bits made monotone."""
++    b = s.float().contiguous().view(torch.int32).to(torch.int64)
++    return torch.where(b >= 0, b, -(b & 0x7FFFFFFF))
++
++
++class MemGate(nn.Module):
++    """The predictor router of the memory gate (plan_v2/22 revision 2): s = w . phi + b on DETACHED features phi
++    (pbar standardised by the translator's norm, the concept uncertainty and change, the thought change, the last-token
++    surprise and its trace, the next-token entropy, the pass one-hot), trained by BCE towards the detached mean content
++    gate g_bar of the open positions (LoopBrain._hier_step). Selection (training): the top n_c positions by s (ties by a
++    fixed random key) plus a uniform exploration floor of n_e positions drawn on the device; inference: s > theta_k, an
++    EMA of the training top-k cut-off. Its parameters (weight, bias) are trained by their own AdamW (the trainer), never
++    by BrainOpt / the global clip. Buffers: theta / theta_ok (the thresholds), fm / fv / fn (the scalar features' EMA
++    statistics). The exploration generator lives on the device (host_state)."""
++
++    def __init__(self, L, feats=GATE_FEATS, trace=8, thr_ema=0.02, seed=0):
++        super().__init__()
++        feats = tuple(f for f in GATE_FEATS if f in feats)
++        assert feats, "--mem-gate-feat: no known feature"
++        assert "trace" not in feats or "surp" in feats, "--mem-gate-feat: the trace needs surp"
++        self.feats, self.L, self.trace, self.thr_ema, self.seed = feats, L, int(trace), float(thr_ema), int(seed)
++        sc = []
++        if "nu" in feats:
++            sc += [f"nu{l}" for l in range(L)]
++        if "dmu" in feats:
++            sc += [f"dmu{l}" for l in range(L)]
++        sc += [f for f in ("dthought", "surp", "trace", "ent") if f in feats]
++        self.scalars = sc
++        self.dim = 64 * ("pbar" in feats) + len(sc) + ("surp" in feats) + 16 * ("pass" in feats)
++        g = torch.Generator().manual_seed((self.seed + 2222) % (2 ** 63))   # dedicated: the global stream is untouched
++        self.weight = nn.Parameter(torch.randn(self.dim, generator=g) * 0.02)
++        self.bias = nn.Parameter(torch.tensor(-2.0))      # sigma(-2) = 0.12, as the content gates' initial bias
++        self.register_buffer("theta", torch.zeros(GATE_NTHETA))
++        self.register_buffer("theta_ok", torch.zeros(GATE_NTHETA, dtype=torch.bool))
++        self.register_buffer("fm", torch.zeros(len(sc)))
++        self.register_buffer("fv", torch.ones(len(sc)))
++        self.register_buffer("fn", torch.zeros((), dtype=torch.long))
++        self._gen, self._keys = None, {}
++
++    # ---- state
++    def gen(self, device):
++        """The exploration generator, on the device of the positions (created on first use, seeded)."""
++        dev = torch.device(device)
++        if self._gen is None or self._gen.device != dev:
++            self._gen = torch.Generator(device=dev).manual_seed((self.seed + 3141) % (2 ** 63))
++        return self._gen
++
++    def host_state(self):
++        return dict(gen=None if self._gen is None else self._gen.get_state(),
++                    gen_device=None if self._gen is None else str(self._gen.device))
++
++    def load_host_state(self, st):
++        if st and st.get("gen") is not None:
++            self.gen(st["gen_device"]).set_state(st["gen"].cpu())
++
++    def tie_key(self, n, device):
++        """A fixed random permutation of 0 .. n-1 (by n; deterministic from the seed): the tie-break among equal s."""
++        key = (n, str(device))
++        if key not in self._keys:
++            g = torch.Generator().manual_seed((self.seed + 1618 + n) % (2 ** 63))
++            self._keys[key] = torch.randperm(n, generator=g).to(device)
++        return self._keys[key]
++
++    # ---- the score
++    def score(self, phi):
++        """s = w . phi + b (N,), in the router's own precision (fp32; no autocast)."""
++        with fp32_math(phi.device.type):
++            return phi.to(self.weight.dtype) @ self.weight + self.bias
++
++    def stats_update(self, x):
++        """One training read's scalar features x (N, n_s): the EMA statistics (rate GATE_STAT_RATE; the first read sets
++        them). Device-side, no host sync."""
++        if not x.size(1):
++            return
++        with torch.no_grad():
++            x = x.to(self.fm.dtype)
++            m, v = x.mean(0), ((x - self.fm) ** 2).mean(0)
++            first = self.fn == 0
++            r = GATE_STAT_RATE
++            self.fm.copy_(torch.where(first, m, (1 - r) * self.fm + r * m))
++            self.fv.copy_(torch.where(first, x.var(0, unbiased=False), (1 - r) * self.fv + r * v))
++            self.fn.add_(1)
++
++    def standardize(self, x):
++        return (x.to(self.fm.dtype) - self.fm) / torch.sqrt(self.fv + 1e-5)
++
++    def stat_mean(self, name):
++        return self.fm[self.scalars.index(name)]
++
++    # ---- selection
++    def thr(self, k):
++        """theta_k (a 0-dim tensor), -inf before the first training cut-off (c = 1)."""
++        i = min(max(k, 0), GATE_NTHETA - 1)
++        return torch.where(self.theta_ok[i], self.theta[i], torch.full_like(self.theta[i], float("-inf")))
++
++    @torch.no_grad()
++    def select_train(self, s, n_c, n_e, gen=None):
++        """Training selection of one read: A = the top n_c of s (ties: the fixed random key), E = n_e uniform draws from
++        the rest (device-side), O = sort(A u E). Static sizes, no host sync. Returns O, isA (N,) bool, tau = the n_c-th
++        largest s."""
++        N, dev = s.numel(), s.device
++        key = _orderable(s) * (1 << 32) + self.tie_key(N, dev)
++        A = torch.topk(key, n_c, sorted=True).indices
++        tau = s.float().index_select(0, A[-1:]).squeeze(0)
++        isA = torch.zeros(N, dtype=torch.bool, device=dev).index_fill_(0, A, True)
++        if n_e:
++            u = torch.rand(N, generator=gen if gen is not None else self.gen(dev), device=dev)
++            E = torch.topk(u.index_fill_(0, A, -1.0), n_e).indices
++            O = torch.cat([A, E]).sort().values
++        else:
++            O = A.sort().values
++        return O, isA, tau
++
++    @torch.no_grad()
++    def update_theta(self, k, tau):
++        """theta_k <- (1 - rho) theta_k + rho tau (the first cut-off sets it). Device-side, no host sync."""
++        i = min(max(k, 0), GATE_NTHETA - 1)
++        t = tau.to(self.theta.dtype)
++        self.theta[i:i + 1].copy_(torch.where(self.theta_ok[i], (1 - self.thr_ema) * self.theta[i] + self.thr_ema * t, t))
++        self.theta_ok[i:i + 1].fill_(True)
++
++
++def gate_sizes(c, explore, N, quant=64):
++    """(n_c, n_e) of one training read: n_c = q(c N), n_e = q(explore N) once c < 1, n_c + n_e <= N; q = round to a
++    multiple of quant (at least one quantum when the rate is > 0)."""
++    if c >= 1:
++        return N, 0
++    q = lambda f: min(N, max(quant, int(round(f * N / quant)) * quant)) if f > 0 else 0
++    n_c = max(1, min(N, q(c)))
++    n_e = min(q(explore), N - n_c)
++    return n_c, n_e
++
++
++def gate_c(frac, c0=1.0, c1=0.5, s0=0.2, s1=0.5):
++    """The open-rate schedule: c0 until s0 of the run, a cosine to c1 at s1, then c1."""
++    if frac <= s0:
++        return c0
++    if frac >= s1:
++        return c1
++    return c1 + (c0 - c1) * 0.5 * (1 + math.cos(math.pi * (frac - s0) / max(s1 - s0, 1e-12)))
++
++
++def gate_trace(sig, start, gamma, W):
++    """tr_t = max over 0 <= j < W with no document start in (t - j, t] of gamma^j sig_{t-j} (B, T): the windowed form
++    of tr_t = max(sig_t, gamma tr_{t-1}), reset at document starts (start (B, T) bool: t = 0 or idx[t-1] = EOT); equal
++    to the recursion except for terms below gamma^W sig. One unfold, no loop over T."""
++    B, T = sig.shape
++    pad = lambda x, v: torch.cat([x.new_full((B, W - 1), v), x], 1)
++    win = pad(sig, float("-inf")).unfold(1, W, 1)                        # (B, T, W): positions t - W + 1 .. t
++    cs = start.long().cumsum(1)
++    cw = pad(cs, -1).unfold(1, W, 1)                                     # cs at t - j (-1 before the row)
++    j = torch.arange(W - 1, -1, -1, device=sig.device)                   # window column -> lag j
++    ok = (cs[..., None] - cw == 0) | (j == 0)                            # no start in (t - j, t]
++    ok = ok & (cw >= 0)
++    w = gamma ** j.to(sig.dtype)
++    return torch.where(ok, win * w, torch.full_like(win, float("-inf"))).amax(-1)
++
++
+ # ---------------------------------------------------------------- probes, guard, repair (5, 6)
+ class MemoryProbes:
+     """Two disjoint fixed probe sets (A: repair, B: guard), each n_seq validation sequences x n_pos positions, drawn
+@@ -1397,6 +1584,12 @@
+         out[f"{prefix}stab_set"] = torch.stack([st[i] for i in main]).mean().item()
+         out[f"{prefix}stab_w_by_level"] = torch.stack([sw[i] for i in main]).mean((0, 1, 3)).tolist()
+         out[f"{prefix}stab_w_by_pass"] = by_pass
++        if any(reads[i][0].get("open") is not None for i in main):  # plan_v2/22: over the probes the gate opens
++            ow = [sw[i][reads[i][0]["open"]] for i in main if reads[i][0].get("open") is not None]
++            ow = torch.cat([w.flatten() for w in ow])
++            out[f"{prefix}stab_w_open"] = ow.mean().item() if ow.numel() else float("nan")
++            out[f"{prefix}probe_open_rate"] = torch.cat([reads[i][0]["open"].float() for i in main
++                                                         if reads[i][0].get("open") is not None]).mean().item()
+         if reads[0][0]["k"] < 0:
+             out[f"{prefix}stab_w_pass0"] = by_pass[0]
+         if reads[0][0].get("rows_c") is not None and reads[0][1].get("rows_c") is not None:  # the coarse pool
+--- plan_v2/baseline_mem_v4/train_lm.py	2026-10-24 03:23:38.021467500 +0300
++++ train_lm.py	2026-10-24 04:12:46.594804100 +0300
+@@ -23,7 +23,7 @@
+ 
+ from brain_opt import BrainOpt, carry_brain_state
+ from loop_brain import LoopBrain
+-from memory import LifeCycle, MemoryProbes
++from memory import GATE_FEATS, GATE_MODES, LifeCycle, MemoryProbes, gate_c
+ from neurogenesis import Neurogenesis, reset_opt_rows
+ from spiking_lm import (RoutedMLP, SpikingLM, carry_optimizer, n_params, redo_dead, remap_name, remap_snapshot,
+                         snapshot_optimizer)
+@@ -234,10 +234,15 @@
+     return make_opt(model, args.lr, args.wd)
+ 
+ 
++def brain_params(model):
++    """(name, parameter) of the brain: everything except the memory gate's router (plan_v2/22: its own AdamW and clip)."""
++    return [(n, p) for n, p in model.named_parameters() if not n.startswith("mem_gate.")]
++
++
+ def make_opt(model, lr, wd):
+     wd_ok = lambda n, p: p.dim() >= 2 and not n.startswith(("emb.", "mem.keys.")) and "router_conn" not in n
+-    decay = [p for n, p in model.named_parameters() if wd_ok(n, p)]
+-    other = [p for n, p in model.named_parameters() if not wd_ok(n, p)]
++    decay = [p for n, p in brain_params(model) if wd_ok(n, p)]
++    other = [p for n, p in brain_params(model) if not wd_ok(n, p)]
+     return torch.optim.AdamW([{"params": decay, "weight_decay": wd}, {"params": other, "weight_decay": 0.0}],
+                              lr=lr, betas=(0.9, 0.95), eps=1e-8)
+ 
+@@ -358,7 +363,8 @@
+     if "mem_reuse_overlap" in m:  # (a dict pass -> overlap: logged as its mean)
+         m = dict(m, mem_reuse_ovl_mean=sum(m["mem_reuse_overlap"].values()) / len(m["mem_reuse_overlap"]))
+     for key, name in (("mem_stab_w", "stab_w"), ("mem_stab_w_pass0", "pass0"), ("mem_stab_set", "set"),
+-                      ("mem_A_stab_w", "A"), ("mem_last_stab_w", "vs last"), ("mem_input_drift_by_level", "drift"),
++                      ("mem_A_stab_w", "A"), ("mem_last_stab_w", "vs last"), ("mem_last_stab_w_open", "vs last open"),
++                      ("mem_stab_w_open", "stab_w open"), ("mem_input_drift_by_level", "drift"),
+                       ("mem_offset_overlap", "offset ovl"), ("mem_reuse_ovl_mean", "reuse ovl"), ("mem_gap_mean", "gaps"),
+                       ("mem_margin_active", "margin act"),
+                       ("mem_collisions_by_level", "coll"), ("mem_subkeys_busy", "busy"), ("mem_subkeys_dead", "dead"),
+@@ -386,6 +392,152 @@
+     return s
+ 
+ 
++def _auc(score, label):
++    """Rank AUC of score for the boolean label (nan when one class is empty)."""
++    score, label = score.double().flatten(), label.flatten()
++    r = torch.empty_like(score)
++    r[score.argsort()] = torch.arange(len(score), dtype=score.dtype, device=score.device)
++    pos = label.sum().item()
++    neg = len(label) - pos
++    if pos == 0 or neg == 0:
++        return float("nan")
++    return ((r[label].sum().item() - pos * (pos - 1) / 2) / (pos * neg))
++
++
++def gate_train_stats(model):
++    """The memory gate's training diagnostics of the last training forward (plan_v2/22 section 7; tensors, read here, on
++    logging steps only): the router BCE and its calibration, per read: c, the open count, the fraction above theta_k,
++    theta_k, the score quantiles, the open-set overlap with the previous read, g_bar on the top-c vs explored positions,
++    and (gate_diag) the residual -<dL/dM, M> on top-c vs explored and its rank correlation with s."""
++    sts = getattr(model, "gate_stats", None) or []
++    out = {}
++    if getattr(model, "gate_loss", None) is not None:
++        out["gate_bce"] = model.gate_loss.item()
++    v = lambda t: t.item() if torch.is_tensor(t) else t
++    per = []
++    for st in sts:
++        d = {key: v(st[key]) for key in ("k", "c", "n_open", "n_c", "n_e", "above", "theta", "bce", "calib_pred",
++                                        "calib_gbar", "gbar_top", "gbar_explore", "overlap_prev") if key in st}
++        if not bool(st["theta_valid"]):
++            d["above"] = float("nan")
++        d["q"] = torch.quantile(st["s"].float(), torch.tensor([0.05, 0.25, 0.5, 0.75, 0.95], device=st["s"].device)).tolist()
++        if "resid" in st:
++            r, s_all, isA = st["resid"], st["s_all"], st.get("resid_isA")
++            if isA is not None:
++                d["resid_top"] = r[isA].mean().item()
++                d["resid_explore"] = r[~isA & (r != 0)].mean().item() if bool((~isA & (r != 0)).any()) else float("nan")
++            nz = r != 0  # (closed positions have no read: M = 0 there)
++            if int(nz.sum()) > 2:
++                rr, ss = r[nz].double(), s_all[nz].double()
++                rk = lambda t: t.argsort().argsort().double()
++                a, b = rk(rr), rk(ss)
++                a, b = a - a.mean(), b - b.mean()
++                d["resid_spearman_s"] = (a @ b / (a.norm() * b.norm()).clamp(min=1e-12)).item()
++        per.append(d)
++    if per:
++        out["gate_reads"] = per
++        out["gate_c"] = per[0]["c"]
++    return out
++
++
++@torch.no_grad()
++def gate_report(model, data, args, batches=2):
++    """The memory gate's eval report (plan_v2/22 section 7) on validation batches at K = --k-mean: the loss of every
++    eval gating mode (learned / random / inverted / oracle at the learned gate's per-read open count, forced open,
++    memory off); the measured benefit b_t = CE_t(off) - CE_t(open); the benefit capture sum_t open_t b_t /
++    sum_t max(b_t, 0) of learned / random / inverted / oracle (open_t = the share of reads that open t); the AUC of the
++    mean score for "b_t in the top 20%"; the top-20% share of the positive benefit (the Phase-0 statistic); the
++    knockout CE(off) - CE(learned) on the positions the learned gate opens (open_t >= 0.5) vs closes; the open rate
++    per pass."""
++    model.eval()
++    model.K = args.k_mean
++    cb = getattr(args, "mem_probe_batch", 0) or args.eval_batch
++    cb = cb if cb < args.eval_batch and args.eval_batch % cb == 0 else args.eval_batch
++    gen = np.random.RandomState(4243)
++    acc = {key: [] for key in ("b", "s", "ko")}
++    ce_m = {m: [] for m in GATE_MODES}
++    frac = {m: [] for m in ("learned", "random", "inverted", "oracle")}
++    by_pass = {}
++    old = (model.mem_gate_eval, model.gate_eval_rate, model.gate_oracle_b)
++
++    def run(mode, xc, yc, oracle=None):
++        model.mem_gate_eval, model.gate_eval_rate, model.gate_oracle_b = mode, None, oracle
++        with torch.autocast("cuda", dtype=torch.bfloat16, enabled=args.device == "cuda"):
++            logits = model(xc)
++        ce = F.cross_entropy(logits.float().flatten(0, 1), yc.flatten(), reduction="none")
++        n = ce.numel()
++        masks = [(r["k"], torch.ones(n, dtype=torch.bool, device=ce.device) if r["mask"] is None else r["mask"])
++                 for r in model.gate_open]
++        f = torch.stack([m.float() for _, m in masks]).mean(0) if masks else torch.zeros_like(ce)
++        s = torch.stack([r["s"] for r in model.gate_open]).mean(0) if model.gate_open else torch.zeros_like(ce)
++        return ce, f, s, masks
++
++    try:
++        for _ in range(batches):
++            x, y = data.batch(args.eval_batch, "val", gen)
++            for i in range(0, x.size(0), cb):
++                xc, yc = x[i:i + cb], y[i:i + cb]
++                ce_open = run("open", xc, yc)[0]
++                ce_off = run("off", xc, yc)[0]
++                b = ce_off - ce_open
++                ce_l, f_l, s_l, masks = run("learned", xc, yc)
++                for k, mk in masks:
++                    by_pass.setdefault(k, []).append(mk.float().mean().item())
++                ce_m["open"].append(ce_open)
++                ce_m["off"].append(ce_off)
++                ce_m["learned"].append(ce_l)
++                frac["learned"].append(f_l)
++                for mode in ("random", "inverted", "oracle"):
++                    ce, f, _, _ = run(mode, xc, yc, oracle=b if mode == "oracle" else None)
++                    ce_m[mode].append(ce)
++                    frac[mode].append(f)
++                acc["b"].append(b)
++                acc["s"].append(s_l)
++                acc["ko"].append(ce_off - ce_l)
++    finally:
++        model.mem_gate_eval, model.gate_eval_rate, model.gate_oracle_b = old
++        model.train()
++    b = torch.cat(acc["b"]).double()
++    pos = b.clamp(min=0).sum().item()
++    out = {f"gate_loss_{m}": torch.cat(v).mean().item() for m, v in ce_m.items()}
++    for m, v in frac.items():
++        f = torch.cat(v).double()
++        out[f"gate_capture_{m}"] = (f * b).sum().item() / max(pos, 1e-12)
++        out[f"gate_open_rate_{m}"] = f.mean().item()
++    n20 = max(1, int(round(0.2 * b.numel())))
++    top = b.topk(n20).indices
++    out["gate_top20_share"] = b[top].clamp(min=0).sum().item() / max(pos, 1e-12)
++    lab = torch.zeros_like(b, dtype=torch.bool)
++    lab[top] = True
++    out["gate_auc_top20"] = _auc(torch.cat(acc["s"]), lab)
++    ko, fl = torch.cat(acc["ko"]).double(), torch.cat(frac["learned"])
++    op = fl >= 0.5
++    out["gate_ko_open"] = ko[op].mean().item() if bool(op.any()) else float("nan")
++    out["gate_ko_closed"] = ko[~op].mean().item() if bool((~op).any()) else float("nan")
++    out["gate_open_by_pass"] = [sum(by_pass[k]) / len(by_pass[k]) for k in sorted(by_pass)]
++    return out
++
++
++def gate_line(m):
++    """The memory gate's part of the eval log line."""
++    s = ""
++    if "gate_c" in m:
++        rd = m.get("gate_reads", [])
++        ab = [r["above"] for r in rd if r.get("above") == r.get("above")]
++        s += f"  | gate c {m['gate_c']:.3f} bce {m.get('gate_bce', float('nan')):.4f}"
++        if rd:
++            s += f" open {sum(r['n_open'] for r in rd if 'n_open' in r) / max(1, sum('n_open' in r for r in rd)):.0f}"
++        if ab:
++            s += f" above-theta {sum(ab) / len(ab):.3f}"
++    if "gate_capture_learned" in m:
++        s += (f"  | gate eval: loss learned {m['gate_loss_learned']:.3f} open {m['gate_loss_open']:.3f} off "
++              f"{m['gate_loss_off']:.3f} random {m['gate_loss_random']:.3f}; capture learned {m['gate_capture_learned']:.2f}"
++              f" random {m['gate_capture_random']:.2f} oracle {m['gate_capture_oracle']:.2f}; top20 share "
++              f"{m['gate_top20_share']:.2f} AUC {m['gate_auc_top20']:.2f}; ko open {m['gate_ko_open']:.3f} closed "
++              f"{m['gate_ko_closed']:.3f}")
++    return s
++
++
+ @torch.no_grad()  # (without it eval kept a full training graph: K passes x eval batch)
+ def evaluate(model, data, args, track=False):
+     model.eval()
+@@ -611,6 +763,26 @@
+     ap.add_argument("--mem-nbr", type=int, default=0,
+                     help="neighbour writes: the pairs ranked --mem-topk + 1 .. N are written (not read) (0 = off)")
+     ap.add_argument("--mem-nbr-w", type=float, default=0.15, help="neighbour writes: their total weight alpha")
++    # the learned memory access gate (plan_v2/22_memory_gate_plan.md, revision 2): off by default (= as before)
++    ap.add_argument("--mem-gate", type=int, default=0,
++                    help="1 = the predictor gate: per read only the top-c positions by a router score (+ a uniform "
++                         "floor) read and write the memory; inference: score > an EMA threshold")
++    ap.add_argument("--mem-gate-c", default="1.0,0.5", help="gate: the open rate c at the start / final")
++    ap.add_argument("--mem-gate-sched", default="0.2,0.5", help="gate: the cosine from c start to c final starts / "
++                                                               "ends at these fractions of the run")
++    ap.add_argument("--mem-gate-explore", type=float, default=0.10, help="gate: the uniform exploration floor (c < 1)")
++    ap.add_argument("--mem-gate-w", type=float, default=0.1, help="gate: the router BCE weight")
++    ap.add_argument("--mem-gate-lr", type=float, default=1e-3, help="gate: the router's AdamW lr (own group, wd 0)")
++    ap.add_argument("--mem-gate-clip", type=float, default=1.0, help="gate: the router's own grad-norm clip")
++    ap.add_argument("--mem-gate-feat", default=",".join(GATE_FEATS), help="gate: the router's features")
++    ap.add_argument("--mem-gate-trace", type=int, default=8, help="gate: the surprise trace time constant (tokens)")
++    ap.add_argument("--mem-gate-thr-ema", type=float, default=0.02, help="gate: the threshold EMA rate rho_theta")
++    ap.add_argument("--mem-gate-eval", default="learned", choices=list(GATE_MODES), help="gate: the eval gating mode")
++    ap.add_argument("--mem-gate-quant", type=int, default=64, help="gate: the open-set sizes are multiples of this")
++    ap.add_argument("--mem-gate-report", type=int, default=1,
++                    help="gate: 1 = the eval-mode / benefit report at the report points (with the loop report)")
++    ap.add_argument("--mem-wgate", type=int, default=0, help="gate: the step-size write variant (not implemented in v1)")
++    ap.add_argument("--mem-wgate-kappa", type=float, default=0.5, help="gate: the write variant's kappa (unused in v1)")
+     ap.add_argument("--resume", default="", help="resume from this full checkpoint (runs/<name>/last.pt)")
+     ap.add_argument("--save-report-ckpts", type=int, default=0,
+                     help="1 = also save ckpt_<step>.pt at the 25 / 50 / 75 / 100%% report points")
+@@ -746,6 +918,11 @@
+                           mem_ema=args.mem_ema, mem_max_experts=final.get("experts", 0), mem_life=args.mem_life,
+                           mem_addr_learn=args.mem_addr_learn, mem_restart=args.mem_restart, mem_coarse=args.mem_coarse,
+                           mem_coarse_heads=args.mem_coarse_heads, mem_nbr=args.mem_nbr, mem_nbr_w=args.mem_nbr_w)
++            if args.mem_gate:  # (plan_v2/22: the model's keyword arguments exist only when the gate is on)
++                assert args.readout_frac == 1, "--mem-gate needs --readout-frac 1"
++                assert args.mem_shared > 0, "--mem-gate needs --mem-shared > 0"
++                mem_kw.update(mem_gate=1, mem_gate_feat=args.mem_gate_feat, mem_gate_trace=args.mem_gate_trace,
++                              mem_gate_thr_ema=args.mem_gate_thr_ema)
+         model = LoopBrain(tok.get_vocab_size(), args.d, args.d_state, start["heads"], args.head_dim,
+                           moe=dict(moe, n_exp=start["experts"]) if not args.sizes else moe, spike=args.spike,
+                           k_mean=args.k_mean, k_min=args.k_min, k_max=args.k_max, bptt=args.bptt,
+@@ -763,7 +940,20 @@
+                       concept=dict(path=str(Path(args.concept).resolve()), levels=args.concept_levels,
+                                    split=args.concept_split) if args.concept else None).to(args.device)
+     model.set_homeo(args.homeo, args.target, args.homeo_mode)
++    if args.mem_wgate:
++        raise SystemExit("--mem-wgate: the step-size write variant is not implemented in v1 (plan_v2/22 section 5: off)")
+     opt = build_opt(model, args)
++    gate = getattr(model, "mem_gate", None)   # the memory access gate (plan_v2/22): its router has its own AdamW
++    gate_opt = None
++    if gate is not None:
++        gate_opt = torch.optim.AdamW(gate.parameters(), lr=args.mem_gate_lr, betas=(0.9, 0.99), weight_decay=0.0)
++        if rs is not None and rs.get("gate") is not None:
++            gate_opt.load_state_dict(rs["gate"]["opt"])
++            gate.load_host_state(rs["gate"]["host"])
++        gc0, gc1 = (float(v) for v in args.mem_gate_c.split(","))
++        gs0, gs1 = (float(v) for v in args.mem_gate_sched.split(","))
++        model.mem_gate_explore, model.mem_gate_w = args.mem_gate_explore, args.mem_gate_w
++        model.mem_gate_eval, model.gate_quant = args.mem_gate_eval, args.mem_gate_quant
+     if rs is not None:  # the optimizer state (BrainOpt: per name + its step count; torch AdamW: its state_dict)
+         if args.opt == "brain":
+             opt.t = rs["opt"]["t"]
+@@ -799,6 +989,9 @@
+                                                                 bool(args.mem_balance_keep))
+         model.mem_readdr_every, model.mem_readdr_start, model.mem_margin_passes = (
+             args.mem_readdr_every, args.mem_readdr_start, args.mem_margin_passes)
++        if gate is not None and args.mem_readdr_every != 1:  # (plan_v2/22: the open sets differ between reads)
++            print("--mem-gate: address reuse (--mem-readdr-every) is off under the gate", flush=True)
++            model.mem_readdr_every = 1
+         mem.opt_reset = lambda name, sl: reset_mem_key_rows(opt, model, name, sl)  # (reads the current opt)
+         freeze_step = math.ceil(args.mem_freeze * steps)
+         if args.mem_probes:
+@@ -822,7 +1015,9 @@
+               + (f"; coarse pool S={mem.Sc} x {mem.Hc} heads" if mem.Sc else "")
+               + (f"; restart every {mem.restart} steps" if mem.restart else "")
+               + ("; fixed addressing" if not mem.addr_learn else "")
+-              + (f"; neighbour writes to rank {mem.nbr} (alpha {mem.nbr_w})" if mem.nbr else ""), flush=True)
++              + (f"; neighbour writes to rank {mem.nbr} (alpha {mem.nbr_w})" if mem.nbr else "")
++              + (f"; memory gate c {args.mem_gate_c} over {args.mem_gate_sched} of the run, floor {args.mem_gate_explore}, "
++                 f"features {','.join(gate.feats)} ({gate.dim}-d)" if gate is not None else ""), flush=True)
+ 
+     flops, last_grow, t_start, t_log, ema = 0.0, -10**9, time.time(), time.time(), None
+     report_steps = {round(steps * f / args.eval_every) * args.eval_every for f in (0.25, 0.5, 0.75)} | {steps}
+@@ -922,6 +1117,9 @@
+             if args.opt == "adamw":
+                 for g in opt.param_groups:
+                     g["lr"] = lr
++            if gate is not None:  # the gate's open rate of this step (plan_v2/22)
++                model.mem_gate_c = gate_c(frac, gc0, gc1, gs0, gs1)
++                model.gate_diag = (step + 1) % args.eval_every == 0 or step + 1 == steps   # (the residual: logged next)
+             lam = 1.0 if args.spike == "analog" else min(1.0, max(0.0, (frac - a0) / max(a1 - a0, 1e-9)))
+             noise = 0.0
+             if args.route_noise:
+@@ -949,6 +1147,7 @@
+             if (step % args.eval_every == 0 or step == steps) and not first:
+                 val, sp = evaluate(model, data, args, track=args.spike != "analog" and lam > 0)
+                 dt = time.time() - t_log
++                gts = {}
+                 rec = dict(step=step, tokens=step * tok_per_step, flops=flops, val=val, train=ema, lr=lr, lam=lam,
+                            params=n_params(model), tok_s=tok_since / dt if dt > 0 else 0,
+                            mem_gb=torch.cuda.max_memory_allocated() / 1e9 if args.device == "cuda" else 0,
+@@ -969,6 +1168,9 @@
+                     if getattr(model, "train_route", None) is not None:  # last training step (eval has no noise)
+                         rec["train_distinct_experts"] = model.train_route[0].item()
+                         rec["train_drop"] = model.train_route[1].item()
++                    if gate is not None:  # (plan_v2/22) the last training forward's gate diagnostics
++                        gts = gate_train_stats(model)
++                        rec.update(gts)
+                     gn = model.head_group_grad_norms()  # from the last training step's backward
+                     if gn is not None:
+                         rec["head_group_grad_norm"] = gn
+@@ -976,6 +1178,9 @@
+                         free_cache(args.device)  # (plan_v2/21: the report's long loops are the eval peak)
+                         rep = loop_report(model, data, args)
+                         free_cache(args.device)
++                        if gate is not None and args.mem_gate_report:
++                            rep.update(gate_report(model, data, args))
++                            free_cache(args.device)
+                         rec.update(rep)
+                         print("  loop report: loss by passes " + " ".join(f"K{k}:{v:.3f}" for k, v in rep["loss_at_K"].items())
+                               + "  | after each pass " + " ".join(f"{v:.2f}" for v in rep["tick_loss"])
+@@ -989,8 +1194,8 @@
+                                  f"{rep['think']['auc_output_change']:.2f}" if "think" in rep else "")
+                               + ("  | memory knocked out: " + " ".join(f"{k[12:]} {v:.3f}" for k, v in rep.items()
+                                                                        if k.startswith("loss_mem_ko_"))
+-                                 if any(k.startswith("loss_mem_ko_") for k in rep) else ""),
+-                              flush=True)
++                                 if any(k.startswith("loss_mem_ko_") for k in rep) else "")
++                              + gate_line(rep), flush=True)
+                 if neuro is not None:
+                     rec.update(births=neuro.births, renewals=neuro.renewals, mlp_widths=model.cfg["mlp"])
+                 rs = model.routing_stats()
+@@ -1048,7 +1253,8 @@
+                 print(f"step {step:6d}/{steps}  tok {rec['tokens']/1e6:7.1f}M  val {val:.4f}  "
+                       f"train {ema if ema is None else round(ema, 4)}  lr {lr:.2e}  lam {lam:.2f}  "
+                       f"{rec['tok_s']/1e3:.0f}k tok/s  mem {rec['mem_gb']:.1f}GB res {rec['mem_reserved_gb']:.1f}GB  "
+-                      f"{rec['elapsed']/60:.1f} min{spk}{spk_r}{mem_line}", flush=True)
++                      f"{rec['elapsed']/60:.1f} min{spk}{spk_r}{mem_line}" + (gate_line(gts) if gate is not None else ""),
++                      flush=True)
+                 if str(args.device).startswith("cuda") and step:  # VRAM spill guard (Windows spills a full GPU into slow shared memory)
+                     # (plan_v2/19) act on the FIRST eval with reserved > --spill-gb AND tok/s down by > --spill-drop
+                     slow = len(tok_hist) >= 6 and rec["tok_s"] < (1 - args.spill_drop) * float(np.median(tok_hist[-12:]))
+@@ -1076,6 +1282,7 @@
+                     opt=dict(t=opt.t, state=opt.state) if args.opt == "brain" else dict(state=opt.state_dict()),
+                     neuro=neuro.state_dict() if neuro is not None else None,
+                     mem=mem.host_state() if mem is not None else None,
++                    **(dict(gate=dict(opt=gate_opt.state_dict(), host=gate.host_state())) if gate is not None else {}),
+                     probes_rng=probes.rng.get_state() if probes is not None else None,
+                     trainer=dict(flops=flops, last_grow=last_grow, ema=ema, n_eval=n_eval, tok_since=tok_since,
+                                  tok_hist=list(tok_hist), spill_run=spill_run, spill_freed=spill_freed, settle=settle,
+@@ -1099,6 +1306,8 @@
+             if mem is not None:
+                 mem.write_on = step >= args.mem_write_start
+             opt.zero_grad(set_to_none=True)
++            if gate_opt is not None:
++                gate_opt.zero_grad(set_to_none=True)
+             micro = []
+             for _ in range(args.accum):
+                 x, y = data.batch(args.batch)  # two draws of 16 == one draw of 32 (same numpy stream)
+@@ -1124,7 +1333,12 @@
+                 del logits, total
+             if scoring:
+                 neuro.detach_and_score()
+-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
++            if gate_opt is None:
++                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
++            else:  # (plan_v2/22) the router: its own clip and AdamW, outside the brain's global clip
++                torch.nn.utils.clip_grad_norm_([p for _, p in brain_params(model)], 1.0)
++                torch.nn.utils.clip_grad_norm_(list(gate.parameters()), args.mem_gate_clip)
++                gate_opt.step()
+             opt.step() if args.opt == "adamw" else opt.step(lr / args.lr)
+             if args.arch == "loop":
+                 model.blocks[0].mlp.apply_balance()  # pending counts summed over all micro-batches
+--- plan_v2/baseline_mem_v4/test_gate.py	1970-01-01 02:00:00.000000000 +0200
++++ test_gate.py	1970-01-01 02:00:00.000000000 +0200
+@@ -0,0 +1,806 @@
++"""Tests of the learned memory access gate (plan_v2/22_memory_gate_plan.md revision 2, section 8). CPU only, tiny configs.
++
++    python -m pytest test_gate.py -q
++
++Flags off == the plan-21 code (plan_v2/baseline_mem_v4), bit for bit (test 1). Test 10 (the write variant) is not here:
++--mem-wgate is not implemented in v1 (off; the trainer refuses it).
++"""
++import copy
++import importlib
++import math
++import sys
++from pathlib import Path
++from types import SimpleNamespace
++
++import numpy as np
++import pytest
++import torch
++import torch.nn.functional as F
++
++from test_memory import _run_main, _tiny_data, mem_loop, tokens
++
++HERE = Path(__file__).resolve().parent
++BASE = HERE / "plan_v2" / "baseline_mem_v4"
++MODS = ("spiking_lm", "loop_brain", "brain_opt", "neurogenesis", "train_lm", "memory", "concepts")
++_BASELINE = None
++
++
++def baseline():
++    """The plan-21 code (plan_v2/baseline_mem_v4) as separate module objects (as test_lifecycle's baseline(): the current
++    modules are out of sys.modules while it imports, then put back; no bytecode written)."""
++    global _BASELINE
++    if _BASELINE is None:
++        saved = {n: sys.modules.pop(n) for n in MODS if n in sys.modules}
++        dont = sys.dont_write_bytecode
++        sys.dont_write_bytecode = True
++        sys.path.insert(0, str(BASE))
++        try:
++            _BASELINE = SimpleNamespace(**{n: importlib.import_module(n) for n in MODS[:6]})
++        finally:
++            sys.path.remove(str(BASE))
++            sys.dont_write_bytecode = dont
++            for n in MODS:
++                sys.modules.pop(n, None)
++            sys.modules.update(saved)
++        assert Path(_BASELINE.memory.__file__).parent == BASE
++    return _BASELINE
++
++
++def current():
++    import brain_opt
++    import loop_brain
++    import memory
++    import neurogenesis
++    import spiking_lm
++    import train_lm
++    return SimpleNamespace(spiking_lm=spiking_lm, loop_brain=loop_brain, brain_opt=brain_opt,
++                           neurogenesis=neurogenesis, train_lm=train_lm, memory=memory)
++
++
++MEM_ARGS = ("--concepts 2,4,8,16 --mem-shared 8 --mem-topm 4 --mem-topk 3 --mem-private 8 --mem-dv 16 "
++            "--mem-write-start 5 --mem-probes 2")
++LIFE_ARGS = (MEM_ARGS + " --mem-repair 0.25 --eval-every 10 --mem-life 1 --mem-addr-learn 0 --mem-restart 3 --mem-coarse 6 "
++             "--mem-nbr 8 --mem-switch-max 0.45 --mem-ramp 0.25 --neuro-t 0.05,0.3")
++GATE_ARGS = " --mem-read0 0 --mem-gate 1 --mem-gate-sched 0.25,0.75 --mem-gate-quant 64"
++
++
++def _same_recs(ra, rb):
++    import json
++    assert len(ra) == len(rb)
++    for a, b in zip(ra, rb):
++        a, b = dict(a), dict(b)
++        for k in ("tok_s", "elapsed"):  # wall-clock
++            a.pop(k), b.pop(k)
++        assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True), a["step"]
++
++
++def _same_state(sa, sb):
++    assert list(sa) == list(sb)
++    for k in sa:
++        a, b = sa[k], sb[k]
++        if torch.is_tensor(a):
++            assert torch.equal(a, b), k
++        else:
++            assert repr(a) == repr(b), k
++
++
++def gmodel(dtype=torch.float64, quant=8, **kw):
++    """A tiny gated memory LoopBrain (test_memory.mem_loop + --mem-gate, read0 off)."""
++    kw = dict(dict(mem_gate=1, mem_read0=0), **kw)
++    m = mem_loop(dtype, **kw)
++    if m.mem_gate is not None:
++        m.gate_quant = quant
++    return m
++
++
++def _live(m, seed=11, scale=0.3):
++    """Make every memory path matter (zero-init W_o, W_ms, W_p, write-backs otherwise)."""
++    g = torch.Generator().manual_seed(seed)
++    with torch.no_grad():
++        mem = m.mem
++        for t in [mem.w_o, mem.w_ms.weight] + ([mem.w_p.weight] if mem.R else []) + (
++                [mem.w_o_c] if mem.Sc else []):
++            t.copy_(torch.randn(t.shape, generator=g, dtype=t.dtype) * scale)
++        if m.hier.inj_b is not None:
++            m.hier.inj_b.copy_(torch.randn(m.hier.inj_b.shape, generator=g, dtype=m.hier.inj_b.dtype) * scale)
++
++
++def brain_step(m, opt, x, K=4, offset=0, lr=3e-3, gate_opt=None):
++    """test_memory.train_step with the trainer's gate handling: the global clip over the brain only, the router's own clip
++    and AdamW. Returns (total, the non-router gradients before the clip, G buffers)."""
++    m.train()
++    m.K, m.aux_k_fixed, m.group_offset = K, max(0, K - 2), offset
++    _, loss = m(x[:, :-1], x[:, 1:])
++    total = loss + m.aux_loss()
++    opt.zero_grad()
++    for p in m.mem_gate.parameters() if m.mem_gate is not None else []:
++        p.grad = None
++    total.backward()
++    grads = {n: p.grad.clone() for n, p in m.named_parameters() if p.grad is not None and not n.startswith("mem_gate.")}
++    Gs = [t.clone() for t in (m.mem.G, getattr(m.mem, "G_e", None), getattr(m.mem, "G_P", None)) if t is not None]
++    torch.nn.utils.clip_grad_norm_([p for n, p in m.named_parameters() if not n.startswith("mem_gate.")], 1.0)
++    if gate_opt is not None:
++        torch.nn.utils.clip_grad_norm_(list(m.mem_gate.parameters()), 1.0)
++        gate_opt.step()
++    opt.step()
++    m.blocks[0].mlp.apply_balance()
++    m.mem.after_step(lr)
++    return loss.detach(), total.detach(), grads, Gs
++
++
++# ---------------------------------------------------------------- test 1: flags off == plan 21 (baseline_mem_v4)
++def test_01a_flags_off_bit_identical_memory_step_with_growth_balancing_freeze():
++    from test_speed import _check, _drive
++    old = _drive(baseline(), new=True)
++    new = _drive(current(), new=True)
++    _check(old, new, exact=True)
++
++
++def test_01b_flags_off_bit_identical_40_steps_without_memory():
++    from test_memory import _drive
++    old, new = _drive(baseline()), _drive(current())
++    assert len(old["losses"]) == len(new["losses"]) == 80
++    for a, b in zip(old["losses"], new["losses"]):
++        assert torch.equal(a, b)
++    for a, b in zip(old["outs"], new["outs"]):
++        assert torch.equal(a, b)
++    assert old["cfg"] == new["cfg"]
++    _same_state(old["state"], new["state"])
++    assert torch.equal(old["rng"], new["rng"])
++
++
++def test_01c_flags_off_bit_identical_end_to_end_with_plan21_memory(tmp_path):
++    """train_lm.main with every plan-21 flag on (life cycle, restart, coarse, neighbours, probes, repair, growth) and the
++    gate flags at their defaults: the old file vs the new file, metrics and final.pt identical."""
++    data = _tiny_data(tmp_path / "data")
++    extra = (LIFE_ARGS + " --mem-readdr-every 2 --mem-readdr-start 1").split()
++    _, ra, ca = _run_main(baseline().train_lm, tmp_path / "runs_old", "old", data, extra)
++    _, rb, cb = _run_main(current().train_lm, tmp_path / "runs_new", "new", data, extra)
++    assert len(ra) == 5
++    _same_recs(ra, rb)
++    assert ca["cfg"] == cb["cfg"] and not any(k.startswith("mem_gate") for k in cb["cfg"])
++    _same_state(ca["state"], cb["state"])
++
++
++# ---------------------------------------------------------------- test 2: gate on, c = 1 == plan 21
++@pytest.mark.parametrize("ckpt", [True, False])
++def test_02_gate_on_c1_bit_identical_forward_gradients_and_G(ckpt):
++    """c = 1 (infancy): the forward, every non-router gradient, G / G_e / G_P and the trajectory over 4 optimizer steps
++    are bit-identical to the ungated model (incl. the read-out reorder); the router alone gets a gradient (from L_r)."""
++    from brain_opt import BrainOpt
++    kw = dict(mem_coarse=5, mem_nbr=8, mem_life=1, mem_addr_learn=0, mem_restart=3, mem_read0=0)
++    m0, m1 = mem_loop(**kw), gmodel(**kw)
++    sd0, sd1 = m0.state_dict(), m1.state_dict()
++    assert [k for k in sd1 if k not in sd0] and all(k.startswith("mem_gate.") for k in sd1 if k not in sd0)
++    _same_state(sd0, {k: sd1[k] for k in sd0})
++    assert {k for k in m1.cfg if k not in m0.cfg} == {"mem_gate"}
++    for m in (m0, m1):
++        _live(m)
++        m.mem_ckpt = m.mem.ckpt = ckpt
++    o0, o1 = BrainOpt(m0, lr=3e-3), BrainOpt(m1, lr=3e-3)
++    assert not any(n.startswith("mem_gate.") for n in o1.groups) and list(o0.groups) == list(o1.groups)
++    go = torch.optim.AdamW(m1.mem_gate.parameters(), lr=1e-3, betas=(0.9, 0.99), weight_decay=0.0)
++    x = tokens(2, 33)
++    for i, K in enumerate((4, 5, 3, 4)):
++        a = brain_step(m0, o0, x, K=K, offset=i % 2)
++        b = brain_step(m1, o1, x, K=K, offset=i % 2, gate_opt=go)
++        assert torch.equal(a[0], b[0]), i                                      # the LM loss
++        assert a[2].keys() == b[2].keys()
++        for n in a[2]:
++            assert torch.equal(a[2][n], b[2][n]), (i, n)
++        for ga, gb in zip(a[3], b[3]):
++            assert torch.equal(ga, gb), i
++        assert m1.gate_loss is not None and float(m1.gate_loss) > 0
++        assert all(st["c"] == 1.0 and "n_c" not in st for st in m1.gate_stats)
++    assert m1.mem_gate.weight.grad is not None and m1.mem_gate.weight.grad.abs().sum() > 0
++    assert not bool(m1.mem_gate.theta_ok.any())                                   # theta = -inf while c = 1
++    sd1 = m1.state_dict()
++    _same_state(m0.state_dict(), {k: sd1[k] for k in sd0})
++    m0.eval(), m1.eval()
++    with torch.no_grad():
++        assert torch.equal(m0(x), m1(x))                                          # eval: theta = -inf -> all open
++
++
++# ---------------------------------------------------------------- test 3: the BCE router learns a planted ranking
++def _plant(m, x, marker, beta=4.0):
++    """The content gates of every (level, head) (and the coarse pool) made a sharp function of the thought pbar: a
++    least-squares direction that separates the marker positions at the first read (so g_bar is high there)."""
++    mem = m.mem
++    cap = []
++    prep = mem.prep
++    mem.prep = lambda mus, pbar: (cap.append(pbar.detach().flatten(0, -2)), prep(mus, pbar))[1]
++    m.eval()
++    with torch.no_grad():
++        m.K = 2
++        m(x)
++    mem.prep = prep
++    pb = cap[0].double()
++    y = (x.flatten() == marker).double() * 2 - 1
++    A = torch.cat([pb, torch.ones(len(pb), 1, dtype=pb.dtype)], 1)
++    sol = torch.linalg.solve(A.t() @ A + 1e-3 * torch.eye(A.size(1), dtype=A.dtype), A.t() @ y)
++    with torch.no_grad():
++        for w, b in [(mem.gates.w, mem.gates.b)] + ([(mem.gates.w_c, mem.gates.b_c)] if mem.Sc else []):
++            w[..., :mem.ds] = (beta * sol[:-1]).to(w.dtype)
++            w[..., mem.ds:] = 0
++            b.fill_(float(beta * sol[-1]))
++
++
++def _batch(g, B, T, marker, p=0.15):
++    x = torch.randint(1, 50, (B, T), generator=g)
++    x[torch.rand(B, T, generator=g) < p] = marker
++    return x
++
++
++@pytest.mark.parametrize("c", [1.0, 0.5])
++def test_03_bce_router_learns_a_planted_ranking(c):
++    """Content gates present (planted on the thought of the first read, then trained normally with W_o; the core is
++    held fixed so the planted read's thought does not drift): after training, the router's AUC for the planted (marker)
++    positions at the first read is >= 0.9, g_bar there exceeds g_bar elsewhere and s tracks g_bar. With c = 0.5 and the
++    floor the router sees only the open sample (Proposition 2): the same."""
++    from brain_opt import BrainOpt
++    from train_lm import _auc
++    torch.manual_seed(0)
++    marker = 7
++    m = gmodel(torch.float32, quant=8, mem_private=0)
++    _live(m, scale=0.1)
++    g = torch.Generator().manual_seed(1)
++    _plant(m, _batch(g, 32, 32, marker), marker)
++    for n, p in m.named_parameters():  # (the thought at the planted read stays put: the core is fixed; the content
++        p.requires_grad_(n.startswith(("mem.gates.", "mem.w_o", "mem_gate.")))   # gates and W_o train)
++    opt = BrainOpt(m, lr=1e-3)
++    go = torch.optim.AdamW(m.mem_gate.parameters(), lr=1e-2, betas=(0.9, 0.99), weight_decay=0.0)
++    m.mem_gate_c = c
++    for i in range(120):
++        xb = _batch(g, 4, 33, marker)
++        brain_step(m, opt, xb, K=2, gate_opt=go)
++    if c < 1:
++        assert all(st["n_c"] + st["n_e"] == st["n_open"] < 128 for st in m.gate_stats)
++    xe = _batch(g, 8, 32, marker)
++    m.mem_gate.theta_ok.fill_(False)                                # (measured with every position open)
++    gb = []
++    rs = m.mem.read_shared
++    m.mem.read_shared = lambda *a, **k: (lambda out: (gb.append(out[1].detach()), out)[1])(rs(*a, **k))
++    m.eval()
++    m.K = 2
++    with torch.no_grad():
++        m(xe)
++    m.mem.read_shared = rs
++    lab = xe.flatten() == marker
++    s = m.gate_open[0]["s"]
++    auc = _auc(s, lab)
++    gbar = gb[0].float().mean((1, 2))
++    assert auc >= 0.9, auc
++    assert gbar[lab].mean() > gbar[~lab].mean() + 0.2
++    assert torch.corrcoef(torch.stack([s.double(), gbar.double()]))[0, 1] > 0.8     # it predicts g_bar itself
++
++
++# ---------------------------------------------------------------- test 4: exact capacity, static shapes, no host sync
++def test_04_capacity_exact_tie_key_static_and_no_host_sync():
++    from memory import MemGate, gate_sizes
++    for c, N, q in ((0.5, 8192, 64), (0.3, 1000, 64), (0.97, 512, 8), (0.5, 64, 8)):
++        n_c, n_e = gate_sizes(c, 0.1, N, q)
++        assert n_c % q == 0 and n_e % q == 0 and n_c + n_e <= N and n_c > 0
++    assert gate_sizes(1.0, 0.1, 777, 64) == (777, 0)
++    gate = MemGate(4, seed=3)
++    g = torch.Generator().manual_seed(0)
++    s = torch.randn(1024, generator=g)
++    O, isA, tau = gate.select_train(s, 512, 128, gen=torch.Generator().manual_seed(1))
++    A = isA.nonzero().squeeze(1)
++    assert A.numel() == 512 and O.numel() == 640 and torch.equal(O, O.sort().values) and O.unique().numel() == 640
++    assert isA[O].sum() == 512 and torch.equal(s[A].sort().values, s.topk(512).values.sort().values)
++    assert tau == s.topk(512).values[-1]
++    # a constant router: the tie-key order, not the first positions
++    O, isA, _ = gate.select_train(torch.zeros(1024), 256, 0, gen=torch.Generator().manual_seed(1))
++    key = gate.tie_key(1024, "cpu")
++    assert torch.equal(isA.nonzero().squeeze(1), key.topk(256).indices.sort().values)
++    assert not torch.equal(isA.nonzero().squeeze(1), torch.arange(256))
++    # in a training forward: |O| identical across reads and batches; the gate's training path never syncs the host
++    m = gmodel(quant=8)
++    m.mem_gate_c = 0.5
++    bad = []
++
++    def boom(name):
++        def f(*a, **k):
++            if guard[0]:
++                bad.append(name)
++            return orig[name](*a, **k)
++        return f
++    names = ("item", "tolist", "__bool__", "__int__", "__float__", "__index__", "nonzero")
++    orig = {n: getattr(torch.Tensor, n) for n in names}
++    guard = [False]
++
++    def guarded(fn):
++        def f(*a, **k):
++            guard[0] = True
++            try:
++                return fn(*a, **k)
++            finally:
++                guard[0] = False
++        return f
++    for meth in ("_gate_open", "_gate_after", "_gate_surprise"):
++        setattr(m, meth, guarded(getattr(m, meth)))
++    try:
++        for n in names:
++            setattr(torch.Tensor, n, boom(n))
++        opens = []
++        for seed in (3, 4):
++            x = tokens(2, 33, seed=seed)
++            m.train()
++            m.K, m.aux_k_fixed, m.group_offset = 4, 2, 0
++            _, loss = m(x[:, :-1], x[:, 1:])
++            (loss + m.aux_loss()).backward()
++            opens += [st["n_open"] for st in m.gate_stats]
++    finally:
++        for n in names:
++            setattr(torch.Tensor, n, orig[n])
++    assert not bad, bad
++    assert len(opens) == 6 and len(set(opens)) == 1 and opens[0] == sum(gate_sizes(0.5, 0.1, 64, 8))
++
++
++# ---------------------------------------------------------------- test 5: the exploration floor
++def test_05_floor_is_uniform_deterministic_and_drawn_once():
++    from memory import MemGate
++    gate = MemGate(4, seed=0)
++    N, n_c, n_e, R = 512, 256, 64, 2000
++    s = torch.randn(N, generator=torch.Generator().manual_seed(2))
++    gen = torch.Generator().manual_seed(5)
++    cnt = torch.zeros(N)
++    for _ in range(R):
++        O, isA, _ = gate.select_train(s, n_c, n_e, gen=gen)
++        cnt[O] += 1
++    top = s.topk(n_c).indices
++    assert (cnt[top] == R).all()
++    rest = torch.ones(N, dtype=torch.bool)
++    rest[top] = False
++    eps = n_e / (N - n_c)
++    se = math.sqrt(eps * (1 - eps) / R)
++    f = cnt[rest] / R
++    assert ((f - eps).abs() <= 4 * se).all(), (f.min(), f.max(), eps)
++    a = gate.select_train(s, n_c, n_e, gen=torch.Generator().manual_seed(9))[0]
++    b = gate.select_train(s, n_c, n_e, gen=torch.Generator().manual_seed(9))[0]
++    assert torch.equal(a, b)
++
++
++# ---------------------------------------------------------------- test 6: the EMA updates only on the first run
++def test_06_theta_stats_and_generator_change_once_per_training_read_only():
++    from memory import MemoryProbes
++    m = gmodel(quant=8)
++    _live(m)
++    gate = m.mem_gate
++    m.mem_gate_c = 0.5
++    calls = {"theta": 0, "stats": 0}
++    ut, su = gate.update_theta, gate.stats_update
++    gate.update_theta = lambda *a: (calls.__setitem__("theta", calls["theta"] + 1), ut(*a))[1]
++    gate.stats_update = lambda *a: (calls.__setitem__("stats", calls["stats"] + 1), su(*a))[1]
++    x = tokens(2, 33)
++    snap = lambda: ([t.clone() for t in (gate.theta, gate.theta_ok, gate.fm, gate.fv, gate.fn)],
++                    None if gate._gen is None else gate._gen.get_state().clone())
++    m.train()
++    m.K, m.aux_k_fixed, m.group_offset = 4, 2, 0                 # reads after passes 0 (no_grad), 1, 2 (checkpointed)
++    _, loss = m(x[:, :-1], x[:, 1:])
++    assert calls == {"theta": 3, "stats": 3}
++    N = 64
++    ref = torch.Generator().manual_seed((gate.seed + 3141) % (2 ** 63))
++    for _ in range(3):
++        torch.rand(N, generator=ref)
++    assert torch.equal(gate._gen.get_state(), ref.get_state())   # one exploration draw per read
++    assert bool(gate.theta_ok[:3].all()) and not bool(gate.theta_ok[3:].any()) and int(gate.fn) == 3
++    s0 = snap()
++    (loss + m.aux_loss()).backward()                             # the checkpoint recompute: no update
++    assert calls == {"theta": 3, "stats": 3}
++
++    def same(a, b):
++        assert all(torch.equal(p, q) for p, q in zip(a[0], b[0])) and torch.equal(a[1], b[1])
++    same(s0, snap())
++    m.eval()
++    with torch.no_grad():
++        m(x)                                                     # eval
++        m.mem.ko_shared = True
++        m(x)                                                     # a knockout
++        m.mem.ko_shared = False
++    m.halt_eval(x[:, :-1], x[:, 1:], K_max=4)
++    val = np.random.RandomState(0).randint(1, 50, 600).astype(np.uint16)
++    MemoryProbes(val, 16, n_seq=2, n_pos=4, K=4).measure(m)      # probes
++    same(s0, snap())
++    assert calls == {"theta": 3, "stats": 3}
++
++
++# ---------------------------------------------------------------- test 7: theta consistency and causality
++@pytest.mark.parametrize("ar", [0.0, 0.95])
++def test_07_threshold_tracks_the_training_cut_off(ar):
++    """i.i.d. and AR(1)-correlated scores: theta (the EMA of the top-k cut-off) gives an inference open rate within the
++    order-statistic bound of c, and the threshold decision agrees with the top-k decision up to that bound."""
++    from memory import MemGate
++    gate = MemGate(4, thr_ema=0.02, seed=0)
++    N, c = 8192, 0.5
++    g = torch.Generator().manual_seed(0)
++
++    rng = np.random.RandomState(0)
++
++    def scores():
++        e = rng.standard_normal(N)
++        if ar:
++            z, a, b = np.empty(N), ar, math.sqrt(1 - ar * ar)
++            z[0] = e[0]
++            for t in range(1, N):
++                z[t] = a * z[t - 1] + b * e[t]
++            e = z
++        return torch.from_numpy(e).float()
++    batches = [scores() for _ in range(40)]
++    for i in range(400):
++        _, _, tau = gate.select_train(batches[i % 40] + 0.0 * i, int(c * N), 0)
++        gate.update_theta(0, tau)
++    n_eff = N * (1 - ar) / (1 + ar)
++    sd_b = math.sqrt(c * (1 - c) / n_eff)                           # one batch's cut-off, in rate units
++    sd_t = math.sqrt(0.02 / (2 - 0.02)) * sd_b                      # the EMA's
++    thr = gate.thr(0)
++    fresh = [scores() for _ in range(10)]
++    rate = torch.stack([(s > thr).double().mean() for s in fresh]).mean().item()
++    assert abs(rate - c) <= 4 * math.sqrt(sd_t ** 2 + sd_b ** 2 / 10) + 1e-3, (rate, sd_t, sd_b)
++    agree = []
++    for s in fresh:
++        _, isA, _ = gate.select_train(s, int(c * N), 0)
++        agree.append(((s > thr) == isA).double().mean().item())
++    assert min(agree) >= 1 - 4 * math.sqrt(sd_t ** 2 + sd_b ** 2) - 1e-3, agree
++
++
++def test_07b_threshold_mode_is_causal():
++    m = gmodel()
++    _live(m)
++    m.eval()
++    m.K = 5
++    x = tokens(2, 30)
++    with torch.no_grad():
++        m(x)
++    gate = m.mem_gate
++    with torch.no_grad():                                           # a threshold per read at its median score
++        for r in m.gate_open:
++            gate.theta[r["k"]] = r["s"].median()
++        gate.theta_ok.fill_(True)
++    x2 = x.clone()
++    t = 17
++    x2[:, t + 1:] = torch.randint(1, 50, x2[:, t + 1:].shape, generator=torch.Generator().manual_seed(4))
++    outs, masks = [], []
++    for xx in (x, x2):
++        with torch.no_grad():
++            outs.append(m(xx))
++        masks.append([r["mask"].view(2, 30) for r in m.gate_open])
++    assert all(0 < mk.float().mean() < 1 for mk in masks[0])        # (the gate is really closing positions)
++    assert torch.allclose(outs[0][:, :t + 1], outs[1][:, :t + 1], atol=1e-9)
++    assert not torch.allclose(outs[0][:, t + 1:], outs[1][:, t + 1:])
++    for a, b in zip(*masks):
++        assert torch.equal(a[:, :t + 1], b[:, :t + 1])
++
++
++# ---------------------------------------------------------------- test 8: checkpointing with a variable open count
++def test_08_checkpointed_gated_block_equals_the_plain_one():
++    m1 = gmodel(mem_coarse=5, mem_nbr=8)
++    _live(m1)
++    m1.mem_gate_c = 0.5
++    m2 = copy.deepcopy(m1)
++    m2.mem_ckpt = m2.mem.ckpt = False
++    from brain_opt import BrainOpt
++    o1, o2 = BrainOpt(m1, lr=3e-3), BrainOpt(m2, lr=3e-3)
++    x = tokens(2, 33)
++    for c in (0.5, 0.3, 0.7):                                       # a different n_open on every step
++        m1.mem_gate_c = m2.mem_gate_c = c
++        a = brain_step(m1, o1, x, K=5)
++        b = brain_step(m2, o2, x, K=5)
++        assert torch.equal(a[0], b[0]) and torch.allclose(a[1], b[1], atol=1e-12, rtol=0)
++        for n in a[2]:
++            assert torch.allclose(a[2][n], b[2][n], atol=1e-12, rtol=1e-9), n
++        for ga, gb in zip(a[3], b[3]):
++            assert torch.equal(ga.ne(0), gb.ne(0)) and torch.allclose(ga, gb, atol=1e-12, rtol=1e-9)
++        assert [st["n_open"] for st in m1.gate_stats] == [st["n_open"] for st in m2.gate_stats]
++        assert torch.allclose(m1.mem_gate.weight.grad, m2.mem_gate.weight.grad, atol=1e-12)
++    assert len({st["n_open"] for st in m1.gate_stats}) == 1
++    for (n, p), q in zip(m1.state_dict().items(), m2.state_dict().values()):
++        if torch.is_tensor(p):
++            assert torch.allclose(p.double(), q.double(), atol=1e-9) if p.is_floating_point() else torch.equal(p, q), n
++
++
++# ---------------------------------------------------------------- test 9: the features
++def test_09_features_surprise_chunked_readout_and_trace():
++    from memory import gate_trace
++    m = gmodel()
++    _live(m)
++    x = tokens(2, 33)
++    x[0, 10] = 0                                                    # an EOT inside a row
++    # training: sigma comes from the pass-0 read-out's CE (the very tensor), shifted by one
++    seen, pairs = [], []
++    gs, rp = m._gate_surprise, m._readout_pair
++    m._gate_surprise = lambda ce0, idx, ctx: (seen.append((ce0, ctx)), gs(ce0, idx, ctx))[1]
++    m._readout_pair = lambda xx, tgt: (lambda o: (pairs.append(o), o)[1])(rp(xx, tgt))
++    m.train()
++    m.K, m.aux_k_fixed, m.group_offset = 4, 2, 0
++    with torch.no_grad():
++        m.mem_gate.fm.fill_(0.75)                                    # (the EMA mean of sigma at this forward)
++    m(x[:, :-1], x[:, 1:])
++    ce0, ctx = seen[0]
++    assert ce0 is pairs[0][0] and len(seen) == 1
++    sig, flag = ctx["surp"], ctx["flag"]
++    assert flag[:, 0].all() and flag[0, 11] and flag.sum() == 3
++    mean = 0.75
++    assert torch.equal(sig[~flag], torch.cat([ce0.new_zeros(2, 1), ce0[:, :-1]], 1).detach().to(sig.dtype)[~flag])
++    assert (sig[flag] == mean).all()
++    # eval: the chunked read-out == the unchunked one; ce[t] = -log p(idx[t + 1])
++    xx = torch.randn(2, 32, 32, dtype=torch.float64)
++    idx = x[:, :-1]
++    m.gate_chunk = 5
++    ent, ce = m._gate_readout(xx, idx, True)
++    lp = m.readout_lp(xx)
++    ent_ref = -(lp.exp() * lp).sum(-1) / math.log(lp.size(-1))
++    ce_ref = -lp[:, :-1].gather(-1, idx[:, 1:, None]).squeeze(-1)
++    assert torch.allclose(ent, ent_ref, atol=1e-12) and torch.allclose(ce[:, :-1], ce_ref, atol=1e-12)
++    # the windowed trace == the recursion up to gamma^W; resets at document starts
++    g = torch.Generator().manual_seed(0)
++    s = torch.rand(3, 200, generator=g, dtype=torch.float64) * 5
++    start = torch.rand(3, 200, generator=g) < 0.03
++    start[:, 0] = True
++    gamma, W = math.exp(-1 / 8), 24
++    tr = gate_trace(s, start, gamma, W)
++    rec = torch.empty_like(s)
++    for t in range(200):
++        rec[:, t] = torch.where(start[:, t], s[:, t], torch.maximum(s[:, t], gamma * rec[:, t - 1] if t else s[:, t]))
++    assert (tr <= rec + 1e-12).all() and ((rec - tr) <= gamma ** W * s.max() + 1e-12).all()
++    assert torch.equal(tr[start], s[start])                         # a document start: the trace starts anew
++    # the router's input: 93 dims with the default features (L = 4)
++    assert m.mem_gate.dim == 64 + 4 + 4 + 1 + 2 + 1 + 1 + 16 == 93
++
++
++# ---------------------------------------------------------------- test 11: the private memory under the mask
++def test_11_private_closed_tokens_have_no_output_no_writes_no_counts():
++    from memory import Memory
++    torch.manual_seed(0)
++    mk = lambda: Memory(d=8, ds=64, L=2, H=1, S=8, m=4, km=3, dv=4, R=8, n_exp=4, n_live=4).double()
++    mem = mk()
++    mem2 = copy.deepcopy(mem)
++    N, k, E = 12, 2, 4
++    g = torch.Generator().manual_seed(3)
++    idx = torch.stack([torch.randperm(E, generator=g)[:k] for _ in range(N)])
++    gate = torch.rand(N, k, generator=g, dtype=torch.float64)
++
++    def layout(tok_ok):
++        keep = tok_ok[:, None].expand(N, k).flatten()
++        flat = idx.flatten()
++        order = flat.argsort(stable=True)
++        order = order[keep[order]]
++        e_s, tok = flat[order], order // k
++        counts = torch.bincount(e_s, minlength=E)
++        pos = torch.arange(len(order)) - (counts.cumsum(0) - counts)[e_s]
++        return e_s, pos, tok, gate.flatten()[order], order, int(counts.max())
++    q1 = F.normalize(torch.randn(N, 64, generator=g, dtype=torch.float64), dim=-1).requires_grad_(True)
++    qb1 = F.normalize(torch.randn(N, 64, generator=g, dtype=torch.float64), dim=-1)
++    om = torch.rand(N, generator=g) < 0.5
++    c = torch.randn(N, 8, generator=g, dtype=torch.float64)
++    outs = []
++    for mm, tok_ok, kw in ((mem, torch.ones(N, dtype=torch.bool), dict(omask=om)), (mem2, om, {})):
++        mm.write_on = True
++        mm._collect = True
++        with torch.no_grad():
++            mm.w_p.weight.normal_(0, 0.5, generator=torch.Generator().manual_seed(1))
++        e_k, p_k, t_k, g_k, fpos, C = layout(tok_ok)
++        out = mm.private(q1, qb1, e_k, p_k, t_k, g_k, fpos, N, k, E, C, **kw)
++        (out * c).sum().backward()
++        outs.append(out.detach())
++    assert (outs[0][~om] == 0).all() and (outs[0][om] != 0).any()
++    assert torch.allclose(outs[0][om], outs[1][om], atol=1e-12)
++    for n in ("G_e", "G_P"):
++        a, b = getattr(mem, n), getattr(mem2, n)
++        bits = lambda t: t.view(torch.int64).ne(0).any(1)              # (write_counts' rule: any bit set)
++        assert torch.equal(bits(a), bits(b)), n                         # the same rows touched: the open tokens' only
++        assert torch.allclose(a, b, atol=1e-12), n
++    assert torch.equal(mem.pend_e, mem2.pend_e) and mem.pend_e.sum() == om.sum() * k * 4
++    assert mem.gates.b_e.grad is not None and torch.allclose(mem.gates.b_e.grad, mem2.gates.b_e.grad, atol=1e-12)
++
++
++# ---------------------------------------------------------------- test 12: the plan-21 couplings
++def test_12_couplings_norm_stats_usage_probes_freeze_readdr():
++    from memory import MemoryProbes
++    m1 = gmodel(quant=8)
++    m2 = copy.deepcopy(m1)
++    m1.mem_gate_c, m2.mem_gate_c = 0.5, 1.0
++    x = tokens(2, 33)
++    pend = []
++    for m in (m1, m2):                                              # (zero-init W_o: the thoughts do not depend on c)
++        m.train()
++        m.K, m.aux_k_fixed, m.group_offset = 4, 2, 0
++        m.mem.begin_forward(True)
++        m(x[:, :-1], x[:, 1:])
++        pend.append(m.mem.pend.clone())
++    mem1, mem2 = m1.mem, m2.mem
++    for n in ("ns_sum", "ns_sq", "ns_cnt"):                         # the norm statistics over ALL positions
++        assert torch.equal(getattr(mem1, n), getattr(mem2, n)), n
++    # usage (sub-key restarts, the reservoir) from the open positions only: the reads inside the gradient window
++    L, H, mm = mem1.L, mem1.H, mem1.m
++    n_open = [st["n_open"] for st in m1.gate_stats]
++    assert n_open[0] < 64
++    assert pend[0].sum() == sum(n_open[1:]) * L * H * 2 * mm and pend[1].sum() == 2 * 64 * L * H * 2 * mm
++    # probes: every probe position recorded (ungated), plus the gate's decision; the stability over the open ones
++    _live(m1)
++    m1.eval()
++    with torch.no_grad():
++        m1.K = 4
++        m1(x[:, :-1])
++        for r in m1.gate_open:
++            m1.mem_gate.theta[r["k"]] = r["s"].median()
++        m1.mem_gate.theta_ok.fill_(True)
++    val = np.random.RandomState(0).randint(1, 50, 600).astype(np.uint16)
++    pr = MemoryProbes(val, 16, n_seq=2, n_pos=4, K=4)
++    rec = pr.run(m1, "B")
++    assert all(r["rows"].size(0) == 8 and r["open"].shape == (8,) for r in rec["reads"])
++    pr.measure(m1)
++    met, _ = pr.measure(m1)
++    assert "mem_last_stab_w_open" in met and 0 < met["mem_last_probe_open_rate"] < 1
++    # the router is never frozen: trainable after the memory's freeze
++    mem1.freeze()
++    m1.train()
++    m1.mem_gate.weight.grad = None
++    _, loss = m1(x[:, :-1], x[:, 1:])
++    (loss + m1.aux_loss()).backward()
++    assert m1.mem_gate.weight.requires_grad and m1.mem_gate.weight.grad.abs().sum() > 0
++    # address reuse is off under the gate: every read addresses anew
++    m3 = gmodel(quant=8)
++    m3.mem_readdr_every, m3.mem_readdr_start = 2, 0
++    n_sel = []
++    sel = m3.mem.select
++    m3.mem.select = lambda *a, **k: (n_sel.append(1), sel(*a, **k))[1]
++    m3.eval()
++    m3.K = 6
++    with torch.no_grad():
++        m3(x)
++    assert len(n_sel) == 5
++
++
++# ---------------------------------------------------------------- test 13: resume
++class _Stop(Exception):
++    pass
++
++
++def test_13_resume_is_bit_identical_inside_the_cosine(tmp_path, monkeypatch):
++    """40 straight steps == 20 + save + resume + 20 (train_lm.main, CPU) with the gate on: the cut at c ~ 0.75 inside the
++    cosine (10 .. 30), theta updates on both sides, restart events every 3 steps, probe evals on both sides, the life
++    cycle's switch; the router's AdamW state, theta, the feature statistics and the device generator restored."""
++    tl = current().train_lm
++    data = _tiny_data(tmp_path / "data")
++    extra = (LIFE_ARGS + GATE_ARGS + " --ckpt-every 20").split()
++    run_a, ra, ca = _run_main(tl, tmp_path / "runs_a", "a", data, extra)
++    save = tl.save_checkpoint
++
++    def crash(path, obj):
++        save(path, obj)
++        raise _Stop
++    monkeypatch.setattr(tl, "save_checkpoint", crash)
++    with pytest.raises(_Stop):
++        _run_main(tl, tmp_path / "runs_b", "b", data, extra)
++    monkeypatch.setattr(tl, "save_checkpoint", save)
++    last = tmp_path / "runs_b" / "b" / "last.pt"
++    ck = torch.load(last, weights_only=False)
++    assert ck["gate"]["opt"]["state"] and ck["gate"]["host"]["gen"] is not None
++    run_b, rb, cb = _run_main(tl, tmp_path / "runs_b", "b", data, extra + ["--resume", str(last)])
++    assert "RESUMED at step 20" in (run_b / "train.log").read_text()
++    assert ra[1]["gate_c"] == 1.0 and 0.5 < ra[2]["gate_c"] < 1 and ra[2]["gate_reads"][0]["n_open"] < 1280
++    assert all(r["gate_reads"][0]["above"] == r["gate_reads"][0]["above"] for r in ra[2:])   # (theta valid: c < 1)
++    assert "mem_restart_last" in ra[2] and "mem_last_stab_w" in ra[3]
++    _same_recs(ra, rb)
++    assert ca["cfg"] == cb["cfg"] and ca["cfg"]["mem_gate"] == 1
++    _same_state(ca["state"], cb["state"])
++    assert bool(ca["state"]["mem_gate.theta_ok"].any())
++
++
++# ---------------------------------------------------------------- test 14: the eval modes and the report
++def test_14_eval_modes_rates_capture_and_report():
++    import train_lm
++    m = gmodel()
++    _live(m)
++    x = tokens(4, 33)
++    m.eval()
++    m.K = 4
++    with torch.no_grad():
++        m(x[:, :-1])
++        for r in m.gate_open:
++            m.mem_gate.theta[r["k"]] = r["s"].quantile(0.4)
++        m.mem_gate.theta_ok.fill_(True)
++    rates = {}
++    for mode in ("learned", "random", "inverted", "open", "off"):
++        m.mem_gate_eval = mode
++        with torch.no_grad():
++            out = m(x[:, :-1])
++        assert torch.isfinite(out).all()
++        rates[mode] = [1.0 if r["mask"] is None else r["mask"].float().mean().item() for r in m.gate_open]
++    assert rates["open"] == [] and rates["off"] == []
++    assert rates["learned"][0] == rates["inverted"][0] and all(0.3 < v < 0.9 for v in rates["learned"])
++    assert all(abs(a - b) < 0.25 for a, b in zip(rates["learned"], rates["random"]))
++    m.mem_gate_eval = "oracle"
++    m.gate_oracle_b = torch.randn(4, 32)
++    with torch.no_grad():
++        m(x[:, :-1])
++    assert [r["mask"].float().mean().item() for r in m.gate_open][0] == rates["learned"][0]
++    m.mem_gate_eval, m.gate_oracle_b = "learned", None
++
++    class _Data:
++        def batch(self, B, split, gen):
++            t = torch.from_numpy(gen.randint(1, 50, (B, 33))).long()
++            return t[:, :-1], t[:, 1:]
++    args = SimpleNamespace(k_mean=4, eval_batch=4, mem_probe_batch=2, device="cpu")
++    rep = train_lm.gate_report(m, _Data(), args, batches=1)
++    for mode in ("learned", "random", "inverted", "oracle", "open", "off"):
++        assert math.isfinite(rep[f"gate_loss_{mode}"])
++    for mode in ("learned", "random", "inverted", "oracle"):
++        assert math.isfinite(rep[f"gate_capture_{mode}"]) and 0 < rep[f"gate_open_rate_{mode}"] < 1
++    assert abs(rep["gate_open_rate_inverted"] - rep["gate_open_rate_learned"]) < 0.25
++    assert 0 <= rep["gate_top20_share"] <= 1 and len(rep["gate_open_by_pass"]) == 3
++    assert math.isfinite(rep["gate_ko_open"]) and math.isfinite(rep["gate_ko_closed"])
++    assert m.mem_gate_eval == "learned" and m.training
++    assert "gate c 0.500" in train_lm.gate_line(dict(gate_c=0.5, gate_reads=[]))
++    # the halting eval logs the open rate by exit pass
++    he = m.halt_eval(x[:, :-1], x[:, 1:], K_max=4)
++    assert len(he["gate_open_by_exit"]) == 4
++
++
++def test_15_trainer_router_outside_brainopt_and_global_clip(tmp_path):
++    """The router is not in BrainOpt / make_opt; its parameters are excluded from the global clip; cfg round trip with
++    theta; a short end-to-end gated run logs the gate's training diagnostics."""
++    import train_lm
++    m = gmodel()
++    o = train_lm.make_opt(m, 1e-3, 0.1)
++    ids = {id(p) for g in o.param_groups for p in g["params"]}
++    assert all(id(p) not in ids for p in m.mem_gate.parameters())
++    assert len(ids) == len(list(m.parameters())) - 2
++    with torch.no_grad():
++        m.mem_gate.theta.fill_(0.3)
++        m.mem_gate.theta_ok.fill_(True)
++    from loop_brain import LoopBrain
++    m2 = LoopBrain(**copy.deepcopy(m.cfg)).double()
++    m2.load_state_dict(m.state_dict(), strict=True)
++    assert torch.equal(m2.mem_gate.theta, m.mem_gate.theta) and m2.mem_gate.feats == m.mem_gate.feats
++    data = _tiny_data(tmp_path / "data")
++    extra = (MEM_ARGS + GATE_ARGS + " --mem-gate-sched 0.1,0.3 --eval-every 20").split()
++    run, recs, ck = _run_main(train_lm, tmp_path / "runs", "g", data, extra)
++    last = recs[-1]
++    assert last["gate_c"] == 0.5 and last["gate_reads"][0]["n_c"] == 640 and "gate_capture_learned" in last
++    assert "gate c 0.500" in (run / "train.log").read_text()
++
++
++def test_14b_eval_world_gate_modes_and_type_rates():
++    """eval_world.py: the gate's eval modes join the knockout list (model attributes), and the open rate by position
++    type is the mean over reads of each typed position."""
++    import eval_world
++    m = gmodel()
++    _live(m)
++    names = [n for n, _, _ in eval_world.knockouts(m)]
++    assert {"gate_open", "gate_off", "gate_random", "gate_inverted"} <= set(names)
++    assert not any(n.startswith("gate_") for n, _, _ in eval_world.knockouts(m, gate_modes=False))
++    with eval_world.KO(m, "model.mem_gate_eval", "off"):
++        assert m.mem_gate_eval == "off"
++    assert m.mem_gate_eval == "learned"
++    m.eval()
++    m.K = 4
++    with torch.no_grad():
++        m(tokens(2, 20)[:, :-1])
++        for r in m.gate_open:
++            m.mem_gate.theta[r["k"]] = r["s"].median()
++        m.mem_gate.theta_ok.fill_(True)
++    a = SimpleNamespace(batch=4, device="cpu")
++    seqs = [tokens(1, n, seed=n)[0].tolist() for n in (12, 15, 9)]
++    typed = [(sq, {len(sq) - 3: "pre_attribute", 1: "other"}) for sq in seqs]
++    out = eval_world.gate_type_rates(m, typed, a, eot=0)
++    assert set(out) == {"pre_attribute", "other"} and all(v["n"] == 3 and 0 <= v["rate"] <= 1 for v in out.values())
++    assert len(out["other"]["by_pass"]) == 3
++
++
++def test_14c_eval_read_with_every_position_closed():
++    """Eval: a read whose threshold closes every position gives no memory output at all (no shared, no private)."""
++    m = gmodel()
++    _live(m)
++    m.eval()
++    m.K = 4
++    x = tokens(2, 20)[:, :-1]
++    with torch.no_grad():
++        m.mem_gate.theta.fill_(1e9)
++        m.mem_gate.theta_ok.fill_(True)
++        a = m(x)
++        assert all(r["mask"] is not None and not bool(r["mask"].any()) for r in m.gate_open)
++        m.mem_gate_eval = "off"
++        b = m(x)
++    assert torch.equal(a, b)

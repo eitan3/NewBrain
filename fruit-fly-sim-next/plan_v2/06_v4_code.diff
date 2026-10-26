@@ -1,0 +1,1471 @@
+diff --git a/spiking_lm.py b/spiking_lm.py
+index 1a0e6e1..526c657 100644
+--- a/spiking_lm.py
++++ b/spiking_lm.py
+@@ -18,6 +18,7 @@ import math
+ import torch
+ import torch.nn as nn
+ import torch.nn.functional as F
++import torch.utils.checkpoint
+ 
+ LEVELS = {"graded": (0, 4), "binary": (0, 1), "ternary": (-1, 1),
+           "ngc": (0, 7), "ngc4": (0, 4)}  # ngc = normalised graded count (0..7 spikes per token)
+@@ -135,16 +136,25 @@ class Spike(nn.Module):
+         self.register_buffer("norm_w", torch.ones(n))
+ 
+     @torch.no_grad()
+-    def calibrate(self, x, signed_levels, target=0.2):
+-        """Per-channel alpha so that about `target` of inputs fire (a spike needs |x| > alpha/2)."""
++    def calibrate(self, x, signed_levels, target=0.2, ch=None):
++        """Per-channel alpha so that about `target` of inputs fire (a spike needs |x| > alpha/2).
++        ch: the channels x holds (pass-routed head groups); the channels not computed now start like a
++        typical calibrated one (as newborn channels do in grow), since the flag is shared by all channels."""
+         v = x.detach().float().flatten(0, -2)
+         v = v[torch.randperm(v.size(0), device=v.device)[:4096]]
+         v = v.abs() if signed_levels else v
+         th = v.sort(0).values[int((1 - target) * (v.size(0) - 1))]
+-        self.alpha.copy_((2 * th).clamp(min=1e-3))
++        a = (2 * th).clamp(min=1e-3)
++        if ch is None:
++            self.alpha.copy_(a)
++        else:
++            self.alpha.fill_(a.median().item())
++            self.alpha[ch] = a.to(self.alpha.dtype)
+         self.calibrated.fill_(True)
+ 
+-    def forward(self, x):
++    def forward(self, x, ch=None):
++        """ch: optional channel indices of x's last dim (only some head groups are computed this pass);
++        thresholds, normalisation weights and firing statistics are then those of these channels."""
+         lo, hi = LEVELS.get(self.mode, (0, 1))
+         if self.signed and lo == 0:
+             lo = -hi
+@@ -157,14 +167,14 @@ class Spike(nn.Module):
+         if ngc:
+             # divisive normalisation: each token's signal is measured against its own mean magnitude,
+             # so thresholds don't move when the overall scale changes (e.g. after growth)
+-            w = self.norm_w.to(torch.float32)
++            w = (self.norm_w if ch is None else self.norm_w[ch]).to(torch.float32)
+             m = (x.float().abs() * w).sum(-1, keepdim=True) / w.sum() + 1e-6
+             u = x.float() / m
+         else:
+             u = x
+         if self.training and not self.calibrated:
+-            self.calibrate(u, lo < 0)
+-        alpha = self.alpha.abs() + 1e-4
++            self.calibrate(u, lo < 0, ch=ch)
++        alpha = (self.alpha if ch is None else self.alpha[ch]).abs() + 1e-4
+         if self.homeo and self.homeo_mode == "full":
+             alpha = alpha.detach()
+         if ngc:
+@@ -188,13 +198,21 @@ class Spike(nn.Module):
+         if self.homeo and self.training:
+             with torch.no_grad():
+                 r = (q.detach() != 0).to(self.ema_rate.dtype).flatten(0, -2).mean(0)
+-                self.ema_rate.lerp_(r, 0.01)
+-                if self.homeo_mode == "full":
+-                    # firing too much -> raise the threshold, too little -> lower it
+-                    self.alpha.data.mul_(torch.exp(self.homeo * (r - self.target) / self.target).clamp(0.9, 1.1))
+-                else:
+-                    quiet = self.ema_rate < self.floor
+-                    self.alpha.data[quiet] *= 1 - self.homeo
++                if ch is None:
++                    self.ema_rate.lerp_(r, 0.01)
++                    if self.homeo_mode == "full":
++                        # firing too much -> raise the threshold, too little -> lower it
++                        self.alpha.data.mul_(torch.exp(self.homeo * (r - self.target) / self.target).clamp(0.9, 1.1))
++                    else:
++                        quiet = self.ema_rate < self.floor
++                        self.alpha.data[quiet] *= 1 - self.homeo
++                else:  # only the channels computed this pass are observed, so only they adapt
++                    self.ema_rate[ch] = self.ema_rate[ch].lerp(r, 0.01)
++                    if self.homeo_mode == "full":
++                        self.alpha.data[ch] *= torch.exp(self.homeo * (r - self.target) / self.target).clamp(0.9, 1.1)
++                    else:
++                        quiet = ch[self.ema_rate[ch] < self.floor]
++                        self.alpha.data[quiet] *= 1 - self.homeo
+         return s if self.lam >= 1 else analog + self.lam * (s - analog)
+ 
+     def grow(self, n):
+@@ -218,9 +236,10 @@ class CausalConv(nn.Module):
+         self.weight = nn.Parameter(torch.randn(c, k) / math.sqrt(k))
+         self.bias = nn.Parameter(torch.zeros(c))
+ 
+-    def forward(self, x):  # (B,T,C)
++    def forward(self, x, ch=None):  # (B,T,C); ch: which channels x holds (pass-routed head groups)
++        w, b = (self.weight, self.bias) if ch is None else (self.weight[ch], self.bias[ch])
+         x = F.pad(x.transpose(1, 2), (self.k - 1, 0))
+-        return F.conv1d(x, self.weight[:, None, :].to(x.dtype), self.bias.to(x.dtype), groups=x.size(1)).transpose(1, 2)
++        return F.conv1d(x, w[:, None, :].to(x.dtype), b.to(x.dtype), groups=x.size(1)).transpose(1, 2)
+ 
+     def grow(self, n):
+         expand(self, "weight", 0, n, lambda s: torch.randn(s) / math.sqrt(self.k))
+@@ -228,9 +247,20 @@ class CausalConv(nn.Module):
+ 
+ 
+ class SSDMixer(nn.Module):
+-    def __init__(self, d, heads, head_dim=64, spike="analog", chunk=64):
++    """Pass-routed head groups (n_groups > 0, the looped brain): the first `group0` heads are group 0 and
++    always computed; every later head belongs to one of the routed groups 1..n_groups (round-robin by
++    index, so a head's group never changes). forward(x, group=g) computes group 0 + group g only.
++    A head that is not computed on a pass does nothing on that pass: no output, and no state either,
++    because the scan state lives inside one forward (each pass re-scans the whole sequence from S = 0
++    for the heads it computes; nothing is carried from pass to pass). The rule depends only on which
++    group a pass uses, so it is the same in training and evaluation."""
++
++    def __init__(self, d, heads, head_dim=64, spike="analog", chunk=64, group0=0, n_groups=0):
+         super().__init__()
+         self.h, self.p, self.chunk = heads, head_dim, chunk
++        self.group0, self.n_groups = group0, n_groups
++        self.register_buffer("hgroup", torch.tensor([self._group_of(i) for i in range(heads)], dtype=torch.long))
++        self._active = {}  # (group, heads, device) -> (head idx, channel idx); avoids a host sync per pass
+         di = heads * head_dim
+         self.wz, self.wx, self.wq, self.wk = (nn.Linear(d, di, bias=False) for _ in range(4))
+         self.wdt = nn.Linear(d, heads, bias=False)
+@@ -251,34 +281,70 @@ class SSDMixer(nn.Module):
+         dt = torch.exp(torch.empty_like(dt_bias).uniform_(math.log(1e-3), math.log(1e-1)))
+         dt_bias.copy_(dt + torch.log(-torch.expm1(-dt)))  # inverse softplus
+ 
+-    def forward(self, x, write=None):
+-        """write: optional (B, T) weights in [0, 1]; 0 = this token is not integrated into the membranes."""
++    def _group_of(self, i):
++        return 0 if (not self.n_groups or i < self.group0) else 1 + (i - self.group0) % self.n_groups
++
++    def active(self, group):
++        """(head indices, channel indices) computed on a pass of `group`; (None, None) = all heads."""
++        if group is None or not self.n_groups:
++            return None, None
++        key = (int(group), self.h, self.hgroup.device)
++        if key not in self._active:
++            hs = ((self.hgroup == 0) | (self.hgroup == group)).nonzero().squeeze(1)
++            ch = (hs[:, None] * self.p + torch.arange(self.p, device=hs.device)).flatten()
++            self._active[key] = (hs, ch)
++        return self._active[key]
++
++    def idle_params(self):
++        """Parameters not used on an average pass (idle routed head groups), for n_active."""
++        if not self.n_groups:
++            return 0.0
++        routed = max(0, self.h - self.group0)
++        per_head = sum(p.numel() for p in self.parameters()) / self.h  # every mixer parameter scales with h
++        return per_head * routed * (1 - 1 / self.n_groups)
++
++    def forward(self, x, write=None, group=None):
++        """write: optional (B, T) weights in [0, 1]; 0 = this token is not integrated into the membranes.
++        group: routed head group computed on this pass (with group 0); None = all heads (see class doc)."""
+         if write is not None:  # unselected tokens also must not leak in through the short causal convs
+             x = x * write[..., None].to(x.dtype)
+         B, T, _ = x.shape
+-        H, P = self.h, self.p
++        hs, ch = self.active(group)
++        H, P = (self.h if hs is None else len(hs)), self.p
++        lin = lambda m, i: m(x) if i is None else F.linear(x, m.weight[i])
++        sel = lambda t, i: t if i is None else t[i]
+         heads = lambda t: t.view(B, T, H, P).transpose(1, 2)
+-        z = self.wz(x)
+-        v = heads(F.silu(self.cx(self.wx(x))))
+-        q = F.normalize(heads(self.cq(self.wq(x))).float(), dim=-1)
+-        k = F.normalize(heads(self.ck(self.wk(x))).float(), dim=-1)
+-        dt = F.softplus(self.wdt(x).float() + self.dt_bias).transpose(1, 2)          # (B,H,T)
++        z = lin(self.wz, ch)
++        v = heads(F.silu(self.cx(lin(self.wx, ch), ch)))
++        q = F.normalize(heads(self.cq(lin(self.wq, ch), ch)).float(), dim=-1)
++        k = F.normalize(heads(self.ck(lin(self.wk, ch), ch)).float(), dim=-1)
++        dt = F.softplus(lin(self.wdt, hs).float() + sel(self.dt_bias, hs)).transpose(1, 2)          # (B,H,T)
+         if write is not None:
+             dt = dt * write.float()[:, None, :]
+-        la = -(dt * torch.exp(self.A_log)[:, None]).clamp(max=30.0)
++        la = -(dt * torch.exp(sel(self.A_log, hs))[:, None]).clamp(max=30.0)
+         with torch.autocast(x.device.type, enabled=False):  # decay maths and state in fp32
+             y, _ = ssd_scan(q, k, v.float() * dt[..., None], la, self.chunk)
+-        y = y + self.Dskip[:, None, None] * v.float()
+-        y = y * torch.rsqrt(y.pow(2).mean(-1, keepdim=True) + 1e-6) * self.norm_w[:, None]  # per-head norm
++        y = y + sel(self.Dskip, hs)[:, None, None] * v.float()
++        y = y * torch.rsqrt(y.pow(2).mean(-1, keepdim=True) + 1e-6) * sel(self.norm_w, hs)[:, None]  # per-head norm
+         y = y.transpose(1, 2).reshape(B, T, H * P).to(z.dtype) * F.silu(z)
+-        y = self.spike(y)
++        y = self.spike(y) if ch is None else self.spike(y, ch)
+         if self.ramping:
+-            y = y * self.ramp.to(y.dtype)
+-        return self.wo(y)
++            y = y * sel(self.ramp, ch).to(y.dtype)
++        return self.wo(y) if ch is None else F.linear(y, self.wo.weight[:, ch])
++
++    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
++        # checkpoints from before head groups have no hgroup (all heads were dense = group 0)
++        state_dict.setdefault(prefix + "hgroup", self.hgroup.clone())
++        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
++        self._active = {}
++        self.ramping = bool((self.ramp < 1).any())  # a checkpoint taken mid-ramp keeps ramping
+ 
+     @torch.no_grad()
+     def grow_heads(self, n, ramp=False):
+         m = n * self.p
++        self.hgroup = torch.cat([self.hgroup, torch.tensor([self._group_of(self.h + i) for i in range(n)],
++                                                           dtype=torch.long, device=self.hgroup.device)])
++        self._active = {}
+         self.ramp = torch.cat([self.ramp, self.ramp.new_zeros(m) if ramp else self.ramp.new_ones(m)])
+         self.ramping = self.ramping or ramp
+         for lin in (self.wz, self.wx, self.wq, self.wk):
+@@ -360,6 +426,10 @@ class MLP(nn.Module):
+                 self.util.mul_(0.99).add_(0.01 * s.detach().abs().float().flatten(0, -2).mean(0))
+         return self.down(s)
+ 
++    def _load_from_state_dict(self, *args, **kwargs):
++        super()._load_from_state_dict(*args, **kwargs)
++        self.ramping = bool((self.ramp < 1).any())  # a checkpoint taken mid-ramp keeps ramping
++
+     @torch.no_grad()
+     def grow(self, n, ramp=False):
+         expand_linear(self.up, n_out=n)
+@@ -487,20 +557,39 @@ class RoutedMLP(nn.Module):
+         self.aux = None    # auxiliary loss of the last forward (added by the trainer)
+         self.stats = None  # routing statistics of the last forward
+ 
+-    def forward(self, x, forbid=None, side=None, extra=None):
++    def route(self, xf, side, extra, wave):
++        """Router scores (N, E), z-loss and (aux balance mode) the mean routing probability per expert.
++        wave = (prev_idx, fatigue, conn, gamma, beta): the loop's wave term gamma * conn[prev experts]
++        summed - beta * fatigue, built here with embedding_bag (exactly prev_onehot @ conn, without the
++        dense E x E matmul per token)."""
++        acc = torch.promote_types(xf.dtype, torch.float32)             # float32 (or float64 in tests)
++        logits = self.router(xf).to(acc)
++        if side is not None and self.router_s is not None:
++            logits = logits + self.router_s(side.reshape(xf.size(0), -1)).to(acc)
++        # router-stability (z) loss sees the router's own logits only, not the wave terms
++        zl = self.z_w * torch.logsumexp(logits, -1).pow(2).mean()
++        if extra is not None:  # e.g. dense wave terms (learned expert connectivity, fatigue)
++            logits = logits + extra.to(acc)
++        if wave is not None:
++            prev_idx, fatigue, conn, g, b = wave
++            logits = logits + (g * F.embedding_bag(prev_idx, conn, mode="sum") - b * fatigue).to(acc)
++        score = logits.sigmoid()
++        P = (score / score.sum(1, keepdim=True)).mean(0) if self.balance == "aux" else None
++        return score, zl, P
++
++    def forward(self, x, forbid=None, side=None, extra=None, wave=None):
+         """forbid: optional (B*T, E) bool mask of experts a token may not use now (refractory rule).
+-        side: optional (B, T, d_side) extra router input (the loop brain's working memory)."""
++        side: optional (B, T, d_side) extra router input (the loop brain's working memory).
++        wave: optional loop wave inputs, see route()."""
+         B, T, D = x.shape
+         xf = x.reshape(-1, D)
+         N, E, k = xf.size(0), self.E, self.k
+         acc = torch.promote_types(x.dtype, torch.float32)              # float32 (or float64 in tests)
+-        logits = self.router(xf).to(acc)
+-        if side is not None and self.router_s is not None:
+-            logits = logits + self.router_s(side.reshape(N, -1)).to(acc)
+-        z_logits = logits  # router-stability (z) loss sees the router's own logits only, not the wave terms
+-        if extra is not None:  # e.g. wave terms (learned expert connectivity, fatigue) from the loop
+-            logits = logits + extra.to(acc)
+-        score = logits.sigmoid()
++        if getattr(self, "ckpt_route", False) and torch.is_grad_enabled():
++            # memory: the (tokens x E) routing intermediates are recomputed in backward, not stored
++            score, zl, P = torch.utils.checkpoint.checkpoint(self.route, xf, side, extra, wave, use_reentrant=False)
++        else:
++            score, zl, P = self.route(xf, side, extra, wave)
+         sel = score + self.bias
+         if forbid is not None:
+             sel = sel.masked_fill(forbid, float("-inf"))
+@@ -532,28 +621,18 @@ class RoutedMLP(nn.Module):
+         out = torch.bmm(h, self.w_down.to(h.dtype))
+         y = torch.zeros(N, D, device=x.device, dtype=acc)
+         y.index_add_(0, t_k, out[e_k, p_k].to(acc) * gate.flatten()[order][keep][:, None])
+-        aux = self.z_w * torch.logsumexp(z_logits, -1).pow(2).mean()
++        aux = zl
+         if self.balance == "aux":
+             f = counts.float() / (N * k)
+-            P = (score / score.sum(1, keepdim=True)).mean(0)
+             aux = aux + self.aux_w * E * (f * P).sum()
+         self.aux = aux
+         if self.training and self.defer:
+             with torch.no_grad():
+                 self.pending += counts.float()
+                 self.pending_elig += N - (forbid.sum(0).float() if forbid is not None else 0.0)
+-        elif self.training and self.balance == "auxfree":
++        elif self.training:
+             with torch.no_grad():
+-                # the balancer leaves experts that are still ramping in alone (no overshoot)
+-                # proportional to the relative load error (capped): an expert at 10x the average load is
+-                # pushed down 4x faster than the old fixed-size sign step; balanced experts barely move
+-                err = (counts.float().mean() - counts.float()) / counts.float().mean().clamp(min=1e-6)
+-                self.bias += self.u * err.clamp(-4.0, 1.0) * (self.debt <= 0)
+-                # a newborn that already gets its fair share stops ramping; the balancer takes over
+-                self.debt[counts.float() >= counts.float().mean()] = 0
+-                pay = self.debt.clamp(max=0.002)  # newborns ramp into routing over ~1000 steps
+-                self.bias += pay
+-                self.debt -= pay
++                self._balance(counts.float(), counts.float().mean())
+         if self.training and not self.defer:
+             with torch.no_grad():
+                 self.load_ema.mul_(0.99).add_(0.01 * counts.float() / counts.float().mean().clamp(min=1e-6))
+@@ -562,6 +641,25 @@ class RoutedMLP(nn.Module):
+         y = y.to(x.dtype).view(B, T, D)
+         return y + self.shared(x) if self.shared is not None else y
+ 
++    @torch.no_grad()
++    def _balance(self, counts, mean):
++        """Balancer step (auxfree) and newborn ramp-in (every mode) from per-expert counts."""
++        if self.balance == "auxfree":
++            # the balancer leaves experts that are still ramping in alone (no overshoot)
++            # proportional to the relative load error (capped): an expert at 10x the average load is
++            # pushed down 4x faster than the old fixed-size sign step; balanced experts barely move
++            err = (mean - counts) / mean.clamp(min=1e-6)
++            self.bias += self.u * err.clamp(-4.0, 1.0) * (self.debt <= 0)
++            # a newborn that already gets its fair share stops ramping; the balancer takes over
++            self.debt[counts >= mean] = 0
++        # newborns ramp into routing over ~1000 steps. This must also run in "aux" mode (it used to be
++        # auxfree-only, so with --route-aux a newborn stayed 2 below everyone and was never selected).
++        # In aux mode no balancer takes over, so the debt is paid in full: the newborn's bias ends exactly
++        # at its parent's (0, like every other expert) instead of freezing wherever it got its fair share.
++        pay = self.debt.clamp(max=0.002)
++        self.bias += pay
++        self.debt -= pay
++
+     @torch.no_grad()
+     def apply_balance(self):
+         """Deferred mode: one balancer / ramp / load / age update per optimizer step, from the counts
+@@ -573,13 +671,7 @@ class RoutedMLP(nn.Module):
+         rate = self.pending / self.pending_elig.clamp(min=1)
+         counts = rate * self.pending_elig.mean()
+         mean = counts.mean().clamp(min=1e-6)
+-        if self.balance == "auxfree":
+-            err = (mean - counts) / mean
+-            self.bias += self.u * err.clamp(-4.0, 1.0) * (self.debt <= 0)
+-            self.debt[counts >= mean] = 0
+-            pay = self.debt.clamp(max=0.002)
+-            self.bias += pay
+-            self.debt -= pay
++        self._balance(counts, mean)
+         self.load_ema.mul_(0.99).add_(0.01 * counts / mean)
+         self.age += 1
+         self.pending.zero_()
+@@ -647,6 +739,7 @@ class RoutedMLP(nn.Module):
+         self.spike_e.grow_experts(src)
+         self.nmask = torch.cat([self.nmask, self.nmask[src]])
+         self.E += n
++        return src  # parents, so the loop can extend its expert-to-expert connectivity
+ 
+     def dense_reference(self, x):
+         """All experts computed densely, combined with the same gates (no capacity drops). For tests."""
+@@ -730,6 +823,9 @@ class SpikingLM(nn.Module):
+         for b in self.blocks:
+             if isinstance(b.mlp, RoutedMLP):
+                 n -= (b.mlp.w_up.numel() + b.mlp.w_down.numel()) * (1 - b.mlp.k / b.mlp.E)
++        for m in self.modules():  # pass-routed head groups: idle groups are not used on a pass
++            if isinstance(m, SSDMixer):
++                n -= m.idle_params()
+         return int(n)
+ 
+     @staticmethod
+diff --git a/loop_brain.py b/loop_brain.py
+index c773992..311cc4f 100644
+--- a/loop_brain.py
++++ b/loop_brain.py
+@@ -47,6 +47,23 @@ def torus_kernel(E, rows=16, sigma=1.5):
+     return K / K.sum(1, keepdim=True)
+ 
+ 
++def sheet_adj(pos, rows, cols, sigma=1.5):
++    """Sheet neighbours from (continuous) expert positions on a fixed rows x cols torus: the same Gaussian
++    and the same > 0.05 cut as the initial adj2, normalised by a FULL grid's row sum (a constant), so on
++    the full initial grid it equals (torus_kernel > 0.05) and a newborn's neighbours depend only on
++    distance, not on how crowded the sheet has become."""
++    def gauss(dr, dc):
++        dr, dc = dr.abs() % rows, dc.abs() % cols
++        dr, dc = torch.minimum(dr, rows - dr), torch.minimum(dc, cols - dc)
++        return torch.exp(-(dr ** 2 + dc ** 2) / (2 * sigma ** 2))
++    g = torch.arange(rows * cols, device=pos.device)
++    Z = gauss((g // cols).double(), (g % cols).double())[1:].sum()   # full grid, without self
++    p = pos.double()
++    K = gauss(p[:, None, 0] - p[None, :, 0], p[:, None, 1] - p[None, :, 1])
++    K.fill_diagonal_(0)
++    return (K / Z > 0.05).to(pos.dtype)
++
++
+ class TemporalPops(nn.Module):
+     """Several temporal membrane populations; each word routes to `k` of them per pass."""
+ 
+@@ -79,21 +96,32 @@ class Core(nn.Module):
+     """The routed "cortex" that every pass reuses."""
+ 
+     def __init__(self, d, d_s, heads, head_dim, moe, spike, chunk, state, slots=0, waves=False, pops=1,
+-                 ws_direct=False):
++                 ws_direct=False, head_group=0, head_groups=0, sheet_cols=0):
+         super().__init__()
+         self.state, self.slots, self.waves, self.ws_direct = state, slots, waves, ws_direct
+         self.n_u, self.n_t, self.n_m, self.n_x, self.n_e = (RMSNorm(d) for _ in range(5))
++        # head_groups > 0: pass-routed head groups (the first head_group heads always on, the rest in
++        # head_groups groups that take turns over the passes, see SSDMixer)
++        self.n_groups = head_groups if pops == 1 else 0
+         self.mix = (TemporalPops(d, pops, max(1, heads // 2), head_dim, spike, chunk) if pops > 1
+-                    else SSDMixer(d, heads, head_dim, spike, chunk))
++                    else SSDMixer(d, heads, head_dim, spike, chunk, group0=head_group, n_groups=self.n_groups))
+         side = d_s if (state and not slots) else (64 if slots else 0)
+         self.mlp = RoutedMLP(d, spike=spike, layers=6, d_side=side, **moe)
+         self.mlp.defer = True
+         self.alpha = nn.Parameter(torch.full((d,), 0.2))
+         if waves:  # learned expert-to-expert connectivity ("connectome"); name contains "router" -> AdamW
+-            self.router_conn = nn.Parameter(torus_kernel(self.mlp.E))
++            E = self.mlp.E
++            # a FIXED sheet (16 x sheet_cols, set by the starting pool): experts born later sit next to their
++            # parent, so positions (and the diagnostics) do not shift when the pool grows
++            self.sheet_rows, self.sheet_cols = 16, sheet_cols or math.ceil(E / 16)
++            i = torch.arange(E)
++            self.register_buffer("pos", torch.stack([(i // self.sheet_cols) % 16, i % self.sheet_cols], 1).float())
++            fresh = self.sheet_cols == math.ceil(E / 16)  # the usual case: identical to the index-based torus
++            K = torus_kernel(E) if fresh else self._sheet_kernel()
++            self.router_conn = nn.Parameter(K)
+             self.wave_gamma = nn.Parameter(torch.tensor(math.log(math.exp(3.0) - 1)))  # softplus -> 3.0
+             # (at 1.0 the excitation was ~0.2 vs router-logit std ~0.4: waves were too weak to steer routing)
+-            self.register_buffer("adj2", (torus_kernel(self.mlp.E) > 0.05).float())  # neighbours within ~2 cells
++            self.register_buffer("adj2", (K > 0.05).float())  # sheet neighbours (diagnostics)
+             self.wave_beta = nn.Parameter(torch.tensor(math.log(math.exp(2.0) - 1)))  # softplus -> 2.0
+         if slots:  # multi-slot workspace
+             self.ds = 64
+@@ -115,6 +143,46 @@ class Core(nn.Module):
+             self.w_z = nn.Linear(2 * d + d_s, d_s)
+             self.w_c = nn.Linear(2 * d + d_s, d_s)
+ 
++    def _sheet_kernel(self, sigma=1.5):
++        """Row-normalised Gaussian connectivity from the positions (initial router_conn when the sheet is
++        not the default one, e.g. a pool built directly at a larger size on a fixed sheet)."""
++        rows, cols = self.sheet_rows, self.sheet_cols
++        d = self.pos[:, None] - self.pos[None]
++        dr, dc = d[..., 0].abs() % rows, d[..., 1].abs() % cols
++        dr, dc = torch.minimum(dr, rows - dr), torch.minimum(dc, cols - dc)
++        K = torch.exp(-(dr ** 2 + dc ** 2) / (2 * sigma ** 2))
++        K.fill_diagonal_(0)
++        return K / K.sum(1, keepdim=True)
++
++    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
++        # checkpoints from before the fixed sheet have no pos (pools never grew then: index grid = pos)
++        if self.waves:
++            state_dict.setdefault(prefix + "pos", self.pos.clone())
++        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
++
++    @torch.no_grad()
++    def grow_experts(self, n):
++        """Expert births (RoutedMLP.grow_experts) plus the wave connectivity of the newborns. Each newborn
++        copies its parent's outgoing row and incoming column of router_conn (the old block is unchanged);
++        the entries between a newborn and its parent / siblings and its own diagonal are 0. Exact: the
++        newborn is never selected at birth (bias 2 below), so its row adds nothing and it has no fatigue."""
++        src = self.mlp.grow_experts(n)
++        if self.waves:
++            C = self.router_conn.data
++            E0 = C.size(0)
++            par = torch.cat([torch.arange(E0, device=C.device), src.to(C.device)])
++            new = C[par][:, par].clone()                        # every entry from the parents' entries
++            twin = par[:, None] == par[None, :]                 # newborn <-> parent / sibling / itself
++            twin[:E0, :E0] = False                              # the old block stays exactly as it was
++            new[twin] = 0
++            self.router_conn = nn.Parameter(new)
++            rows, cols = self.sheet_rows, self.sheet_cols
++            jit = self.pos[src] + torch.randn(n, 2, device=self.pos.device, dtype=self.pos.dtype) * 0.3
++            jit = torch.stack([jit[:, 0].remainder(rows), jit[:, 1].remainder(cols)], 1)  # wrap around the torus
++            self.pos = torch.cat([self.pos, jit])
++            self.adj2 = sheet_adj(self.pos, rows, cols).to(self.adj2.dtype)
++        return src
++
+     # ---------------------------------------------------------------- latent state
+     def init_state(self, e):
+         s0 = torch.tanh(self.w_0(self.n_e(e)))
+@@ -139,7 +207,13 @@ class Core(nn.Module):
+         return self.n_s(s) if self.state else None
+ 
+     # ---------------------------------------------------------------- one pass
+-    def forward(self, x, s, e, forbid=None, last=False, wave=None, ko=False):
++    def forward(self, x, s, e, forbid=None, last=False, wave=None, ko=False, group=None):
++        """wave: a dense (tokens, E) term, or (prev_idx, fatigue) built inside the router (embedding_bag).
++        group: routed head group computed on this pass (None = all heads)."""
++        wave_t = None
++        if isinstance(wave, tuple):
++            g, b = F.softplus(self.wave_gamma), F.softplus(self.wave_beta)
++            wave, wave_t = None, (wave[0], wave[1], self.router_conn, g, b)
+         if self.slots and ko:  # knock-out probe: the workspace is reset to its starting state s_0
+             s = self.init_state(e)
+         if self.slots:
+@@ -147,9 +221,10 @@ class Core(nn.Module):
+             u = self.n_u(x + self.n_e(e) + self.w_ro(r))
+         else:
+             u = self.n_u(x + self.n_e(e) + (self.w_s(self.n_s(s)) if self.state else 0))
+-        m = self.mix(self.n_t(u))
++        m = self.mix(self.n_t(u)) if group is None else self.mix(self.n_t(u), group=group)
+         h = u + m
+-        o = self.mlp(self.n_m(h), forbid, self.side(s) if (self.state or self.slots) else None, extra=wave)
++        o = self.mlp(self.n_m(h), forbid, self.side(s) if (self.state or self.slots) else None, extra=wave,
++                     wave=wave_t)
+         if self.slots:
+             s = self.write(s, m + o)
+             ws = self.w_xo(self.n_s(s).flatten(-2))
+@@ -172,17 +247,21 @@ class Core(nn.Module):
+ class LoopBrain(SpikingLM):
+     def __init__(self, vocab, d=384, d_s=96, heads=6, head_dim=64, moe=None, spike="analog", chunk=64,
+                  k_mean=6, k_min=2, k_max=10, bptt=6, state="carry", refractory=1, slots=0, waves=False,
+-                 pops=1, ws_direct=False, **_):
++                 pops=1, ws_direct=False, head_group=0, head_groups=0, sheet_cols=0, ckpt_route=False, **_):
+         nn.Module.__init__(self)
+         moe = dict(moe or dict(n_exp=384, k=6, hidden=192, shared=384, capacity=0))
++        if waves and not sheet_cols:  # fixed expert sheet, set by the starting pool (kept when it grows)
++            sheet_cols = math.ceil(moe["n_exp"] / 16)
+         self.cfg = dict(arch="loop", vocab=vocab, d=d, d_s=d_s, heads=heads, head_dim=head_dim, moe=moe,
+                         spike=spike, chunk=chunk, k_mean=k_mean, k_min=k_min, k_max=k_max, bptt=bptt,
+                         state=state, refractory=refractory, slots=slots, waves=waves, pops=pops, ws_direct=ws_direct,
++                        head_group=head_group, head_groups=head_groups, sheet_cols=sheet_cols, ckpt_route=ckpt_route,
+                         layers=1, mlp=0, mixer="ssd", concept=None)
+         self.has_state = bool(state) or bool(slots)
+         self.emb = nn.Embedding(vocab, d)
+         self.blocks = nn.ModuleList([Core(d, d_s, heads, head_dim, moe, spike, chunk, state, slots, waves, pops,
+-                                          ws_direct)])
++                                          ws_direct, head_group, head_groups, sheet_cols)])
++        self.blocks[0].mlp.ckpt_route = ckpt_route
+         self.normf = RMSNorm(d)
+         self.heads = nn.ModuleDict({"lm": nn.Linear(d, vocab, bias=False)})   # the decoder (swappable)
+         self.apply(self._init)
+@@ -203,6 +282,47 @@ class LoopBrain(SpikingLM):
+         self.knockout = None      # None | "last" | "all": zero the workspace on the last / all passes (probes)
+         self.trace_tokens = None  # [(b, t), ...]: record per-pass expert choices for these words
+         self.trace = None
++        # set by the trainer once per optimizer step, so all micro-batches of a step see the same:
++        self.aux_k_fixed = None   # pass used for deep supervision (None = sampled inside run())
++        self.group_offset = 0     # head-group rotation offset (training only; evaluation always uses 0)
++        self.group_passes = [0] * self.blocks[0].n_groups  # training passes per routed head group (diagnostics)
++
++    def sample_aux_k(self, K):
++        """Deep-supervision pass, the same distribution as inside run()."""
++        return int(torch.randint(max(0, K - self.cfg["bptt"]), K - 1, ()).item()) if K >= 2 else -1
++
++    def sample_group_offset(self):
++        G = self.blocks[0].n_groups
++        return int(torch.randint(G, ()).item()) if G else 0
++
++    def pass_group(self, k):
++        """Routed head group of pass k: 1 + (k + offset) % G. Training draws a random offset per optimizer
++        step so every group sees every pass position (otherwise with K = 2 only groups 1-2 would ever
++        train); evaluation uses offset 0, deterministic (K=6, G=5 -> groups 1,2,3,4,5,1)."""
++        G = self.blocks[0].n_groups
++        if not G:
++            return None
++        return 1 + (k + (self.group_offset if self.training else 0)) % G
++
++    @torch.no_grad()
++    def head_group_grad_norms(self):
++        """Gradient norm of each head group's output (wo) columns, from the last backward (diagnostics)."""
++        mix = self.blocks[0].mix
++        if not getattr(mix, "n_groups", 0) or mix.wo.weight.grad is None:
++            return None
++        g = mix.wo.weight.grad.float().view(mix.wo.weight.size(0), mix.h, mix.p)
++        return [g[:, mix.hgroup == j].norm().item() for j in range(mix.n_groups + 1)]
++
++    @torch.no_grad()
++    def grow_heads(self, n, ramp=False):
++        self.blocks[0].mix.grow_heads(n, ramp=ramp)
++        self.cfg["heads"] = self.blocks[0].mix.h  # an int: LoopBrain(**cfg) must rebuild from a checkpoint
++
++    @torch.no_grad()
++    def grow_experts(self, n):
++        src = self.blocks[0].grow_experts(n)
++        self.cfg["moe"] = dict(self.cfg["moe"], n_exp=self.blocks[0].mlp.E)
++        return src
+ 
+     def aux_loss(self):
+         return getattr(self, "loop_aux", None)
+@@ -221,19 +341,27 @@ class LoopBrain(SpikingLM):
+         s = core.init_state(e) if self.has_state else None
+         bptt = self.cfg["bptt"]
+         forbid, seen, hist, outs, aux_terms = None, None, [], [], []
+-        fatigue, prev = None, None
++        fatigue, prev, prev_idx = None, None, None
+         self.aux_x = None
+-        aux_k = int(torch.randint(max(0, K - bptt), K - 1, ()).item()) if (self.training and K >= 2) else -1
++        if self.training and self.aux_k_fixed is not None:
++            aux_k = self.aux_k_fixed
++        else:
++            aux_k = int(torch.randint(max(0, K - bptt), K - 1, ()).item()) if (self.training and K >= 2) else -1
+         if self.trace_tokens:
+             self.trace = []
++        G = core.n_groups
++        gpass = [0] * G
+         for k in range(K):
+             ko = self.knockout == "all" or (self.knockout == "last" and k == K - 1)
++            group = self.pass_group(k)
++            if group is not None:
++                gpass[group - 1] += 1
+             with torch.set_grad_enabled(torch.is_grad_enabled() and k >= K - bptt):
+-                wave = None
+-                if core.waves and prev is not None:
+-                    g, b = F.softplus(core.wave_gamma), F.softplus(core.wave_beta)
+-                    wave = g * (prev @ core.router_conn) - b * fatigue
+-                x, s = core(x, s, e, None if core.waves else forbid, last=(k == K - 1), wave=wave, ko=ko)
++                # wave = gamma * C . used_prev - beta * fatigue, built in the router from the previous
++                # pass's expert indices (embedding_bag: exact, no dense E x E matmul)
++                wave = (prev_idx, fatigue) if (core.waves and prev is not None) else None
++                x, s = core(x, s, e, None if core.waves else forbid, last=(k == K - 1), wave=wave, ko=ko,
++                            group=group)
+             if core.mlp.aux is not None and core.mlp.aux.requires_grad:
+                 aux_terms.append(core.mlp.aux)
+             used = torch.zeros(x.shape[0] * x.shape[1], core.mlp.E, dtype=torch.bool, device=x.device)
+@@ -242,6 +370,7 @@ class LoopBrain(SpikingLM):
+             hist.append(used)
+             if core.waves:
+                 prev = used.to(x.dtype if x.is_floating_point() else torch.float32)
++                prev_idx = core.mlp.last_idx
+                 fatigue = prev if fatigue is None else 0.7 * fatigue + prev
+             elif self.cfg["refractory"]:
+                 forbid = used
+@@ -253,37 +382,45 @@ class LoopBrain(SpikingLM):
+             if every_tick:
+                 outs.append(self.normf(x))
+         self.loop_aux = sum(aux_terms) / len(aux_terms) if aux_terms else None
++        if G and self.training:
++            self.group_passes = [a + b for a, b in zip(self.group_passes, gpass)]
+         with torch.no_grad():
+-            self.diag = {"distinct_experts": seen.float().sum(1).mean().item()}
+-            kk = core.mlp.k
+-            for lag in (1, 2, 4):
+-                if len(hist) > lag:
+-                    ov = [(hist[i] & hist[i - lag]).float().sum(1).mean() / kk for i in range(lag, len(hist))]
+-                    self.diag[f"overlap_lag{lag}"] = torch.stack(ov).mean().item()
+-            self.diag["overlap_k_k2"] = self.diag.get("overlap_lag2", 0.0)
+-            if core.waves and len(hist) >= 2:  # how far the activity's centroid moves on the torus sheet
+-                E, rows = core.mlp.E, 16
+-                cols = math.ceil(E / rows)
+-                ar = 2 * math.pi * (torch.arange(E, device=x.device) // cols).float() / rows
+-                ac = 2 * math.pi * (torch.arange(E, device=x.device) % cols).float() / cols
+-
+-                def centroid(u):
+-                    w = u.float()
+-                    return torch.atan2(w @ ar.sin(), w @ ar.cos()), torch.atan2(w @ ac.sin(), w @ ac.cos())
+-
+-                cs = [centroid(u) for u in hist]
+-                steps = []
+-                for (r0, c0), (r1, c1) in zip(cs, cs[1:]):
+-                    dr = torch.remainder(r1 - r0 + math.pi, 2 * math.pi) - math.pi
+-                    dc = torch.remainder(c1 - c0 + math.pi, 2 * math.pi) - math.pi
+-                    steps.append(torch.sqrt((dr * rows / (2 * math.pi)) ** 2 + (dc * cols / (2 * math.pi)) ** 2).mean())
+-                self.diag["wave_travel_cells"] = torch.stack(steps).mean().item()  # random routing ~7.7
+-                # share of next-pass experts that are sheet-neighbours of the previous pass's experts
+-                loc = [((hist[i].to(core.adj2.dtype) @ core.adj2 > 0) & hist[i + 1]).float().sum(1).mean() / kk
+-                       for i in range(len(hist) - 1)]
+-                self.diag["wave_neighbour_share"] = torch.stack(loc).mean().item()
+-                self.diag["wave_gamma"] = F.softplus(core.wave_gamma).item()
+-                self.diag["wave_beta"] = F.softplus(core.wave_beta).item()
++            self.diag = {}
++            if G:
++                self.diag["head_group_passes"] = gpass                          # this forward
++                self.diag["head_group_passes_train"] = list(self.group_passes)  # all training passes so far
++            # routing / wave diagnostics: only the evaluation forwards are logged, so training skips them
++            # (~10 host syncs and a (tokens x E) @ (E x E) matmul per pass at E = 768)
++            if not self.training:
++                self.diag["distinct_experts"] = seen.float().sum(1).mean().item()
++                kk = core.mlp.k
++                for lag in (1, 2, 4):
++                    if len(hist) > lag:
++                        ov = [(hist[i] & hist[i - lag]).float().sum(1).mean() / kk for i in range(lag, len(hist))]
++                        self.diag[f"overlap_lag{lag}"] = torch.stack(ov).mean().item()
++                self.diag["overlap_k_k2"] = self.diag.get("overlap_lag2", 0.0)
++                if core.waves and len(hist) >= 2:  # how far the activity's centroid moves on the torus sheet
++                    rows, cols = core.sheet_rows, core.sheet_cols  # fixed sheet positions (stable under growth)
++                    ar = 2 * math.pi * core.pos[:, 0].float() / rows
++                    ac = 2 * math.pi * core.pos[:, 1].float() / cols
++
++                    def centroid(u):
++                        w = u.float()
++                        return torch.atan2(w @ ar.sin(), w @ ar.cos()), torch.atan2(w @ ac.sin(), w @ ac.cos())
++
++                    cs = [centroid(u) for u in hist]
++                    steps = []
++                    for (r0, c0), (r1, c1) in zip(cs, cs[1:]):
++                        dr = torch.remainder(r1 - r0 + math.pi, 2 * math.pi) - math.pi
++                        dc = torch.remainder(c1 - c0 + math.pi, 2 * math.pi) - math.pi
++                        steps.append(torch.sqrt((dr * rows / (2 * math.pi)) ** 2 + (dc * cols / (2 * math.pi)) ** 2).mean())
++                    self.diag["wave_travel_cells"] = torch.stack(steps).mean().item()  # random routing ~7.7
++                    # share of next-pass experts that are sheet-neighbours of the previous pass's experts
++                    loc = [((hist[i].to(core.adj2.dtype) @ core.adj2 > 0) & hist[i + 1]).float().sum(1).mean() / kk
++                           for i in range(len(hist) - 1)]
++                    self.diag["wave_neighbour_share"] = torch.stack(loc).mean().item()
++                    self.diag["wave_gamma"] = F.softplus(core.wave_gamma).item()
++                    self.diag["wave_beta"] = F.softplus(core.wave_beta).item()
+         return outs if every_tick else self.normf(x)
+ 
+     def features(self, idx):
+diff --git a/neurogenesis.py b/neurogenesis.py
+index 7a8153b..26cbeac 100644
+--- a/neurogenesis.py
++++ b/neurogenesis.py
+@@ -174,13 +174,16 @@ class Neurogenesis:
+         """Births at exactly zero output (function unchanged). Returns True if parameters changed."""
+         changed = False
+         # ---- expert births (routed brain): every layer grows to the scheduled number of experts
+-        if self.routed and self.t0 <= step <= self.t1:
+-            f = (step - self.t0) / max(1, self.t1 - self.t0)
++        # (also after t1: births only happen every `every` steps, so when t1 is not a multiple of it the
++        # last scheduled ones would be skipped, e.g. 766 instead of 768 experts; the next event catches up)
++        if self.routed and self.t0 <= step:
++            f = min(1.0, (step - self.t0) / max(1, self.t1 - self.t0))
+             target = int(round(self.exp_start + (self.exp_target - self.exp_start) * f))
+             for b in self.m.blocks:
+                 if b.mlp.E < target:
+                     self.births += target - b.mlp.E
+-                    b.mlp.grow_experts(target - b.mlp.E)
++                    # the loop's Core also extends its wave connectivity / sheet for the newborns
++                    (b.grow_experts if hasattr(b, "grow_experts") else b.mlp.grow_experts)(target - b.mlp.E)
+                     changed = True
+             self.m.cfg["moe"] = dict(self.m.cfg["moe"], n_exp=self.m.blocks[0].mlp.E)
+         # ---- MLP births on a linear schedule
+@@ -208,7 +211,9 @@ class Neurogenesis:
+                 changed = True
+         if not self.routed:
+             self.m.cfg["mlp"] = [b.mlp.up.out_features for b in self.m.blocks]
+-        self.m.cfg["heads"] = [b.mix.h for b in self.m.blocks]
++        heads = [b.mix.h for b in self.m.blocks]
++        # the looped brain has one core and LoopBrain(**cfg) needs an int (a list broke checkpoint reloads)
++        self.m.cfg["heads"] = heads[0] if self.m.cfg.get("arch") == "loop" else heads
+         return changed
+ 
+     @torch.no_grad()
+diff --git a/brain_opt.py b/brain_opt.py
+index 1c22487..9184d6f 100644
+--- a/brain_opt.py
++++ b/brain_opt.py
+@@ -6,6 +6,9 @@
+ - Everything else (embeddings, head, norms, gains, decays, thresholds): AdamW.
+ - lazy: a parameter (or expert / embedding row) that got no gradient this step is left completely
+   untouched: no momentum decay, no weight decay. Sleeping parts of the brain don't fade.
++  fine_lazy: the membranes of pass-routed head groups (SSDMixer with n_groups) are lazy per row, column
++  and vector element, so a head group that sat idle this step is not touched at all (its output columns
++  and its per-head vectors included). Every other parameter keeps the plain rule above.
+ - maturity: per-element learning-rate multiplier 1 + (k - 1) * exp(-age / tau); every weight's age
+   counts from its birth (start of training, or the growth step that created it). Young neurons
+   learn fast, mature ones settle.
+@@ -34,7 +37,7 @@ def newton_schulz(G, steps=5, eps=1e-7):
+ 
+ class BrainOpt:
+     def __init__(self, model, lr=2e-3, wd=0.1, muon=True, lazy=True, maturity=0.0, tau=1000,
+-                 betas=(0.9, 0.95), momentum=0.95, alpha_lr=0.1):
++                 betas=(0.9, 0.95), momentum=0.95, alpha_lr=0.1, fine_lazy=True):
+         self.lr, self.wd, self.muon, self.lazy = lr, wd, muon, lazy
+         self.k_mat, self.tau, self.betas, self.momentum, self.alpha_lr = maturity, tau, betas, momentum, alpha_lr
+         self.t = 0
+@@ -47,6 +50,11 @@ class BrainOpt:
+             kind = "muon" if (muon and hidden) else "adam"
+             self.groups[name] = (p, kind)
+         self.state = {}  # name -> dict of tensors
++        self.fine = set()  # parameters lazy per row / column / element: the head-group-sliced membranes
++        if fine_lazy:
++            for mn, mod in model.named_modules():
++                if getattr(mod, "n_groups", 0) and hasattr(mod, "hgroup"):
++                    self.fine |= {f"{mn}.{pn}" if mn else pn for pn, _ in mod.named_parameters()}
+ 
+     def lr_mult(self, name, p, st):
+         if not self.k_mat:
+@@ -54,12 +62,16 @@ class BrainOpt:
+         age = (self.t - st["born"]).clamp(min=0)
+         return 1 + (self.k_mat - 1) * torch.exp(-age / self.tau)
+ 
+-    def _active_rows(self, g):
+-        """Mask of rows (dim 0) that received any gradient, broadcastable to g."""
++    def _active_rows(self, g, fine=False):
++        """Mask of rows (dim 0) that received any gradient, broadcastable to g. fine (head-group membranes):
++        matrices also per column (the output columns of idle heads), vectors per element."""
+         if g.dim() <= 1:  # vectors and scalars (e.g. the wave strengths) are handled as one unit
+-            return None
++            return g.ne(0) if fine else None
+         nz = g.flatten(1).abs().sum(1) != 0
+-        return nz.view(-1, *([1] * (g.dim() - 1)))
++        mask = nz.view(-1, *([1] * (g.dim() - 1)))
++        if fine and g.dim() == 2:
++            mask = mask & (g.abs().sum(0) != 0)[None, :]
++        return mask
+ 
+     @torch.no_grad()
+     def step(self, lr_scale=1.0):
+@@ -76,7 +88,8 @@ class BrainOpt:
+             st = self.state.get(name)
+             if st is None:
+                 st = self.state[name] = {"born": torch.full_like(p, float(self.t - 1), dtype=torch.float32)}
+-            mask = self._active_rows(g) if self.lazy else None
++            fine = name in self.fine
++            mask = self._active_rows(g, fine) if self.lazy else None
+             if mask is None and self.lazy:  # 1-D parameter: one mask for the whole tensor
+                 mask = g.ne(0).any().reshape([1] * g.dim())  # works for scalars too
+             mult = self.lr_mult(name, p, st)
+@@ -86,6 +99,8 @@ class BrainOpt:
+                 buf = st.setdefault("mom", torch.zeros_like(p))
+                 new_buf = buf * self.momentum + g
+                 upd_in = g + self.momentum * new_buf  # nesterov
++                if fine and mask is not None:  # idle heads' stale momentum must not shape the others' step
++                    upd_in = torch.where(mask, upd_in, torch.zeros_like(upd_in))
+                 key = tuple(p.shape[-2:])
+                 muon_by_shape.setdefault(key, []).append((p, buf, new_buf, upd_in, mask, mult, plr, decay))
+             else:
+diff --git a/train_lm.py b/train_lm.py
+index 17ca88b..63b5f56 100644
+--- a/train_lm.py
++++ b/train_lm.py
+@@ -143,7 +143,8 @@ def tier_losses(model, data, batches, B, device):
+ 
+ def build_opt(model, args):
+     if args.opt == "brain":
+-        tau = max(1, int(0.01 * args.tokens / (args.batch * args.seq)))  # maturity time constant: 1% of steps
++        # maturity time constant: 1% of optimizer steps (effective batch = batch x accum)
++        tau = max(1, int(0.01 * args.tokens / (args.batch * args.accum * args.seq)))
+         return BrainOpt(model, args.lr, args.wd, muon=bool(args.muon), lazy=bool(args.lazy),
+                         maturity=args.maturity, tau=tau)
+     return make_opt(model, args.lr, args.wd)
+@@ -168,12 +169,12 @@ def loop_report(model, data, args, batches=4):
+             gen = np.random.RandomState(4242)
+             tot = 0.0
+             for _ in range(batches):
+-                x, y = data.batch(args.batch, "val", gen)
++                x, y = data.batch(args.eval_batch, "val", gen)
+                 model.K = K
+                 tot += model(x, y)[1].item()
+             return tot / batches
+         out["loss_at_K"] = {K: val(K) for K in (1, 2, 4, 6, 8, 10, 12, 16)}
+-        x, y = data.batch(args.batch, "val", np.random.RandomState(4242))
++        x, y = data.batch(args.eval_batch, "val", np.random.RandomState(4242))
+         out["tick_loss"] = model.tick_losses(x, y, 10)
+         if core.slots:  # workspace knock-out probes
+             for mode in ("last", "all"):
+@@ -194,6 +195,7 @@ def loop_report(model, data, args, batches=4):
+     return out
+ 
+ 
++@torch.no_grad()  # (without it eval kept a full training graph: K passes x eval batch)
+ def evaluate(model, data, args, track=False):
+     model.eval()
+     if args.arch == "loop":
+@@ -204,7 +206,7 @@ def evaluate(model, data, args, track=False):
+         s.track = track
+     tot = 0.0
+     for i in range(args.eval_batches):
+-        x, y = data.batch(args.batch, "val", gen)
++        x, y = data.batch(args.eval_batch, "val", gen)
+         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=args.device == "cuda"):
+             _, loss = model(x, y)
+         tot += loss.item()
+@@ -217,7 +219,7 @@ def evaluate(model, data, args, track=False):
+         stats = dict(fire=r.mean().item(), dead=(r < 1e-3).float().mean().item(),
+                      saturated=(r > 0.95).float().mean().item())
+     if data.val_tiers:
+-        stats.update(tier_losses(model, data, max(1, args.eval_batches // 4), args.batch, args.device))
++        stats.update(tier_losses(model, data, max(1, args.eval_batches // 4), args.eval_batch, args.device))
+     model.train()
+     return tot / args.eval_batches, stats
+ 
+@@ -252,6 +254,7 @@ def main():
+     ap.add_argument("--neuro-where", default="grad", choices=["grad", "uniform"])
+     ap.add_argument("--neuro-protocol", type=int, default=1, help="1 = full birth protocol, 0 = ablation")
+     ap.add_argument("--neuro-every", type=int, default=25)
++    ap.add_argument("--neuro-t", default="0.05,0.6", help="births happen between these fractions of training")
+     ap.add_argument("--renew-rate", type=float, default=1e-5, help="continual-backprop renewal rate per neuron per step")
+     ap.add_argument("--arch", default="stack", choices=["stack", "loop"], help="loop = looped brain (loop_brain.py)")
+     ap.add_argument("--k-mean", type=int, default=6, help="loop: mean number of passes")
+@@ -268,6 +271,14 @@ def main():
+     ap.add_argument("--waves", action="store_true", help="loop: learned expert connectivity + fatigue instead of refractory")
+     ap.add_argument("--ws-direct", action="store_true", help="loop: workspace v2 (direct path + workspace, learned balance)")
+     ap.add_argument("--pops", type=int, default=1, help="loop: routed temporal populations (1 = one shared)")
++    ap.add_argument("--head-group", type=int, default=0,
++                    help="loop: pass-routed head groups of this many heads (0 = dense): the first N heads always "
++                         "on, the rest (up to --heads) in groups that take turns over the passes")
++    ap.add_argument("--head-groups", type=int, default=0,
++                    help="loop: number of routed head groups (0 = groups of --head-group heads); e.g. 6 with "
++                         "--heads 36 --head-group 6 = 6 groups of 5, so K=6 evaluation uses each group once")
++    ap.add_argument("--ckpt-route", type=int, default=0,
++                    help="loop: recompute the router (tokens x experts tensors) in backward to save memory")
+     ap.add_argument("--sizes", default="", help="expert sizes, e.g. 96x16,192x32,384x16 (count per size)")
+     ap.add_argument("--moe", default="", help="routed MLP: n_exp,k,hidden,shared,balance  e.g. 64,6,192,384,auxfree")
+     ap.add_argument("--concept", default="", help="next-concept planning: path to a trained concept_tok.pt")
+@@ -284,7 +295,9 @@ def main():
+     ap.add_argument("--start", default="", help="grow from these dims, e.g. layers=2,heads=2,mlp=512")
+     ap.add_argument("--grow-at", default="0.1,0.2,0.3", help="fractions of the token budget")
+     ap.add_argument("--tokens", type=float, default=300e6)
+-    ap.add_argument("--batch", type=int, default=32)
++    ap.add_argument("--batch", type=int, default=32, help="micro-batch size")
++    ap.add_argument("--accum", type=int, default=1, help="micro-batches per optimizer step (effective batch = batch x accum)")
++    ap.add_argument("--eval-batch", type=int, default=0, help="validation batch size (0 = batch x accum)")
+     ap.add_argument("--seq", type=int, default=512)
+     ap.add_argument("--lr", type=float, default=2e-3)
+     ap.add_argument("--wd", type=float, default=0.1)
+@@ -306,6 +319,7 @@ def main():
+     ap.add_argument("--seed", type=int, default=0)
+     ap.add_argument("--device", default="cuda")
+     args = ap.parse_args()
++    args.eval_batch = args.eval_batch or args.batch * args.accum
+ 
+     run = Path(args.runs) / args.run_name
+     run.mkdir(parents=True, exist_ok=True)
+@@ -345,12 +359,16 @@ def main():
+         moe["u"] = args.route_u
+         if args.route_aux:
+             moe["balance"], moe["aux_w"] = "aux", args.route_aux  # gradient-based load-balancing loss
++        # head groups: --head-group N always-on heads (group 0), the other --heads - N round-robin into
++        # --head-groups groups (default: groups of N)
++        n_groups = (args.head_groups or max(1, math.ceil((args.heads - args.head_group) / args.head_group)))             if args.head_group else 0
+         model = LoopBrain(tok.get_vocab_size(), args.d, args.d_state, start["heads"], args.head_dim,
+                           moe=dict(moe, n_exp=start["experts"]) if not args.sizes else moe, spike=args.spike,
+                           k_mean=args.k_mean, k_min=args.k_min, k_max=args.k_max, bptt=args.bptt,
+                           state="" if args.state == "none" else args.state,
+                           refractory=args.refractory, slots=args.slots, waves=args.waves,
+-                          pops=args.pops, ws_direct=args.ws_direct).to(args.device)
++                          pops=args.pops, ws_direct=args.ws_direct, head_group=args.head_group,
++                          head_groups=n_groups, ckpt_route=bool(args.ckpt_route)).to(args.device)
+     else:
+       model = SpikingLM(tok.get_vocab_size(), args.d, start["layers"], start["heads"], args.head_dim, start["mlp"],
+                       args.mixer, args.spike, moe=dict(moe, n_exp=start["experts"]) if moe else None,
+@@ -366,10 +384,11 @@ def main():
+         teacher.eval().requires_grad_(False)
+         print(f"distilling from {args.teacher} (kd weight {args.kd})", flush=True)
+ 
+-    tok_per_step = args.batch * args.seq
++    tok_per_step = args.batch * args.accum * args.seq  # per optimizer step; all schedules count optimizer steps
+     steps = int(args.tokens // tok_per_step)
+     grow_steps = [int(float(f) * steps) for f in args.grow_at.split(",")] if args.start and not args.neuro else []
+-    neuro = Neurogenesis(model, start, final, steps, every=args.neuro_every, where=args.neuro_where,
++    t0, t1 = (float(f) for f in args.neuro_t.split(","))
++    neuro = Neurogenesis(model, start, final, steps, every=args.neuro_every, where=args.neuro_where, t0=t0, t1=t1,
+                          protocol=bool(args.neuro_protocol), renew_rate=args.renew_rate) if args.neuro else None
+     a0, a1 = (float(f) for f in args.anneal.split(","))
+     print(f"start {start} -> final {final}; {n_params(model)/1e6:.2f}M params (+{model.emb.weight.numel()/1e6:.2f}M emb); "
+@@ -460,6 +479,9 @@ def main():
+                     rec["concept_acc"] = [a.item() for a in model.concept_acc]
+                 if args.arch == "loop":
+                     rec.update(model.diag)
++                    gn = model.head_group_grad_norms()  # from the last training step's backward
++                    if gn is not None:
++                        rec["head_group_grad_norm"] = gn
+                     if step in report_steps:
+                         rep = loop_report(model, data, args)
+                         rec.update(rep)
+@@ -505,39 +527,48 @@ def main():
+             if step == steps:
+                 break
+ 
+-            # ---- train step
+-            x, y = data.batch(args.batch)
++            # ---- train step: `accum` micro-batches, one optimizer step. K, the deep-supervision pass and the
++            # head-group rotation are drawn once per step, so every micro-batch runs the same network;
++            # each micro loss is divided by accum, so the gradient is the mean over the effective batch.
+             if args.arch == "loop":
+                 model.K = model.sample_K() if args.k_min != args.k_max else args.k_mean
++                if args.accum > 1:  # (accum = 1 keeps the old in-run sampling, same random stream as before)
++                    model.aux_k_fixed = model.sample_aux_k(model.K)
++                model.group_offset = model.sample_group_offset()
+             scoring = neuro is not None and neuro.want_score(step)
+             if scoring:
+                 neuro.attach()
+-            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=args.device == "cuda"):
+-                logits, loss = model(x, y)
+-                total = loss
+-                if teacher is not None:
+-                    with torch.no_grad():
+-                        t_logits = teacher(x)
+-                    kd = F.kl_div(F.log_softmax(logits.float(), -1).flatten(0, 1),
+-                                  F.log_softmax(t_logits.float(), -1).flatten(0, 1), log_target=True, reduction="batchmean")
+-                    total = loss + args.kd * kd
+-                aux = model.aux_loss()
+-                if aux is not None:
+-                    total = total + aux
+-                if model.concept_loss is not None:
+-                    total = total + args.concept_w * model.concept_loss
+-                if args.arch == "loop" and model.aux_x is not None:  # deep supervision on an earlier pass
+-                    total = total + 0.2 * F.cross_entropy(model.heads["lm"](model.aux_x).float().flatten(0, 1),
+-                                                          y.flatten())
+             opt.zero_grad(set_to_none=True)
+-            total.backward()
++            micro = []
++            for _ in range(args.accum):
++                x, y = data.batch(args.batch)  # two draws of 16 == one draw of 32 (same numpy stream)
++                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=args.device == "cuda"):
++                    logits, loss = model(x, y)
++                    total = loss
++                    if teacher is not None:
++                        with torch.no_grad():
++                            t_logits = teacher(x)
++                        kd = F.kl_div(F.log_softmax(logits.float(), -1).flatten(0, 1),
++                                      F.log_softmax(t_logits.float(), -1).flatten(0, 1), log_target=True, reduction="batchmean")
++                        total = loss + args.kd * kd
++                    aux = model.aux_loss()
++                    if aux is not None:
++                        total = total + aux
++                    if model.concept_loss is not None:
++                        total = total + args.concept_w * model.concept_loss
++                    if args.arch == "loop" and model.aux_x is not None:  # deep supervision on an earlier pass
++                        total = total + 0.2 * F.cross_entropy(model.heads["lm"](model.aux_x).float().flatten(0, 1),
++                                                              y.flatten())
++                (total / args.accum if args.accum > 1 else total).backward()
++                micro.append(loss.detach())
++                del logits, total
+             if scoring:
+                 neuro.detach_and_score()
+             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+             opt.step() if args.opt == "adamw" else opt.step(lr / args.lr)
+             if args.arch == "loop":
+-                model.blocks[0].mlp.apply_balance()
+-            li = loss.item()
++                model.blocks[0].mlp.apply_balance()  # pending counts summed over all micro-batches
++            li = (sum(micro) / len(micro)).item()
+             if not math.isfinite(li):
+                 print(f"step {step}: loss is {li}, stopping", flush=True)
+                 break
+diff --git a/test_spiking_lm.py b/test_spiking_lm.py
+index 42dd832..e2a5da4 100644
+--- a/test_spiking_lm.py
++++ b/test_spiking_lm.py
+@@ -545,3 +545,455 @@ def test_workspace_v2_direct_plus_workspace_trains_with_brainopt():
+     assert not torch.allclose(base, m(x))   # the workspace still matters
+     m.knockout = None
+     assert torch.allclose(m(x)[:, :20], m(x[:, :20]), atol=1e-5)  # causal
++
++
++# ---------------------------------------------------------------- v4: accumulation, head groups, growing waves
++def wave_loop(**kw):
++    """The v4 base: waves + workspace v2, no vector state (double precision)."""
++    cfg = dict(state="", waves=True, slots=4, ws_direct=True, heads=2)
++    cfg.update(kw)
++    return tiny_loop(**cfg)
++
++
++def calibrate_all(m):
++    for s in m.spikes():  # first-use calibration samples a random subset: make it batch-independent
++        s.calibrated.fill_(True)
++
++
++def loop_total(m, x, y):
++    """The trainer's per-batch objective: LM + router aux (z) + 0.2 deep supervision."""
++    _, loss = m(x, y)
++    total = loss + m.aux_loss()
++    if m.aux_x is not None:
++        total = total + 0.2 * torch.nn.functional.cross_entropy(m.heads["lm"](m.aux_x).flatten(0, 1), y.flatten())
++    return total
++
++
++@pytest.mark.parametrize("groups", [0, 2])
++def test_accumulation_equals_full_batch(groups):
++    m = wave_loop(heads=6, head_group=2 if groups else 0, head_groups=groups)
++    calibrate_all(m)
++    m.train()
++    m.K, m.aux_k_fixed, m.group_offset = 4, 2, 1
++    m2 = copy.deepcopy(m)
++    x = torch.randint(0, 50, (4, 33))
++    loop_total(m, x[:, :-1], x[:, 1:]).backward()
++    for half in (x[:2], x[2:]):
++        (loop_total(m2, half[:, :-1], half[:, 1:]) / 2).backward()
++    for (name, p), p2 in zip(m.named_parameters(), m2.parameters()):
++        assert (p.grad is None) == (p2.grad is None), name
++        if p.grad is not None:
++            assert torch.allclose(p.grad, p2.grad, atol=1e-10, rtol=1e-8), name
++    a, b = m.blocks[0].mlp, m2.blocks[0].mlp
++    assert torch.equal(a.pending, b.pending) and torch.equal(a.pending_elig, b.pending_elig)
++    a.apply_balance()
++    b.apply_balance()
++    assert torch.allclose(a.bias, b.bias, atol=1e-12) and torch.equal(a.age, b.age)
++
++
++@pytest.mark.parametrize("groups", [0, 2])
++def test_loop_head_births_exact_and_groups(groups):
++    m = wave_loop(heads=2, head_group=2 if groups else 0, head_groups=groups)
++    x = torch.randint(0, 50, (2, 33))
++    mix = m.blocks[0].mix
++    m.eval()
++    for _ in range(4):
++        before = {}
++        for K in (1, 3, 5):
++            m.K = K
++            before[K] = m(x)
++        m.grow_heads(1, ramp=True)
++        for K in (1, 3, 5):
++            m.K = K
++            assert (m(x) - before[K]).abs().max().item() < 1e-10   # a birth never changes the output
++    assert m.cfg["heads"] == 6 and isinstance(m.cfg["heads"], int)
++    assert mix.hgroup.tolist() == ([0, 0, 1, 2, 1, 2] if groups else [0] * 6)  # round-robin
++    # a newborn only acts through its ramp: wo columns trained (here: random) but ramp 0 -> no change
++    new = slice(5 * mix.p, 6 * mix.p)
++    m.K = 3
++    base = m(x)
++    with torch.no_grad():
++        mix.wo.weight[:, new] = torch.randn_like(mix.wo.weight[:, new]) * 0.1
++    assert (m(x) - base).abs().max().item() < 1e-10
++    mix.ramp[new] = 0.5
++    assert (m(x) - base).abs().max().item() > 1e-6                   # output changes once ramp > 0
++    if groups:  # a head gets no gradient on passes that do not use its group
++        mix.ramp.fill_(1.0)
++        with torch.no_grad():
++            mix.wo.weight.normal_(0, 0.1)
++        m.train()
++        m.K, m.group_offset = 1, 0                                       # one pass, group 1
++        _, loss = m(x[:, :-1], x[:, 1:])
++        loss.backward()
++        g = mix.wz.weight.grad.view(mix.h, mix.p, -1).abs().sum((1, 2))
++        assert (g[mix.hgroup == 2] == 0).all() and (g[mix.hgroup != 2] > 0).all()
++        assert m.diag["head_group_passes"] == [1, 0]
++        gn = m.head_group_grad_norms()
++        assert gn[2] == 0 and gn[0] > 0 and gn[1] > 0
++
++
++def test_pass_group_rotation():
++    m = wave_loop(heads=7, head_group=2, head_groups=5)
++    x = torch.randint(0, 50, (2, 17))
++    m.eval()
++    m.K, m.group_offset = 6, 3
++    assert [m.pass_group(k) for k in range(6)] == [1, 2, 3, 4, 5, 1]   # eval ignores the offset
++    m(x)
++    assert m.diag["head_group_passes"] == [2, 1, 1, 1, 1]
++    m.train()
++    assert [m.pass_group(k) for k in range(7)] == [4, 5, 1, 2, 3, 4, 5]  # K > G wraps around
++    seen = set()
++    for _ in range(40):
++        m.group_offset = m.sample_group_offset()
++        seen.add(m.pass_group(0))
++    assert seen == {1, 2, 3, 4, 5}   # with random offsets every group also gets the first pass
++
++
++def test_brainopt_leaves_idle_head_groups_untouched():
++    """A head group not computed on any pass this step gets zero gradient AND no optimizer change at all
++    (no stale momentum, no weight decay), including its wo columns and 1-D per-head tensors."""
++    from brain_opt import BrainOpt
++    torch.manual_seed(0)
++    m = wave_loop(heads=2, head_group=2, head_groups=2).float()
++    m.grow_heads(2, ramp=False)   # heads 2, 3 -> groups 1, 2
++    opt = BrainOpt(m, lr=3e-3, muon=True, lazy=True)
++    x = torch.randint(0, 50, (2, 17))
++    m.train()
++    m.K = 4                       # first step: both groups used, momentum everywhere
++    m.group_offset = 0
++    m(x, x)[1].backward()
++    opt.step()
++    opt.zero_grad()
++    mix = m.blocks[0].mix
++    idle = mix.hgroup == 2
++    snap = {n: p.detach().clone() for n, p in mix.named_parameters()}
++    m.K = 1                       # second step: only group 1 -> group 2 idle
++    m(x, x)[1].backward()
++    opt.step()
++    P = mix.p
++    ch = idle.repeat_interleave(P)
++    for n, p in mix.named_parameters():
++        old = snap[n]
++        if n == "wo.weight":
++            assert torch.equal(p[:, ch], old[:, ch]) and not torch.equal(p[:, ~ch], old[:, ~ch])
++        elif p.dim() >= 1 and p.size(0) == mix.h * P:
++            assert torch.equal(p[ch], old[ch]), n
++        elif p.dim() >= 1 and p.size(0) == mix.h:
++            assert torch.equal(p[idle], old[idle]), n
++
++
++def test_brainopt_fine_lazy_only_touches_head_group_membranes():
++    """Fairness with v2: every parameter outside the head-group-sliced membranes gets bit-for-bit the update
++    of the original optimizer rule (fine_lazy=False), and a dense (ungrouped) model is unaffected entirely."""
++    import copy
++    from brain_opt import BrainOpt
++    for groups in (2, 0):
++        torch.manual_seed(0)
++        m = wave_loop(heads=2, head_group=2 if groups else 0, head_groups=groups).float()
++        m.grow_heads(2, ramp=False)
++        m2 = copy.deepcopy(m)
++        o1, o2 = BrainOpt(m, lr=3e-3), BrainOpt(m2, lr=3e-3, fine_lazy=False)
++        assert bool(o1.fine) == bool(groups) and not o2.fine
++        x = torch.randint(0, 50, (2, 17))
++        # step 1 uses every group (identical results); step 2 leaves group 2 idle. Compare that one step
++        # from the same state: only the membranes may differ (later steps differ everywhere, via the forward)
++        for K in (4, 1):
++            for mm, o in ((m, o1), (m2, o2)):
++                torch.manual_seed(K)
++                mm.train()
++                mm.K, mm.group_offset = K, 0
++                o.zero_grad()
++                mm(x, x)[1].backward()
++                o.step()
++            if K == 4:
++                assert all(torch.equal(p, p2) for p, p2 in zip(m.parameters(), m2.parameters()))
++        for (n, p), (_, p2) in zip(m.named_parameters(), m2.named_parameters()):
++            if n not in o1.fine:
++                assert torch.equal(p, p2), n
++        if groups:  # and the membranes do differ: the old rule moved the idle heads
++            assert not all(torch.equal(p, p2) for (n, p), (_, p2) in
++                           zip(m.named_parameters(), m2.named_parameters()) if n in o1.fine)
++
++
++def test_v4_head_layout_six_groups_of_five():
++    """The v4 run: 6 always-on heads + 30 newborn heads round-robin into 6 routed groups of 5, so the K=6
++    evaluation uses every routed group exactly once."""
++    m = wave_loop(heads=6, head_group=6, head_groups=6)
++    for _ in range(30):  # heads are born one at a time during training
++        m.grow_heads(1, ramp=True)
++    mix = m.blocks[0].mix
++    assert m.cfg["heads"] == 36 and isinstance(m.cfg["heads"], int)
++    assert torch.bincount(mix.hgroup).tolist() == [6, 5, 5, 5, 5, 5, 5]
++    m.eval()
++    m.K = 6
++    assert [m.pass_group(k) for k in range(6)] == [1, 2, 3, 4, 5, 6]
++    m(torch.randint(0, 50, (2, 17)))
++    assert m.diag["head_group_passes"] == [1, 1, 1, 1, 1, 1]
++    assert all(len(mix.active(g)[0]) == 11 for g in range(1, 7))  # 6 core + 5 routed heads per pass
++
++
++@pytest.mark.parametrize("spike", ["analog", "graded", "ngc"])
++def test_grouped_mixer_matches_dense(spike):
++    from spiking_lm import SSDMixer
++    torch.manual_seed(0)
++    dense = SSDMixer(16, 6, 4, spike, 8).double()
++    x = torch.randn(2, 20, 16, dtype=torch.float64)
++    with torch.no_grad():
++        dense.ramp[8:12] = 0.5  # a ramping head too
++    dense.ramping = True
++    for G in (1, 2):
++        grp = SSDMixer(16, 6, 4, spike, 8, group0=2, n_groups=G).double()
++        sd = dict(dense.state_dict(), hgroup=grp.hgroup.clone())
++        grp.load_state_dict(sd)
++        assert grp.ramping
++        if G == 1:  # group 0 + group 1 = every head: identical to the dense mixer, values and gradients
++            xa, xb = x.clone().requires_grad_(), x.clone().requires_grad_()
++            ya, yb = grp(xa, group=1), dense(xb)
++            assert torch.allclose(ya, yb, atol=1e-12)
++            ya.pow(2).sum().backward()
++            yb.pow(2).sum().backward()
++            assert torch.allclose(xa.grad, xb.grad, atol=1e-12)
++            for (n, p), q in zip(grp.named_parameters(), dense.parameters()):
++                assert (p.grad is None and q.grad is None) or torch.allclose(p.grad, q.grad, atol=1e-12), n
++            dense.zero_grad()
++        elif spike != "ngc":  # (ngc normalises over the computed channels, by design)
++            ref = copy.deepcopy(dense)
++            idle = (grp.hgroup == 2).nonzero().squeeze(1)
++            with torch.no_grad():  # an idle head contributes nothing: dense with its outputs cut
++                for h in idle.tolist():
++                    ref.wo.weight[:, h * 4:(h + 1) * 4] = 0
++            assert torch.allclose(grp(x, group=1), ref(x), atol=1e-12)
++
++
++@pytest.mark.parametrize("balance", ["aux", "auxfree"])
++def test_loop_expert_births_with_waves(balance):
++    m = wave_loop(moe=dict(n_exp=32, k=3, hidden=16, shared=16, capacity=0, balance=balance, aux_w=0.01))
++    core, mlp = m.blocks[0], m.blocks[0].mlp
++    x = torch.randint(0, 50, (4, 33))
++    m.eval()
++    C0, pos0, adj0 = core.router_conn.detach().clone(), core.pos.clone(), core.adj2.clone()
++    rs0 = mlp.router_s.weight.detach().clone()
++    from loop_brain import sheet_adj
++    assert torch.equal(sheet_adj(pos0, 16, 2), adj0)        # full 16x2 grid: same neighbours as the torus
++    before = {}
++    for K in (2, 4):
++        m.K = K
++        before[K] = m(x)
++    src = m.grow_experts(3).tolist()
++    for K in (2, 4):
++        m.K = K
++        assert (m(x) - before[K]).abs().max().item() < 1e-10   # newborns are not selected at birth
++    C = core.router_conn.detach()
++    assert C.shape == (35, 35) and torch.equal(C[:32, :32], C0) and m.cfg["moe"]["n_exp"] == 35
++    for i, p in enumerate(src):
++        n = 32 + i
++        sib = [32 + j for j, q in enumerate(src) if q == p]
++        others = [j for j in range(32) if j != p]
++        assert torch.equal(C[n, others], C0[p, others])   # outgoing row = parent's
++        assert torch.equal(C[others, n], C0[others, p])   # incoming column = parent's
++        assert C[n, p] == 0 and C[p, n] == 0 and all(C[n, s] == 0 for s in sib)  # twin entries and diagonal
++        for j, q in enumerate(src):
++            if q != p:
++                assert C[n, 32 + j] == C0[p, q]              # newborn <-> newborn from the parents
++        assert torch.equal(mlp.router_s.weight[n], rs0[p])
++    assert core.pos.shape == (35, 2) and torch.equal(core.pos[:32], pos0)
++    assert (core.pos[32:, 0] >= 0).all() and (core.pos[32:, 0] < 16).all() and (core.pos[32:, 1] < 2).all()
++    assert core.adj2.shape == (35, 35) and torch.equal(core.adj2[:32, :32], adj0)
++    if balance == "aux":  # bug fix: the newborn's debt is paid back in aux mode too, then it gets selected
++        for _ in range(1100):
++            mlp.pending.fill_(1.0)
++            mlp.pending[32:] = 0                                 # not selected yet
++            mlp.pending_elig.fill_(1.0)
++            mlp.apply_balance()
++        assert mlp.debt.max() == 0 and torch.allclose(mlp.bias, torch.zeros_like(mlp.bias), atol=1e-9)
++        picks = []
++        h = mlp.register_forward_hook(lambda mod, a, o: picks.append(mod.last_idx.clone()))
++        m.K = 4
++        m(x)
++        h.remove()
++        used = torch.cat(picks).flatten()
++        assert all((used == 32 + i).any() for i in range(3)), used.bincount(minlength=35)[32:]
++
++
++def test_routed_aux_mode_newborns_get_selected_after_ramp():
++    """Regression (plan bug 1): with --route-aux the debt payback never ran -> newborns 2 below forever."""
++    from spiking_lm import RoutedMLP
++    torch.manual_seed(0)
++    mlp = RoutedMLP(16, n_exp=6, k=2, hidden=8, shared=0, balance="aux", aux_w=0.01, capacity=0).double()
++    x = torch.randn(4, 16, 16, dtype=torch.float64)
++    mlp.grow_experts(2)
++    mlp.train()
++    with torch.no_grad():
++        for _ in range(1100):
++            mlp(x)
++    assert mlp.debt.max() == 0 and torch.allclose(mlp.bias, torch.zeros_like(mlp.bias), atol=1e-9)
++    mlp(x)
++    assert (mlp.stats[0][6:] > 0).all(), mlp.stats[0]
++
++
++def test_brain_state_carried_through_router_conn_growth():
++    from brain_opt import BrainOpt, carry_brain_state
++    m = wave_loop(heads=4, head_group=2, head_groups=2).float()
++    opt = BrainOpt(m, lr=3e-3, maturity=4, tau=5)
++    x = torch.randint(0, 50, (2, 33))
++
++    def step(o):
++        m.K = 3
++        _, loss = m(x[:, :-1], x[:, 1:])
++        o.zero_grad()
++        (loss + m.aux_loss()).backward()
++        o.step()
++        m.blocks[0].mlp.apply_balance()
++        return loss.item()
++
++    for _ in range(3):
++        step(opt)
++    old = {k: v.clone() for k, v in opt.state["blocks.0.router_conn"].items()}
++    m.grow_experts(2)
++    m.grow_heads(2, ramp=True)
++    opt2 = carry_brain_state(opt, m, BrainOpt(m, lr=3e-3, maturity=4, tau=5))
++    st = opt2.state["blocks.0.router_conn"]
++    assert set(st) == {"born", "m", "v", "n"} and st["m"].shape == (14, 14)
++    for key, buf in st.items():
++        assert torch.equal(buf[:12, :12], old[key])
++        new = torch.cat([buf[12:].flatten(), buf[:12, 12:].flatten()])
++        expect = {"born": float(opt.t), "v": old["v"].median().item()}.get(key, 0.0)
++        assert torch.allclose(new, torch.full_like(new, expect))
++    assert all(math.isfinite(step(opt2)) for _ in range(2))
++    assert all(torch.isfinite(p).all() for p in m.parameters())
++
++
++def test_checkpoint_reload_after_loop_growth_mid_ramp():
++    """Regression (plan bugs 2, 3): Neurogenesis set cfg["heads"] to a list (LoopBrain(**cfg) broke) and
++    the mixer's `ramping` flag was not restored by load_state_dict (a mid-ramp checkpoint lost its ramp)."""
++    from loop_brain import LoopBrain
++    from neurogenesis import Neurogenesis
++    m = wave_loop(heads=2, head_group=2, head_groups=2)
++    ng = Neurogenesis(m, dict(layers=1, heads=2, mlp=0, experts=12), dict(layers=1, heads=4, mlp=0, experts=16),
++                      steps=100, every=5, ramp=50)
++    for step in range(46):
++        ng.step(step)
++    mix = m.blocks[0].mix
++    assert mix.h == 4 and mix.ramping and ((mix.ramp > 0) & (mix.ramp < 1)).any()
++    with torch.no_grad():  # as if the newborn heads had trained a little
++        mix.wo.weight[:, 2 * mix.p:] = torch.randn_like(mix.wo.weight[:, 2 * mix.p:]) * 0.1
++    cfg = copy.deepcopy(m.cfg)
++    assert isinstance(cfg["heads"], int) and cfg["heads"] == 4 and cfg["moe"]["n_exp"] == m.blocks[0].mlp.E
++    m2 = LoopBrain(**cfg).double()
++    m2.load_state_dict(m.state_dict(), strict=True)
++    assert m2.blocks[0].mix.ramping
++    m.eval()
++    m2.eval()
++    x = torch.randint(0, 50, (2, 33))
++    for K in (2, 5):
++        m.K = m2.K = K
++        assert torch.equal(m(x), m2(x))
++    m2.blocks[0].mix.ramping = False   # what the old reload did: the ramp was silently dropped
++    assert not torch.allclose(m(x), m2(x))
++
++
++def test_reload_mid_ramp_keeps_ramping():
++    from neurogenesis import Neurogenesis
++    m = tiny("ssd", "graded", heads=1, mlp=16)
++    ng = Neurogenesis(m, dict(layers=2, heads=1, mlp=16), dict(layers=2, heads=2, mlp=32), steps=100, every=5,
++                      where="uniform", ramp=50)
++    for step in range(30):
++        ng.step(step)
++    assert m.blocks[0].mlp.ramping
++    with torch.no_grad():
++        for b in m.blocks:
++            b.mlp.down.weight.normal_(0, 0.1)
++    m2 = SpikingLM(**copy.deepcopy(m.cfg)).double()
++    m2.load_state_dict(m.state_dict(), strict=True)
++    for b, b2 in zip(m.blocks, m2.blocks):
++        assert b2.mlp.ramping == b.mlp.ramping and getattr(b2.mix, "ramping", None) == getattr(b.mix, "ramping", None)
++    m.eval()
++    m2.eval()
++    x = torch.randint(0, 50, (2, 33))
++    assert torch.equal(m(x), m2(x))
++
++
++def test_neurogenesis_grows_the_loop_with_brainopt():
++    from brain_opt import BrainOpt, carry_brain_state
++    from neurogenesis import Neurogenesis
++    m = wave_loop(heads=2, head_group=2, head_groups=2).float()
++    ng = Neurogenesis(m, dict(layers=1, heads=2, mlp=0, experts=12), dict(layers=1, heads=6, mlp=0, experts=20),
++                      steps=60, every=5, ramp=20)
++    opt = BrainOpt(m, lr=3e-3, maturity=4, tau=10)
++    x = torch.randint(0, 50, (2, 33))
++    rebuilds = 0
++    for step in range(60):
++        if step % 5 == 0:  # ramps are an intended change; the births themselves must be exact
++            ng.ramps()
++            m.eval()
++            m.K = 3
++            before = m(x[:, :-1])
++            changed = ng.births_step(step)
++            assert (m(x[:, :-1]) - before).abs().max().item() < 1e-5   # births never change the output
++            m.train()
++        else:
++            changed = ng.step(step)
++        if changed:
++            opt = carry_brain_state(opt, m, BrainOpt(m, lr=3e-3, maturity=4, tau=10))
++            rebuilds += 1
++            params = dict(m.named_parameters())
++            assert all(p is params[n] for n, (p, _) in opt.groups.items())  # optimizer sees the new tensors
++        m.K = 3
++        m.group_offset = m.sample_group_offset()
++        _, loss = m(x[:, :-1], x[:, 1:])
++        opt.zero_grad()
++        (loss + m.aux_loss()).backward()
++        opt.step()
++        m.blocks[0].mlp.apply_balance()
++    core = m.blocks[0]
++    assert core.mix.h == 6 and core.mlp.E == 20 and core.router_conn.shape == (20, 20) and core.pos.shape == (20, 2)
++    assert m.cfg["heads"] == 6 and m.cfg["moe"]["n_exp"] == 20 and rebuilds >= 4
++    assert core.mix.hgroup.tolist() == [0, 0, 1, 2, 1, 2] and math.isfinite(loss.item())
++
++
++def test_embedding_bag_wave_equals_dense():
++    torch.manual_seed(0)
++    E, N, k = 12, 20, 3
++    C = torch.randn(E, E, dtype=torch.float64, requires_grad=True)
++    idx = torch.randn(N, E).topk(k, -1).indices
++    prev = torch.zeros(N, E, dtype=torch.float64).scatter(1, idx, 1.0)
++    w = torch.randn(N, E, dtype=torch.float64)
++    a = torch.nn.functional.embedding_bag(idx, C, mode="sum")
++    ga, = torch.autograd.grad((a * w).sum(), C)
++    b = prev @ C
++    gb, = torch.autograd.grad((b * w).sum(), C)
++    assert torch.allclose(a, b, atol=1e-12) and torch.allclose(ga, gb, atol=1e-12)
++    # and inside the router: the tuple path equals the old dense `extra` path, values and gradients
++    m = wave_loop()
++    mlp, core = m.blocks[0].mlp, m.blocks[0]
++    h = torch.randn(2, 10, 32, dtype=torch.float64)
++    idx = torch.randn(20, 12).topk(3, -1).indices
++    prev = torch.zeros(20, 12, dtype=torch.float64).scatter(1, idx, 1.0)
++    fat = prev * 1.7
++    g, bb = torch.nn.functional.softplus(core.wave_gamma), torch.nn.functional.softplus(core.wave_beta)
++    mlp.eval()
++    y1 = mlp(h, extra=g * (prev @ core.router_conn) - bb * fat)
++    g1 = torch.autograd.grad(y1.pow(2).sum(), core.router_conn)[0]
++    y2 = mlp(h, wave=(idx, fat, core.router_conn, g, bb))
++    g2 = torch.autograd.grad(y2.pow(2).sum(), core.router_conn)[0]
++    assert torch.allclose(y1, y2, atol=1e-12) and torch.allclose(g1, g2, atol=1e-12)
++
++
++@pytest.mark.parametrize("balance", ["aux", "auxfree"])
++def test_checkpointed_routing_equals_plain(balance):
++    m = wave_loop(heads=4, head_group=2, head_groups=1,
++                  moe=dict(n_exp=12, k=3, hidden=16, shared=16, capacity=0, balance=balance, aux_w=0.01))
++    calibrate_all(m)
++    m.train()
++    m.K, m.aux_k_fixed = 4, 2
++    m2 = copy.deepcopy(m)
++    m2.blocks[0].mlp.ckpt_route = True
++    x = torch.randint(0, 50, (2, 33))
++    t1, t2 = loop_total(m, x[:, :-1], x[:, 1:]), loop_total(m2, x[:, :-1], x[:, 1:])
++    assert torch.allclose(t1, t2, atol=1e-12)
++    t1.backward()
++    t2.backward()
++    for (n, p), q in zip(m.named_parameters(), m2.parameters()):
++        if p.grad is not None:
++            assert torch.allclose(p.grad, q.grad, atol=1e-12), n
++    assert m.blocks[0].router_conn.grad.abs().sum() > 0

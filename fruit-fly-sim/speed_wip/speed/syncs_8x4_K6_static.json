@@ -1,0 +1,34 @@
+{
+ "batch": 8,
+ "accum": 4,
+ "K": 6,
+ "n": 54,
+ "sites": [
+  {
+   "site": "memory.py:95 stable_topk",
+   "count": 52,
+   "code": "eq = torch.topk(torch.where(flat == thr, rev, rev.new_tensor(-1)), k, dim=-1).indices   # lowest indices first",
+   "chains": [
+    "memory.py:95(stable_topk) <- loop_brain.py:777(<lambda>) <- loop_brain.py:235(forward) <- loop_brain.py:1075(run)",
+    "memory.py:95(stable_topk) <- memory.py:721(_addr) <- memory.py:675(select) <- loop_brain.py:550(block)",
+    "memory.py:95(stable_topk) <- memory.py:721(_addr) <- memory.py:687(select) <- loop_brain.py:550(block)"
+   ]
+  },
+  {
+   "site": "sync_trace.py:60 <module>",
+   "count": 1,
+   "code": "torch.cuda.set_sync_debug_mode(\"warn\")",
+   "chains": [
+    ""
+   ]
+  },
+  {
+   "site": "step_lib.py:52 train_step",
+   "count": 1,
+   "code": "vals = torch.cat([lt.double().view(1), cnt.double()]).tolist()",
+   "chains": [
+    ""
+   ]
+  }
+ ]
+}

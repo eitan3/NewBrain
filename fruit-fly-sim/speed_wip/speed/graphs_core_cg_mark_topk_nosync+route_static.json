@@ -1,0 +1,10 @@
+{
+ "mode": "core_cg_mark",
+ "K": 6,
+ "batch": 8,
+ "accum": 4,
+ "nohomeo": false,
+ "error": "RuntimeError('Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File \"C:\\\\Eitan\\\\Python\\\\NewBrain\\\\fruit-fly-sim\\\\loop_brain.py\", line 242, in forward\\n    x = self.n_x(x + self.alpha * ((1 - lam) * (m + o) + lam * ws))\\n  File \"C:\\\\Eitan\\\\Python\\\\NewBrain\\\\fruit-fly-sim\\\\spiking_lm.py\", line 111, in forward\\n    return (xf * torch.rsqrt(xf.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight).to(x.dtype). To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.')",
+ "losses": [],
+ "times": []
+}

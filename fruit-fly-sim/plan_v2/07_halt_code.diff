@@ -1,0 +1,229 @@
+diff --git a/loop_brain.py b/loop_brain.py
+index 706443e..f61a22c 100644
+--- a/loop_brain.py
++++ b/loop_brain.py
+@@ -248,5 +248,6 @@ class LoopBrain(SpikingLM):
+     def __init__(self, vocab, d=384, d_s=96, heads=6, head_dim=64, moe=None, spike="analog", chunk=64,
+                  k_mean=6, k_min=2, k_max=10, bptt=6, state="carry", refractory=1, slots=0, waves=False,
+-                 pops=1, ws_direct=False, head_group=0, head_groups=0, sheet_cols=0, ckpt_route=False, **_):
++                 pops=1, ws_direct=False, head_group=0, head_groups=0, sheet_cols=0, ckpt_route=False,
++                 deep_sup=0.0, halt=False, halt_prior=0.2, halt_beta=0.01, **_):
+         nn.Module.__init__(self)
+         moe = dict(moe or dict(n_exp=384, k=6, hidden=192, shared=384, capacity=0))
+@@ -257,4 +258,5 @@ class LoopBrain(SpikingLM):
+                         state=state, refractory=refractory, slots=slots, waves=waves, pops=pops, ws_direct=ws_direct,
+                         head_group=head_group, head_groups=head_groups, sheet_cols=sheet_cols, ckpt_route=ckpt_route,
++                        deep_sup=deep_sup, halt=halt, halt_prior=halt_prior, halt_beta=halt_beta,
+                         layers=1, mlp=0, mixer="ssd", concept=None)
+         self.has_state = bool(state) or bool(slots)
+@@ -265,4 +267,8 @@ class LoopBrain(SpikingLM):
+         self.normf = RMSNorm(d)
+         self.heads = nn.ModuleDict({"lm": nn.Linear(d, vocab, bias=False)})   # the decoder (swappable)
++        # "loop until sure" (PonderNet-style): after every pass a small head reads the thought x (normalised),
++        # how much the prediction changed since the previous pass (KL), its entropy and the pass index, and
++        # outputs the probability of stopping now. Its inputs are detached, so it never changes the brain.
++        self.halt_head = nn.Sequential(nn.Linear(d + 3, 64), nn.GELU(), nn.Linear(64, 1)) if halt else None
+         self.apply(self._init)
+         core = self.blocks[0]
+@@ -287,4 +293,7 @@ class LoopBrain(SpikingLM):
+         self.group_offset = 0     # head-group rotation offset (training only; evaluation always uses 0)
+         self.group_passes = [0] * self.blocks[0].n_groups  # training passes per routed head group (diagnostics)
++        self._targets = None      # set by forward() when per-pass losses are needed (deep supervision / halting)
++        self.loop_extra = None    # deep-supervision + halting loss of the last training forward
++        self.halt_stats = None
+ 
+     def sample_aux_k(self, K):
+@@ -326,5 +335,66 @@ class LoopBrain(SpikingLM):
+ 
+     def aux_loss(self):
+-        return getattr(self, "loop_aux", None)
++        aux, extra = getattr(self, "loop_aux", None), self.loop_extra
++        if extra is None:
++            return aux
++        return extra if aux is None else aux + extra
++
++    def forward(self, idx, targets=None, head="lm"):
++        per_pass = self.training and targets is not None and (self.cfg["deep_sup"] or self.cfg["halt"])
++        self._targets = targets if per_pass else None
++        try:
++            return super().forward(idx, targets, head)
++        finally:
++            self._targets = None
++
++    def pass_readout(self, x, prev_lp, k):
++        """Decoder read-out after a pass: log-probs (B, T, V) and the halting features (detached)."""
++        lp = F.log_softmax(self.heads["lm"](self.normf(x)).float(), -1)
++        with torch.no_grad():
++            p = lp.exp()
++            ent = -(p * lp).sum(-1) / math.log(lp.size(-1))
++            kl = (p * (lp - prev_lp)).sum(-1) if prev_lp is not None else torch.zeros_like(ent)
++            feat = torch.cat([self.normf(x).detach().float(), torch.log1p(kl.clamp(min=0))[..., None],
++                              ent[..., None], torch.full_like(ent, k / 16.0)[..., None]], -1)
++        return lp, feat
++
++    def halt_lambda(self, feat):
++        return torch.sigmoid(self.halt_head(feat.to(self.halt_head[0].weight.dtype)).squeeze(-1).float())
++
++    @staticmethod
++    def halt_distribution(lams):
++        """lams: list of (B, T) stop probabilities for passes 0..K-1; the last pass takes the remaining mass."""
++        p, alive = [], torch.ones_like(lams[0])
++        for i, lam in enumerate(lams):
++            lam = torch.ones_like(lam) if i == len(lams) - 1 else lam
++            p.append(alive * lam)
++            alive = alive * (1 - lam)
++        return torch.stack(p, 0)                                          # (K, B, T), sums to 1
++
++    @torch.no_grad()
++    def halt_eval(self, idx, targets, K_max=16, threshold=0.5):
++        """Loop until sure: every word stops at the first pass where its cumulative stop probability reaches
++        threshold (ceiling K_max). Loss of each word's answer at its own exit pass (read from one K_max run, as
++        if the stopped words had frozen; the uncertainty probe showed freezing does not change the others) and
++        the average number of passes, plus the fixed-K losses of the same run for comparison."""
++        was = self.training
++        self.eval()
++        outs = self.run(idx, K_max, every_tick=True, raw=True)
++        prev, lams, ces = None, [], []
++        for k, x in enumerate(outs):
++            lp, feat = self.pass_readout(x, prev, k)
++            lams.append(self.halt_lambda(feat))
++            ces.append(-lp.gather(-1, targets[..., None]).squeeze(-1))
++            prev = lp
++        P = self.halt_distribution(lams)
++        stop = (P.cumsum(0) >= threshold).float().argmax(0)              # first pass over the threshold
++        ce = torch.stack(ces, 0)
++        exit_loss = ce.gather(0, stop[None]).squeeze(0)
++        self.train(was)
++        steps = torch.arange(1, K_max + 1, device=P.device)[:, None, None]
++        return dict(halt_loss=exit_loss.mean().item(), halt_passes=(stop.float() + 1).mean().item(),
++                    halt_expected_passes=(P * steps).sum(0).mean().item(),
++                    fixed_loss={k + 1: ce[k].mean().item() for k in range(K_max)},
++                    passes_hist=torch.bincount(stop.flatten() + 1, minlength=K_max + 1)[1:].tolist())
+ 
+     def sample_K(self):
+@@ -334,5 +404,5 @@ class LoopBrain(SpikingLM):
+         return int(torch.randint(self.cfg["k_min"], self.cfg["k_max"] + 1, ()).item())
+ 
+-    def run(self, idx, K=None, every_tick=False):
++    def run(self, idx, K=None, every_tick=False, raw=False):
+         core = self.blocks[0]
+         K = K or self.K
+@@ -344,5 +414,10 @@ class LoopBrain(SpikingLM):
+         fatigue, prev, prev_idx = None, None, None
+         self.aux_x = None
+-        if self.training and self.aux_k_fixed is not None:
++        tgt = self._targets
++        ds_w, halt = self.cfg.get("deep_sup", 0.0), self.cfg.get("halt", False)
++        ces, lams, prev_lp = [], [], None
++        if tgt is not None and ds_w:  # deep supervision on every pass replaces the single sampled one
++            aux_k = -1
++        elif self.training and self.aux_k_fixed is not None:
+             aux_k = self.aux_k_fixed
+         else:
+@@ -380,7 +455,35 @@ class LoopBrain(SpikingLM):
+             if k == aux_k and torch.is_grad_enabled():
+                 self.aux_x = self.normf(x)
++            if tgt is not None:  # per-pass read-out: deep supervision / halting (gradient only where backprop runs)
++                with torch.set_grad_enabled(torch.is_grad_enabled() and k >= K - bptt):
++                    lp, feat = self.pass_readout(x, prev_lp, k)
++                    ces.append(-lp.gather(-1, tgt[..., None]).squeeze(-1))
++                    if halt:
++                        lams.append(self.halt_lambda(feat))
++                prev_lp = lp.detach()
++                del lp
+             if every_tick:
+-                outs.append(self.normf(x))
++                outs.append(x if raw else self.normf(x))
+         self.loop_aux = sum(aux_terms) / len(aux_terms) if aux_terms else None
++        self.loop_extra, self.halt_stats = None, None
++        if tgt is not None:
++            extra = 0.0
++            if ds_w:  # mean LM loss of the earlier backpropagated passes (the last pass is the main loss)
++                early = [c.mean() for k, c in enumerate(ces[:-1]) if k >= K - bptt]
++                if early:
++                    extra = extra + ds_w * sum(early) / len(early)
++            if halt and len(lams) >= 2:
++                P = self.halt_distribution(lams)                                     # (K, B, T)
++                ce = torch.stack(ces, 0).detach()                                    # the head does not shape the LM
++                rec = (P * ce).sum(0).mean()
++                lp_ = self.cfg["halt_prior"]
++                q = torch.tensor([lp_ * (1 - lp_) ** i for i in range(len(lams))], device=P.device)
++                q[-1] = 1 - q[:-1].sum()                                             # truncated geometric prior
++                kl = (P * (P.clamp_min(1e-9).log() - q.log()[:, None, None])).sum(0).mean()
++                extra = extra + rec + self.cfg["halt_beta"] * kl
++                with torch.no_grad():
++                    steps = torch.arange(1, len(lams) + 1, device=P.device)[:, None, None]
++                    self.halt_stats = dict(expected_passes=(P * steps).sum(0).mean(), kl=kl.detach())
++            self.loop_extra = extra if torch.is_tensor(extra) else None
+         if G and self.training:
+             self.group_passes = [a + b for a, b in zip(self.group_passes, gpass)]
+diff --git a/train_lm.py b/train_lm.py
+index a54dc44..8835135 100644
+--- a/train_lm.py
++++ b/train_lm.py
+@@ -158,4 +158,11 @@ def newborn_stats(model):
+ 
+ 
++def free_cache(device):
++    """After growth: the old (smaller) tensors and optimizer state stay in PyTorch's cache, and with repeated
++    births the fragmented cache filled the GPU (v4b: ~22 GB held for ~11 GB used, speed 38k -> 17k tok/s)."""
++    if str(device).startswith("cuda") and torch.cuda.is_available():
++        torch.cuda.empty_cache()
++
++
+ def build_opt(model, args):
+     if args.opt == "brain":
+@@ -191,4 +198,11 @@ def loop_report(model, data, args, batches=4):
+             return tot / batches
+         out["loss_at_K"] = {K: val(K) for K in (1, 2, 4, 6, 8, 10, 12, 16)}
++        if model.cfg.get("halt"):  # loop until sure: each word stops when its stop probability passes 0.5
++            gen = np.random.RandomState(4242)
++            hs = [model.halt_eval(*data.batch(args.eval_batch, "val", gen)) for _ in range(batches)]
++            out["halt"] = dict(loss=sum(h["halt_loss"] for h in hs) / batches,
++                               passes=sum(h["halt_passes"] for h in hs) / batches,
++                               expected_passes=sum(h["halt_expected_passes"] for h in hs) / batches,
++                               passes_hist=[sum(c) for c in zip(*(h["passes_hist"] for h in hs))])
+         x, y = data.batch(args.eval_batch, "val", np.random.RandomState(4242))
+         out["tick_loss"] = model.tick_losses(x, y, 10)
+@@ -311,4 +325,11 @@ def main():
+                     help="loop: pass-routed head groups of this many heads (0 = dense): the first N heads always "
+                          "on, the rest (up to --heads) in groups that take turns over the passes")
++    ap.add_argument("--deep-sup", type=float, default=0.0,
++                    help="loop: weight of the LM loss on every earlier backpropagated pass (0 = the old single "
++                         "sampled pass at 0.2)")
++    ap.add_argument("--halt", type=int, default=0, help="loop: 1 = learned 'stop now' head (PonderNet-style)")
++    ap.add_argument("--halt-prior", type=float, default=0.2,
++                    help="halting: geometric prior's stop probability per pass (0.2 = ~5 passes)")
++    ap.add_argument("--halt-beta", type=float, default=0.01, help="halting: weight of the KL to the prior")
+     ap.add_argument("--head-groups", type=int, default=0,
+                     help="loop: number of routed head groups (0 = groups of --head-group heads); e.g. 6 with "
+@@ -421,5 +442,6 @@ def main():
+                           refractory=args.refractory, slots=args.slots, waves=args.waves,
+                           pops=args.pops, ws_direct=args.ws_direct, head_group=args.head_group,
+-                          head_groups=n_groups, ckpt_route=bool(args.ckpt_route)).to(args.device)
++                          head_groups=n_groups, ckpt_route=bool(args.ckpt_route), deep_sup=args.deep_sup,
++                          halt=bool(args.halt), halt_prior=args.halt_prior, halt_beta=args.halt_beta).to(args.device)
+     else:
+       model = SpikingLM(tok.get_vocab_size(), args.d, start["layers"], start["heads"], args.head_dim, start["mlp"],
+@@ -489,4 +511,5 @@ def main():
+                     else:
+                         opt = carry_brain_state(opt, model, build_opt(model, args))
++                    free_cache(args.device)
+                 for i, idx in neuro.pop_renewed():
+                     reset_opt_rows(opt, model, i, idx)
+@@ -538,4 +561,6 @@ def main():
+                 if args.arch == "loop":
+                     rec.update(model.diag)
++                    if getattr(model, "halt_stats", None):  # last training step: where the stop head puts its mass
++                        rec["halt_train_expected_passes"] = model.halt_stats["expected_passes"].item()
+                     if getattr(model, "train_route", None) is not None:  # last training step (eval has no noise)
+                         rec["train_distinct_experts"] = model.train_route[0].item()
+@@ -551,5 +576,7 @@ def main():
+                               + (f"  | memory knocked out {rep['loss_state_knockout']:.3f}" if "loss_state_knockout" in rep else "")
+                               + (f"  | workspace knocked out: last pass {rep['loss_ws_knockout_last']:.3f}, all passes {rep['loss_ws_knockout_all']:.3f}"
+-                                 if "loss_ws_knockout_last" in rep else ""),
++                                 if "loss_ws_knockout_last" in rep else "")
++                              + (f"  | loop until sure: loss {rep['halt']['loss']:.3f} with {rep['halt']['passes']:.2f} passes per word"
++                                 if "halt" in rep else ""),
+                               flush=True)
+                 if neuro is not None:

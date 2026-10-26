@@ -1,0 +1,216 @@
+step 6000 N 16384 calls [0, 1, 2, 3, 4]
+verify top1 subkey agree 0.9998779296875 row sets agree 0.998779296875
+
+## 1. usage (mean over heads) per level x pass; sub = top-m selections per half; rows = top-km pairs
+ckpt pass lvl | h1: ent gini top1% top10% dead | h2: ent dead | top1-subkey ent | rows: ent perp distinct top1% top10% | MI(i;j) corr
+6000 p1 L0 | 0.808 0.771 0.122 0.583 0.257 | 0.788 0.323 | 0.671 | 0.600 1781 7408 0.915 1.000 | 1.261 (Hi 4.49 Hj 4.41)
+6000 p1 L1 | 0.723 0.855 0.232 0.743 0.375 | 0.742 0.397 | 0.634 | 0.581 1424 5884 0.947 1.000 | 0.974 (Hi 4.14 Hj 4.19)
+6000 p1 L2 | 0.705 0.872 0.258 0.781 0.389 | 0.660 0.431 | 0.597 | 0.559 1119 4909 0.967 1.000 | 0.765 (Hi 4.00 Hj 3.83)
+6000 p1 L3 | 0.619 0.924 0.364 0.894 0.488 | 0.593 0.533 | 0.535 | 0.515 622 3144 0.995 1.000 | 0.516 (Hi 3.62 Hj 3.38)
+6000 p2 L0 | 0.820 0.756 0.105 0.559 0.225 | 0.796 0.278 | 0.680 | 0.601 1811 7668 0.910 1.000 | 1.338 (Hi 4.58 Hj 4.43)
+6000 p2 L1 | 0.780 0.808 0.146 0.648 0.303 | 0.777 0.318 | 0.663 | 0.599 1766 6874 0.923 1.000 | 1.160 (Hi 4.39 Hj 4.38)
+6000 p2 L2 | 0.768 0.821 0.169 0.678 0.298 | 0.746 0.319 | 0.650 | 0.595 1696 6581 0.931 1.000 | 1.043 (Hi 4.34 Hj 4.26)
+6000 p2 L3 | 0.715 0.868 0.239 0.770 0.357 | 0.687 0.402 | 0.610 | 0.568 1208 5038 0.967 1.000 | 0.811 (Hi 4.11 Hj 3.88)
+6000 p3 L0 | 0.824 0.751 0.101 0.549 0.200 | 0.796 0.223 | 0.683 | 0.600 1787 7680 0.912 1.000 | 1.368 (Hi 4.61 Hj 4.41)
+6000 p3 L1 | 0.807 0.776 0.114 0.585 0.242 | 0.790 0.279 | 0.668 | 0.600 1791 7391 0.914 1.000 | 1.242 (Hi 4.49 Hj 4.39)
+6000 p3 L2 | 0.813 0.768 0.106 0.573 0.247 | 0.815 0.236 | 0.672 | 0.610 2041 8119 0.896 1.000 | 1.228 (Hi 4.50 Hj 4.52)
+6000 p3 L3 | 0.792 0.797 0.125 0.626 0.265 | 0.782 0.285 | 0.664 | 0.606 1939 7272 0.913 1.000 | 1.100 (Hi 4.42 Hj 4.39)
+6000 p4 L0 | 0.819 0.758 0.107 0.562 0.209 | 0.791 0.219 | 0.681 | 0.598 1747 7415 0.916 1.000 | 1.355 (Hi 4.61 Hj 4.38)
+6000 p4 L1 | 0.805 0.780 0.117 0.597 0.225 | 0.787 0.265 | 0.660 | 0.595 1683 7112 0.922 1.000 | 1.220 (Hi 4.45 Hj 4.34)
+6000 p4 L2 | 0.811 0.770 0.117 0.583 0.236 | 0.818 0.223 | 0.666 | 0.605 1924 7977 0.903 1.000 | 1.226 (Hi 4.44 Hj 4.51)
+6000 p4 L3 | 0.797 0.790 0.131 0.623 0.238 | 0.792 0.250 | 0.661 | 0.602 1844 7277 0.914 1.000 | 1.127 (Hi 4.38 Hj 4.42)
+6000 p5 L0 | 0.812 0.767 0.118 0.578 0.218 | 0.784 0.225 | 0.677 | 0.595 1682 7032 0.923 1.000 | 1.335 (Hi 4.57 Hj 4.34)
+6000 p5 L1 | 0.793 0.794 0.134 0.625 0.239 | 0.780 0.273 | 0.650 | 0.589 1556 6579 0.934 1.000 | 1.184 (Hi 4.38 Hj 4.29)
+6000 p5 L2 | 0.795 0.789 0.144 0.618 0.263 | 0.794 0.231 | 0.649 | 0.591 1634 7029 0.925 1.000 | 1.170 (Hi 4.33 Hj 4.38)
+6000 p5 L3 | 0.774 0.814 0.165 0.681 0.242 | 0.762 0.269 | 0.637 | 0.583 1438 6237 0.943 1.000 | 1.052 (Hi 4.22 Hj 4.23)
+random baseline rows {'ent': 0.9024358855354627, 'perp': 77604.13683737812, 'gini': 0.7293949334416538, 'top1': 0.07237752278645833, 'top10': 0.4296671549479167, 'distinct': 82281, 'dead': 0.6861228942871094} 
+sub m {'ent': 0.9997080486110252, 'perp': 511.0683494392614, 'gini': 0.03383800387382507, 'top1': 0.01361083984375, 'top10': 0.11199951171875, 'distinct': 512, 'dead': 0.0} 
+sub top1 {'ent': 0.9977145894602963, 'perp': 504.7521376199702, 'gini': 0.09449338912963867, 'top1': 0.0179443359375, 'top10': 0.13214111328125, 'distinct': 512, 'dead': 0.0}
+
+## pooled per level (all heads, all passes)
+L0 draws 1474560 ent 0.700 (rand 0.993) distinct 37510 (rand 261242) top1% 0.701 (rand 0.023) top10% 0.991 gini 0.977
+L1 draws 1474560 ent 0.701 (rand 0.993) distinct 34980 (rand 261204) top1% 0.701 (rand 0.023) top10% 0.993 gini 0.978
+L2 draws 1474560 ent 0.709 (rand 0.993) distinct 37589 (rand 261223) top1% 0.677 (rand 0.023) top10% 0.991 gini 0.976
+L3 draws 1474560 ent 0.698 (rand 0.993) distinct 32212 (rand 261228) top1% 0.714 (rand 0.023) top10% 0.996 gini 0.980
+
+## 2. geometry: a, a_hat per level; q1/q2 per level (mean over heads); keys
+p1 L0 a: PR 3.3/448 er 94 top1/5/20 0.52/0.78/0.93 cos 0.102 msh 0.03 | a_hat: PR 5.7 er 138 top1/5/20 0.36/0.64/0.81 cos 0.125 msh 0.05 | q: PR 12.6/64 er 36 top1/5/20 0.16/0.55/0.95 cos 0.156 R 0.392
+p1 L1 a: PR 4.2/448 er 96 top1/5/20 0.40/0.76/0.93 cos 0.164 msh 0.06 | a_hat: PR 6.8 er 140 top1/5/20 0.34/0.59/0.79 cos 0.125 msh 0.06 | q: PR 11.2/64 er 34 top1/5/20 0.17/0.59/0.96 cos 0.227 R 0.475
+p1 L2 a: PR 3.2/448 er 97 top1/5/20 0.52/0.78/0.93 cos 0.107 msh 0.03 | a_hat: PR 6.1 er 139 top1/5/20 0.33/0.63/0.80 cos 0.134 msh 0.06 | q: PR 11.9/64 er 35 top1/5/20 0.16/0.57/0.96 cos 0.308 R 0.553
+p1 L3 a: PR 3.7/448 er 89 top1/5/20 0.42/0.80/0.95 cos 0.177 msh 0.05 | a_hat: PR 5.6 er 133 top1/5/20 0.31/0.66/0.82 cos 0.136 msh 0.06 | q: PR 10.6/64 er 34 top1/5/20 0.18/0.60/0.96 cos 0.412 R 0.639
+p2 L0 a: PR 2.8/448 er 90 top1/5/20 0.56/0.81/0.94 cos 0.101 msh 0.02 | a_hat: PR 4.7 er 134 top1/5/20 0.42/0.67/0.83 cos 0.078 msh 0.03 | q: PR 12.5/64 er 36 top1/5/20 0.16/0.55/0.95 cos 0.085 R 0.293
+p2 L1 a: PR 3.9/448 er 93 top1/5/20 0.41/0.78/0.93 cos 0.173 msh 0.06 | a_hat: PR 6.3 er 138 top1/5/20 0.33/0.62/0.80 cos 0.079 msh 0.04 | q: PR 11.1/64 er 34 top1/5/20 0.18/0.59/0.96 cos 0.122 R 0.349
+p2 L2 a: PR 3.0/448 er 93 top1/5/20 0.55/0.81/0.94 cos 0.108 msh 0.03 | a_hat: PR 5.5 er 135 top1/5/20 0.34/0.66/0.82 cos 0.086 msh 0.04 | q: PR 12.0/64 er 35 top1/5/20 0.17/0.57/0.96 cos 0.168 R 0.407
+p2 L3 a: PR 3.3/448 er 85 top1/5/20 0.47/0.83/0.95 cos 0.183 msh 0.05 | a_hat: PR 4.9 er 129 top1/5/20 0.36/0.69/0.84 cos 0.082 msh 0.03 | q: PR 10.7/64 er 34 top1/5/20 0.18/0.60/0.96 cos 0.237 R 0.484
+p3 L0 a: PR 2.9/448 er 90 top1/5/20 0.55/0.81/0.94 cos 0.111 msh 0.03 | a_hat: PR 4.9 er 133 top1/5/20 0.40/0.67/0.83 cos 0.043 msh 0.02 | q: PR 12.5/64 er 36 top1/5/20 0.17/0.55/0.95 cos 0.043 R 0.208
+p3 L1 a: PR 3.9/448 er 92 top1/5/20 0.42/0.79/0.94 cos 0.177 msh 0.06 | a_hat: PR 6.2 er 136 top1/5/20 0.35/0.62/0.81 cos 0.043 msh 0.02 | q: PR 11.1/64 er 34 top1/5/20 0.18/0.59/0.96 cos 0.050 R 0.225
+p3 L2 a: PR 2.9/448 er 92 top1/5/20 0.55/0.81/0.94 cos 0.118 msh 0.03 | a_hat: PR 5.5 er 134 top1/5/20 0.35/0.66/0.82 cos 0.044 msh 0.02 | q: PR 12.0/64 er 35 top1/5/20 0.16/0.56/0.96 cos 0.055 R 0.235
+p3 L3 a: PR 3.4/448 er 85 top1/5/20 0.46/0.83/0.95 cos 0.202 msh 0.05 | a_hat: PR 5.0 er 128 top1/5/20 0.35/0.69/0.84 cos 0.044 msh 0.02 | q: PR 10.8/64 er 34 top1/5/20 0.18/0.60/0.96 cos 0.070 R 0.263
+p4 L0 a: PR 2.6/448 er 86 top1/5/20 0.59/0.84/0.94 cos 0.120 msh 0.03 | a_hat: PR 4.3 er 129 top1/5/20 0.44/0.70/0.84 cos 0.044 msh 0.01 | q: PR 12.5/64 er 36 top1/5/20 0.16/0.55/0.95 cos 0.043 R 0.210
+p4 L1 a: PR 3.7/448 er 89 top1/5/20 0.42/0.80/0.94 cos 0.195 msh 0.06 | a_hat: PR 5.9 er 133 top1/5/20 0.34/0.64/0.81 cos 0.047 msh 0.02 | q: PR 11.1/64 er 34 top1/5/20 0.18/0.59/0.96 cos 0.041 R 0.202
+p4 L2 a: PR 2.7/448 er 89 top1/5/20 0.57/0.83/0.94 cos 0.133 msh 0.03 | a_hat: PR 5.1 er 131 top1/5/20 0.36/0.68/0.83 cos 0.048 msh 0.02 | q: PR 12.1/64 er 35 top1/5/20 0.16/0.56/0.96 cos 0.047 R 0.219
+p4 L3 a: PR 3.1/448 er 81 top1/5/20 0.49/0.85/0.96 cos 0.220 msh 0.05 | a_hat: PR 4.5 er 124 top1/5/20 0.38/0.71/0.85 cos 0.048 msh 0.02 | q: PR 10.9/64 er 34 top1/5/20 0.18/0.60/0.96 cos 0.046 R 0.213
+p5 L0 a: PR 2.6/448 er 85 top1/5/20 0.59/0.84/0.95 cos 0.132 msh 0.03 | a_hat: PR 4.3 er 128 top1/5/20 0.44/0.70/0.85 cos 0.054 msh 0.02 | q: PR 12.4/64 er 36 top1/5/20 0.17/0.55/0.95 cos 0.060 R 0.247
+p5 L1 a: PR 3.6/448 er 88 top1/5/20 0.43/0.81/0.94 cos 0.204 msh 0.06 | a_hat: PR 5.8 er 132 top1/5/20 0.35/0.65/0.82 cos 0.061 msh 0.03 | q: PR 11.1/64 er 34 top1/5/20 0.18/0.59/0.96 cos 0.059 R 0.241
+p5 L2 a: PR 2.7/448 er 88 top1/5/20 0.57/0.84/0.95 cos 0.145 msh 0.03 | a_hat: PR 5.0 er 129 top1/5/20 0.36/0.69/0.83 cos 0.062 msh 0.02 | q: PR 12.1/64 er 35 top1/5/20 0.16/0.56/0.96 cos 0.084 R 0.289
+p5 L3 a: PR 3.0/448 er 80 top1/5/20 0.50/0.85/0.96 cos 0.233 msh 0.06 | a_hat: PR 4.4 er 123 top1/5/20 0.39/0.72/0.85 cos 0.062 msh 0.02 | q: PR 10.8/64 er 34 top1/5/20 0.18/0.60/0.96 cos 0.090 R 0.302
+keys L0: PR 46.6/64 er 62 cos 0.020 R 0.149 top1 0.05
+keys L1: PR 46.6/64 er 62 cos 0.017 R 0.139 top1 0.05
+keys L2: PR 46.3/64 er 62 cos 0.018 R 0.141 top1 0.05
+keys L3: PR 46.0/64 er 62 cos 0.021 R 0.152 top1 0.06
+
+## 3/8. per sub-key: usage group vs cos(key, mean query dir), max cos to any query, the m-th score, drift |k - k_ema|
+L0: n dead/low/mid/busy 446/1091/1223/312 | cos to q-mean -0.059/-0.033/0.005/0.095 | max cos to queries 0.303/0.378/0.537/0.760 (median m-th score 0.390) | drift 0.0606/0.1296/0.1742/0.1734 | raw |k| 1.160/1.314/1.449/1.334 | U*S 0.00/0.10/1.29/4.44 | spearman(usage, cmean 0.26, cmax 0.93, drift 0.65, U 0.95)
+L1: n dead/low/mid/busy 571/966/1223/312 | cos to q-mean -0.093/-0.072/-0.020/0.119 | max cos to queries 0.300/0.365/0.526/0.754 (median m-th score 0.393) | drift 0.0522/0.1156/0.1679/0.1738 | raw |k| 1.149/1.275/1.438/1.309 | U*S 0.00/0.06/1.18/5.01 | spearman(usage, cmean 0.29, cmax 0.93, drift 0.73, U 0.95)
+L2: n dead/low/mid/busy 551/985/1224/312 | cos to q-mean -0.104/-0.067/-0.016/0.145 | max cos to queries 0.297/0.374/0.534/0.743 (median m-th score 0.384) | drift 0.0527/0.1248/0.1717/0.1792 | raw |k| 1.155/1.302/1.441/1.317 | U*S 0.00/0.08/1.16/5.03 | spearman(usage, cmean 0.33, cmax 0.94, drift 0.71, U 0.95)
+L3: n dead/low/mid/busy 571/966/1223/312 | cos to q-mean -0.085/-0.066/-0.009/0.163 | max cos to queries 0.303/0.370/0.520/0.766 (median m-th score 0.398) | drift 0.0490/0.1105/0.1651/0.1728 | raw |k| 1.143/1.263/1.434/1.315 | U*S 0.00/0.04/0.94/6.03 | spearman(usage, cmean 0.29, cmax 0.93, drift 0.74, U 0.95)
+
+## 4. content: row-set overlap |R_a & R_b|/6 (mean over heads) for pair types; MI of top-1 sub-key
+pairs per kind {'lag1': 6000, 'lag8': 6000, 'lag64': 6000, 'lag256': 6000, 'sameDoc>64': 6000, 'diffSeq': 6000, 'sameTok_diffSeq': 6000, 'samePos<4_diffSeq': 5828, 'samePos>=256_diffSeq': 5795}
+p1 L0 lag1 0.281 lag8 0.217 lag64 0.150 lag256 0.092 sameDoc>64 0.110 diffSeq 0.004 sameTok_diffSeq 0.018 samePos<4_diffSeq 0.101 samePos>=256_diffSeq 0.005 | MI(top1;doc) 1.844/H(top1) 4.24 H(doc) 3.57 | MI(top1;tok50) 0.350 (H tok 3.35) | MI(top1;pos/32) 0.169
+p1 L1 lag1 0.245 lag8 0.205 lag64 0.143 lag256 0.094 sameDoc>64 0.107 diffSeq 0.006 sameTok_diffSeq 0.018 samePos<4_diffSeq 0.046 samePos>=256_diffSeq 0.006 | MI(top1;doc) 1.591/H(top1) 3.92 H(doc) 3.57 | MI(top1;tok50) 0.297 (H tok 3.35) | MI(top1;pos/32) 0.124
+p1 L2 lag1 0.227 lag8 0.186 lag64 0.133 lag256 0.086 sameDoc>64 0.098 diffSeq 0.010 sameTok_diffSeq 0.023 samePos<4_diffSeq 0.056 samePos>=256_diffSeq 0.011 | MI(top1;doc) 1.523/H(top1) 3.81 H(doc) 3.57 | MI(top1;tok50) 0.287 (H tok 3.35) | MI(top1;pos/32) 0.112
+p1 L3 lag1 0.237 lag8 0.196 lag64 0.155 lag256 0.104 sameDoc>64 0.122 diffSeq 0.016 sameTok_diffSeq 0.035 samePos<4_diffSeq 0.054 samePos>=256_diffSeq 0.017 | MI(top1;doc) 1.314/H(top1) 3.47 H(doc) 3.57 | MI(top1;tok50) 0.297 (H tok 3.35) | MI(top1;pos/32) 0.084
+p2 L0 lag1 0.308 lag8 0.234 lag64 0.160 lag256 0.098 sameDoc>64 0.117 diffSeq 0.004 sameTok_diffSeq 0.016 samePos<4_diffSeq 0.131 samePos>=256_diffSeq 0.005 | MI(top1;doc) 1.936/H(top1) 4.32 H(doc) 3.57 | MI(top1;tok50) 0.338 (H tok 3.35) | MI(top1;pos/32) 0.188
+p2 L1 lag1 0.275 lag8 0.220 lag64 0.149 lag256 0.099 sameDoc>64 0.113 diffSeq 0.004 sameTok_diffSeq 0.013 samePos<4_diffSeq 0.041 samePos>=256_diffSeq 0.004 | MI(top1;doc) 1.794/H(top1) 4.15 H(doc) 3.57 | MI(top1;tok50) 0.298 (H tok 3.35) | MI(top1;pos/32) 0.150
+p2 L2 lag1 0.238 lag8 0.185 lag64 0.129 lag256 0.080 sameDoc>64 0.096 diffSeq 0.005 sameTok_diffSeq 0.014 samePos<4_diffSeq 0.091 samePos>=256_diffSeq 0.006 | MI(top1;doc) 1.754/H(top1) 4.09 H(doc) 3.57 | MI(top1;tok50) 0.280 (H tok 3.35) | MI(top1;pos/32) 0.141
+p2 L3 lag1 0.226 lag8 0.180 lag64 0.133 lag256 0.085 sameDoc>64 0.102 diffSeq 0.007 sameTok_diffSeq 0.019 samePos<4_diffSeq 0.040 samePos>=256_diffSeq 0.007 | MI(top1;doc) 1.626/H(top1) 3.93 H(doc) 3.57 | MI(top1;tok50) 0.290 (H tok 3.35) | MI(top1;pos/32) 0.114
+p3 L0 lag1 0.321 lag8 0.243 lag64 0.165 lag256 0.100 sameDoc>64 0.121 diffSeq 0.004 sameTok_diffSeq 0.016 samePos<4_diffSeq 0.155 samePos>=256_diffSeq 0.005 | MI(top1;doc) 1.985/H(top1) 4.35 H(doc) 3.57 | MI(top1;tok50) 0.333 (H tok 3.35) | MI(top1;pos/32) 0.194
+p3 L1 lag1 0.295 lag8 0.236 lag64 0.165 lag256 0.109 sameDoc>64 0.126 diffSeq 0.004 sameTok_diffSeq 0.013 samePos<4_diffSeq 0.041 samePos>=256_diffSeq 0.004 | MI(top1;doc) 1.897/H(top1) 4.22 H(doc) 3.57 | MI(top1;tok50) 0.299 (H tok 3.35) | MI(top1;pos/32) 0.153
+p3 L2 lag1 0.256 lag8 0.205 lag64 0.142 lag256 0.088 sameDoc>64 0.106 diffSeq 0.004 sameTok_diffSeq 0.013 samePos<4_diffSeq 0.134 samePos>=256_diffSeq 0.005 | MI(top1;doc) 1.867/H(top1) 4.17 H(doc) 3.57 | MI(top1;tok50) 0.290 (H tok 3.35) | MI(top1;pos/32) 0.156
+p3 L3 lag1 0.220 lag8 0.176 lag64 0.127 lag256 0.079 sameDoc>64 0.098 diffSeq 0.004 sameTok_diffSeq 0.014 samePos<4_diffSeq 0.047 samePos>=256_diffSeq 0.004 | MI(top1;doc) 1.807/H(top1) 4.17 H(doc) 3.57 | MI(top1;tok50) 0.287 (H tok 3.35) | MI(top1;pos/32) 0.127
+p4 L0 lag1 0.321 lag8 0.241 lag64 0.166 lag256 0.099 sameDoc>64 0.122 diffSeq 0.004 sameTok_diffSeq 0.015 samePos<4_diffSeq 0.157 samePos>=256_diffSeq 0.005 | MI(top1;doc) 1.969/H(top1) 4.34 H(doc) 3.57 | MI(top1;tok50) 0.336 (H tok 3.35) | MI(top1;pos/32) 0.191
+p4 L1 lag1 0.299 lag8 0.239 lag64 0.168 lag256 0.112 sameDoc>64 0.128 diffSeq 0.004 sameTok_diffSeq 0.014 samePos<4_diffSeq 0.049 samePos>=256_diffSeq 0.004 | MI(top1;doc) 1.898/H(top1) 4.18 H(doc) 3.57 | MI(top1;tok50) 0.298 (H tok 3.35) | MI(top1;pos/32) 0.152
+p4 L2 lag1 0.266 lag8 0.215 lag64 0.150 lag256 0.092 sameDoc>64 0.115 diffSeq 0.005 sameTok_diffSeq 0.013 samePos<4_diffSeq 0.153 samePos>=256_diffSeq 0.005 | MI(top1;doc) 1.865/H(top1) 4.10 H(doc) 3.57 | MI(top1;tok50) 0.283 (H tok 3.35) | MI(top1;pos/32) 0.153
+p4 L3 lag1 0.231 lag8 0.183 lag64 0.133 lag256 0.085 sameDoc>64 0.103 diffSeq 0.003 sameTok_diffSeq 0.014 samePos<4_diffSeq 0.072 samePos>=256_diffSeq 0.004 | MI(top1;doc) 1.794/H(top1) 4.10 H(doc) 3.57 | MI(top1;tok50) 0.282 (H tok 3.35) | MI(top1;pos/32) 0.127
+p5 L0 lag1 0.322 lag8 0.240 lag64 0.166 lag256 0.098 sameDoc>64 0.123 diffSeq 0.004 sameTok_diffSeq 0.016 samePos<4_diffSeq 0.144 samePos>=256_diffSeq 0.005 | MI(top1;doc) 1.951/H(top1) 4.32 H(doc) 3.57 | MI(top1;tok50) 0.334 (H tok 3.35) | MI(top1;pos/32) 0.192
+p5 L1 lag1 0.304 lag8 0.242 lag64 0.172 lag256 0.113 sameDoc>64 0.131 diffSeq 0.005 sameTok_diffSeq 0.014 samePos<4_diffSeq 0.073 samePos>=256_diffSeq 0.005 | MI(top1;doc) 1.885/H(top1) 4.11 H(doc) 3.57 | MI(top1;tok50) 0.294 (H tok 3.35) | MI(top1;pos/32) 0.147
+p5 L2 lag1 0.277 lag8 0.221 lag64 0.157 lag256 0.099 sameDoc>64 0.122 diffSeq 0.006 sameTok_diffSeq 0.015 samePos<4_diffSeq 0.171 samePos>=256_diffSeq 0.006 | MI(top1;doc) 1.827/H(top1) 4.00 H(doc) 3.57 | MI(top1;tok50) 0.281 (H tok 3.35) | MI(top1;pos/32) 0.147
+p5 L3 lag1 0.249 lag8 0.198 lag64 0.145 lag256 0.093 sameDoc>64 0.115 diffSeq 0.005 sameTok_diffSeq 0.017 samePos<4_diffSeq 0.098 samePos>=256_diffSeq 0.006 | MI(top1;doc) 1.744/H(top1) 3.96 H(doc) 3.57 | MI(top1;tok50) 0.274 (H tok 3.35) | MI(top1;pos/32) 0.116
+
+## 7/c/f. re-addressing the same thoughts (passes p1 and p4): sub-key ent (top-m), dead, top10%; rows ent, distinct (per head), top1%; pooled-level distinct
+p1 L0 trained                      sub ent 0.798 dead 0.290 top10 0.608 | rows ent 0.600 distinct 7409 top1% 0.915 | pooled distinct 21743
+p1 L0 random_keys                  sub ent 0.865 dead 0.051 top10 0.488 | rows ent 0.673 distinct 14305 top1% 0.748 | pooled distinct 40804
+p1 L0 reseed_dead                  sub ent 0.857 dead 0.254 top10 0.412 | rows ent 0.635 distinct 9979 top1% 0.856 | pooled distinct 28750
+p1 L0 centred_q                    sub ent 0.826 dead 0.181 top10 0.548 | rows ent 0.619 distinct 9201 top1% 0.873 | pooled distinct 26903
+p1 L0 centred_q+random_keys        sub ent 0.924 dead 0.006 top10 0.346 | rows ent 0.717 distinct 20445 top1% 0.622 | pooled distinct 56798
+p1 L0 whitened_ahat                sub ent 0.865 dead 0.033 top10 0.473 | rows ent 0.692 distinct 17079 top1% 0.691 | pooled distinct 48520
+p1 L0 whitened_ahat+random_keys    sub ent 0.957 dead 0.000 top10 0.270 | rows ent 0.804 distinct 38232 top1% 0.346 | pooled distinct 98709
+p1 L0 raw_a(no_norm)               sub ent 0.776 dead 0.283 top10 0.663 | rows ent 0.574 distinct 5601 top1% 0.954 | pooled distinct 16557
+p1 L1 trained                      sub ent 0.732 dead 0.386 top10 0.728 | rows ent 0.581 distinct 5884 top1% 0.947 | pooled distinct 17334
+p1 L1 random_keys                  sub ent 0.825 dead 0.101 top10 0.574 | rows ent 0.637 distinct 10706 top1% 0.839 | pooled distinct 30710
+p1 L1 reseed_dead                  sub ent 0.858 dead 0.307 top10 0.398 | rows ent 0.638 distinct 10036 top1% 0.855 | pooled distinct 29075
+p1 L1 centred_q                    sub ent 0.816 dead 0.226 top10 0.570 | rows ent 0.610 distinct 8579 top1% 0.890 | pooled distinct 24993
+p1 L1 centred_q+random_keys        sub ent 0.915 dead 0.014 top10 0.369 | rows ent 0.703 distinct 18283 top1% 0.665 | pooled distinct 50788
+p1 L1 whitened_ahat                sub ent 0.847 dead 0.052 top10 0.515 | rows ent 0.688 distinct 15649 top1% 0.708 | pooled distinct 44481
+p1 L1 whitened_ahat+random_keys    sub ent 0.947 dead 0.001 top10 0.295 | rows ent 0.789 distinct 34281 top1% 0.396 | pooled distinct 89461
+p1 L1 raw_a(no_norm)               sub ent 0.732 dead 0.386 top10 0.767 | rows ent 0.548 distinct 3926 top1% 0.986 | pooled distinct 11602
+p1 L2 trained                      sub ent 0.682 dead 0.410 top10 0.815 | rows ent 0.559 distinct 4910 top1% 0.967 | pooled distinct 14509
+p1 L2 random_keys                  sub ent 0.797 dead 0.148 top10 0.642 | rows ent 0.617 distinct 9438 top1% 0.870 | pooled distinct 27253
+p1 L2 reseed_dead                  sub ent 0.846 dead 0.349 top10 0.425 | rows ent 0.641 distinct 9866 top1% 0.850 | pooled distinct 28489
+p1 L2 centred_q                    sub ent 0.835 dead 0.183 top10 0.526 | rows ent 0.622 distinct 9398 top1% 0.866 | pooled distinct 27318
+p1 L2 centred_q+random_keys        sub ent 0.918 dead 0.014 top10 0.361 | rows ent 0.708 distinct 19150 top1% 0.650 | pooled distinct 53291
+p1 L2 whitened_ahat                sub ent 0.858 dead 0.042 top10 0.490 | rows ent 0.699 distinct 16866 top1% 0.675 | pooled distinct 47752
+p1 L2 whitened_ahat+random_keys    sub ent 0.951 dead 0.001 top10 0.285 | rows ent 0.796 distinct 35863 top1% 0.371 | pooled distinct 93340
+p1 L2 raw_a(no_norm)               sub ent 0.766 dead 0.312 top10 0.690 | rows ent 0.563 distinct 5051 top1% 0.966 | pooled distinct 14918
+p1 L3 trained                      sub ent 0.606 dead 0.510 top10 0.910 | rows ent 0.515 distinct 3145 top1% 0.995 | pooled distinct 9337
+p1 L3 random_keys                  sub ent 0.743 dead 0.208 top10 0.742 | rows ent 0.571 distinct 6626 top1% 0.939 | pooled distinct 19339
+p1 L3 reseed_dead                  sub ent 0.859 dead 0.354 top10 0.399 | rows ent 0.656 distinct 11018 top1% 0.814 | pooled distinct 31697
+p1 L3 centred_q                    sub ent 0.817 dead 0.202 top10 0.569 | rows ent 0.615 distinct 8680 top1% 0.882 | pooled distinct 25326
+p1 L3 centred_q+random_keys        sub ent 0.911 dead 0.010 top10 0.377 | rows ent 0.701 distinct 18002 top1% 0.670 | pooled distinct 50513
+p1 L3 whitened_ahat                sub ent 0.837 dead 0.050 top10 0.548 | rows ent 0.685 distinct 14682 top1% 0.723 | pooled distinct 41794
+p1 L3 whitened_ahat+random_keys    sub ent 0.943 dead 0.000 top10 0.305 | rows ent 0.786 distinct 33191 top1% 0.405 | pooled distinct 87830
+p1 L3 raw_a(no_norm)               sub ent 0.717 dead 0.392 top10 0.787 | rows ent 0.528 distinct 3399 top1% 0.992 | pooled distinct 10084
+p4 L0 trained                      sub ent 0.805 dead 0.215 top10 0.601 | rows ent 0.598 distinct 7413 top1% 0.916 | pooled distinct 21773
+p4 L0 random_keys                  sub ent 0.904 dead 0.016 top10 0.398 | rows ent 0.695 distinct 17287 top1% 0.685 | pooled distinct 48669
+p4 L0 reseed_dead                  sub ent 0.883 dead 0.150 top10 0.356 | rows ent 0.636 distinct 10349 top1% 0.853 | pooled distinct 29847
+p4 L0 centred_q                    sub ent 0.821 dead 0.193 top10 0.564 | rows ent 0.609 distinct 8265 top1% 0.896 | pooled distinct 24232
+p4 L0 centred_q+random_keys        sub ent 0.921 dead 0.008 top10 0.353 | rows ent 0.707 distinct 19046 top1% 0.652 | pooled distinct 53140
+p4 L0 whitened_ahat                sub ent 0.863 dead 0.039 top10 0.476 | rows ent 0.683 distinct 16003 top1% 0.714 | pooled distinct 45592
+p4 L0 whitened_ahat+random_keys    sub ent 0.956 dead 0.000 top10 0.272 | rows ent 0.798 distinct 36382 top1% 0.366 | pooled distinct 94662
+p4 L0 raw_a(no_norm)               sub ent 0.762 dead 0.342 top10 0.692 | rows ent 0.560 distinct 4679 top1% 0.972 | pooled distinct 13853
+p4 L1 trained                      sub ent 0.796 dead 0.245 top10 0.621 | rows ent 0.595 distinct 7110 top1% 0.922 | pooled distinct 20837
+p4 L1 random_keys                  sub ent 0.896 dead 0.022 top10 0.414 | rows ent 0.682 distinct 15563 top1% 0.726 | pooled distinct 43780
+p4 L1 reseed_dead                  sub ent 0.885 dead 0.160 top10 0.344 | rows ent 0.639 distinct 10640 top1% 0.851 | pooled distinct 30729
+p4 L1 centred_q                    sub ent 0.811 dead 0.216 top10 0.584 | rows ent 0.603 distinct 7833 top1% 0.907 | pooled distinct 22921
+p4 L1 centred_q+random_keys        sub ent 0.913 dead 0.013 top10 0.372 | rows ent 0.694 distinct 17164 top1% 0.691 | pooled distinct 47887
+p4 L1 whitened_ahat                sub ent 0.846 dead 0.063 top10 0.518 | rows ent 0.682 distinct 14860 top1% 0.725 | pooled distinct 42374
+p4 L1 whitened_ahat+random_keys    sub ent 0.947 dead 0.002 top10 0.296 | rows ent 0.784 distinct 32942 top1% 0.411 | pooled distinct 86392
+p4 L1 raw_a(no_norm)               sub ent 0.715 dead 0.452 top10 0.797 | rows ent 0.533 distinct 3208 top1% 0.994 | pooled distinct 9501
+p4 L2 trained                      sub ent 0.815 dead 0.229 top10 0.574 | rows ent 0.605 distinct 7977 top1% 0.903 | pooled distinct 23333
+p4 L2 random_keys                  sub ent 0.902 dead 0.017 top10 0.402 | rows ent 0.693 distinct 16816 top1% 0.693 | pooled distinct 47428
+p4 L2 reseed_dead                  sub ent 0.883 dead 0.143 top10 0.357 | rows ent 0.643 distinct 10797 top1% 0.841 | pooled distinct 31129
+p4 L2 centred_q                    sub ent 0.831 dead 0.187 top10 0.532 | rows ent 0.616 distinct 8850 top1% 0.880 | pooled distinct 25777
+p4 L2 centred_q+random_keys        sub ent 0.918 dead 0.009 top10 0.363 | rows ent 0.703 distinct 18482 top1% 0.665 | pooled distinct 51630
+p4 L2 whitened_ahat                sub ent 0.858 dead 0.046 top10 0.489 | rows ent 0.695 distinct 16241 top1% 0.688 | pooled distinct 46013
+p4 L2 whitened_ahat+random_keys    sub ent 0.951 dead 0.001 top10 0.286 | rows ent 0.791 distinct 34584 top1% 0.388 | pooled distinct 90431
+p4 L2 raw_a(no_norm)               sub ent 0.712 dead 0.400 top10 0.778 | rows ent 0.526 distinct 3420 top1% 0.990 | pooled distinct 10150
+p4 L3 trained                      sub ent 0.794 dead 0.244 top10 0.625 | rows ent 0.602 distinct 7276 top1% 0.914 | pooled distinct 21308
+p4 L3 random_keys                  sub ent 0.893 dead 0.022 top10 0.421 | rows ent 0.682 distinct 15343 top1% 0.725 | pooled distinct 43495
+p4 L3 reseed_dead                  sub ent 0.894 dead 0.157 top10 0.328 | rows ent 0.660 distinct 12068 top1% 0.804 | pooled distinct 34516
+p4 L3 centred_q                    sub ent 0.813 dead 0.210 top10 0.580 | rows ent 0.612 distinct 8210 top1% 0.892 | pooled distinct 23963
+p4 L3 centred_q+random_keys        sub ent 0.911 dead 0.011 top10 0.377 | rows ent 0.698 distinct 17527 top1% 0.677 | pooled distinct 49213
+p4 L3 whitened_ahat                sub ent 0.835 dead 0.051 top10 0.550 | rows ent 0.681 distinct 14100 top1% 0.736 | pooled distinct 40183
+p4 L3 whitened_ahat+random_keys    sub ent 0.942 dead 0.001 top10 0.309 | rows ent 0.781 distinct 32055 top1% 0.421 | pooled distinct 85056
+p4 L3 raw_a(no_norm)               sub ent 0.654 dead 0.521 top10 0.875 | rows ent 0.486 distinct 1896 top1% 1.000 | pooled distinct 5654
+
+## d. the top-50 rows by write count (per level): who selects them in this batch
+{"level": 0, "wc_top50_mean": 5795.47998046875, "wc_median": 103.0, "wc_q90": 2112.0, "share_of_selections": 0.02296752892434597, "share_expected_uniform": 0.00019073486328125, "share_positions": 0.108837890625, "top_tokens": [["\u010a", 0.07985643786451324], [",", 0.04228353521758636], [".", 0.037460744728577834], ["\u0120of", 0.02332884701659937], ["\u0120the", 0.021310004486316734], [":", 0.015589950650515926], ["\u0120to", 0.011440107671601614], ["-", 0.01110363391655451], ["\u0120a", 0.010655002243158367], ["\u0120in", 0.009421265141318977]], "tok_ent_bits": 8.605083777625769, "tok_distinct": 1068, "rank_median": 299.0, "rank_median_all": 310.0, "share_eot_or_after<=2": 0.008411843876177659, "share_eot_or_after<=2_all": 0.00140380859375, "share_pos<16": 0.07234185733512787, "share_pos<16_all": 0.03125, "pass_hist": {"p1": 0.19436967249887843, "p2": 0.2107447285778376, "p3": 0.2069313593539704, "p4": 0.19795872588604754, "p5": 0.18999551368326603}, "n_seqs_hit": 32, "top_tokens_batch_share": [0.0311279296875, 0.0335693359375, 0.02783203125, 0.02081298828125, 0.03790283203125, 0.00347900390625, 0.0150146484375, 0.00958251953125, 0.01202392578125, 0.01690673828125]}
+{"level": 1, "wc_top50_mean": 5789.39990234375, "wc_median": 54.0, "wc_q90": 1897.0, "share_of_selections": 0.02564561627805233, "share_expected_uniform": 0.00019073486328125, "share_positions": 0.1521484375, "top_tokens": [["\u010a", 0.05632220795892169], [",", 0.053514120667522466], ["\u0120the", 0.03971437740693196], [".", 0.03762836970474968], ["\u0120in", 0.021662387676508344], ["\u0120and", 0.018292682926829267], ["\u0120of", 0.01789152759948652], ["\u0120as", 0.017811296534017973], ["\u0120to", 0.012195121951219513], ["\u0120a", 0.01099165596919127]], "tok_ent_bits": 8.70185171078307, "tok_distinct": 1434, "rank_median": 137.0, "rank_median_all": 310.0, "share_eot_or_after<=2": 0.0, "share_eot_or_after<=2_all": 0.00140380859375, "share_pos<16": 0.03891206675224647, "share_pos<16_all": 0.03125, "pass_hist": {"p1": 0.159900513478819, "p2": 0.1972079589216945, "p3": 0.2157413350449294, "p4": 0.21854942233632862, "p5": 0.2086007702182285}, "n_seqs_hit": 32, "top_tokens_batch_share": [0.0311279296875, 0.0335693359375, 0.03790283203125, 0.02783203125, 0.01690673828125, 0.01806640625, 0.02081298828125, 0.0081787109375, 0.0150146484375, 0.01202392578125]}
+{"level": 2, "wc_top50_mean": 5786.5400390625, "wc_median": 94.0, "wc_q90": 2113.0, "share_of_selections": 0.01576266810297966, "share_expected_uniform": 0.00019073486328125, "share_positions": 0.15189208984375, "top_tokens": [["\u010a", 0.059310455677891186], [",", 0.037209676123121434], [".", 0.029494494896729083], ["\u0120the", 0.0254761713413164], ["\u0120of", 0.025315438399099895], ["\u0120as", 0.020171984248171664], ["\u0120and", 0.01719842481716628], ["\u0120in", 0.015591095395001206], [":", 0.012537169492887567], ["\u0120to", 0.012054970666238046]], "tok_ent_bits": 8.937887255166041, "tok_distinct": 1575, "rank_median": 203.0, "rank_median_all": 310.0, "share_eot_or_after<=2": 0.006027485333119023, "share_eot_or_after<=2_all": 0.00140380859375, "share_pos<16": 0.040102869083018564, "share_pos<16_all": 0.03125, "pass_hist": {"p1": 0.1412842562083099, "p2": 0.20429156955718075, "p3": 0.2374829221248895, "p4": 0.22317769026762035, "p5": 0.19376356184199953}, "n_seqs_hit": 32, "top_tokens_batch_share": [0.0311279296875, 0.0335693359375, 0.02783203125, 0.03790283203125, 0.02081298828125, 0.0081787109375, 0.01806640625, 0.01690673828125, 0.00347900390625, 0.0150146484375]}
+{"level": 3, "wc_top50_mean": 5780.35986328125, "wc_median": 53.0, "wc_q90": 1927.0, "share_of_selections": 0.010175238642841578, "share_expected_uniform": 0.00019073486328125, "share_positions": 0.1016845703125, "top_tokens": [["\u010a", 0.12064825930372149], [",", 0.037695078031212484], ["\u0120of", 0.020768307322929173], [".", 0.020048019207683072], ["\u0120as", 0.01644657863145258], ["-", 0.016206482593037214], ["\u0120the", 0.015486194477791116], ["\u0120and", 0.013205282112845138], ["\u0120(", 0.010924369747899159], ["\u0120in", 0.009603841536614645]], "tok_ent_bits": 8.4644266339684, "tok_distinct": 1236, "rank_median": 218.0, "rank_median_all": 310.0, "share_eot_or_after<=2": 0.0012004801920768306, "share_eot_or_after<=2_all": 0.00140380859375, "share_pos<16": 0.05138055222088835, "share_pos<16_all": 0.03125, "pass_hist": {"p1": 0.09663865546218488, "p2": 0.1788715486194478, "p3": 0.25354141656662665, "p4": 0.2546218487394958, "p5": 0.2163265306122449}, "n_seqs_hit": 32, "top_tokens_batch_share": [0.0311279296875, 0.0335693359375, 0.02081298828125, 0.02783203125, 0.0081787109375, 0.00958251953125, 0.03790283203125, 0.01806640625, 0.0068359375, 0.01690673828125]}
+L0 batch-top50 rows in wcount-top50: 5; share of all row draws on batch top-50: 0.0824
+L1 batch-top50 rows in wcount-top50: 4; share of all row draws on batch top-50: 0.0770
+L2 batch-top50 rows in wcount-top50: 4; share of all row draws on batch top-50: 0.0713
+L3 batch-top50 rows in wcount-top50: 3; share of all row draws on batch top-50: 0.0666
+
+## e. gate vs row popularity (log(1 + wcount) of the 6 rows, averaged)
+p1 L0 gate mean 0.803 spearman(gate, popularity) 0.135 gate low->high pop decile 0.794 0.798 0.828
+p1 L1 gate mean 0.729 spearman(gate, popularity) 0.129 gate low->high pop decile 0.727 0.719 0.779
+p1 L2 gate mean 0.743 spearman(gate, popularity) 0.184 gate low->high pop decile 0.723 0.735 0.759
+p1 L3 gate mean 0.690 spearman(gate, popularity) 0.327 gate low->high pop decile 0.642 0.712 0.731
+p2 L0 gate mean 0.756 spearman(gate, popularity) 0.115 gate low->high pop decile 0.738 0.758 0.771
+p2 L1 gate mean 0.666 spearman(gate, popularity) 0.112 gate low->high pop decile 0.663 0.657 0.704
+p2 L2 gate mean 0.681 spearman(gate, popularity) 0.150 gate low->high pop decile 0.656 0.674 0.693
+p2 L3 gate mean 0.627 spearman(gate, popularity) 0.327 gate low->high pop decile 0.588 0.630 0.675
+p3 L0 gate mean 0.695 spearman(gate, popularity) 0.076 gate low->high pop decile 0.673 0.706 0.704
+p3 L1 gate mean 0.593 spearman(gate, popularity) 0.069 gate low->high pop decile 0.588 0.584 0.611
+p3 L2 gate mean 0.606 spearman(gate, popularity) 0.097 gate low->high pop decile 0.580 0.606 0.608
+p3 L3 gate mean 0.545 spearman(gate, popularity) 0.169 gate low->high pop decile 0.522 0.544 0.563
+p4 L0 gate mean 0.645 spearman(gate, popularity) 0.046 gate low->high pop decile 0.623 0.659 0.647
+p4 L1 gate mean 0.536 spearman(gate, popularity) 0.019 gate low->high pop decile 0.532 0.531 0.541
+p4 L2 gate mean 0.546 spearman(gate, popularity) 0.033 gate low->high pop decile 0.529 0.552 0.535
+p4 L3 gate mean 0.483 spearman(gate, popularity) 0.005 gate low->high pop decile 0.477 0.488 0.456
+p5 L0 gate mean 0.602 spearman(gate, popularity) 0.023 gate low->high pop decile 0.581 0.619 0.601
+p5 L1 gate mean 0.489 spearman(gate, popularity) -0.018 gate low->high pop decile 0.489 0.489 0.489
+p5 L2 gate mean 0.496 spearman(gate, popularity) -0.033 gate low->high pop decile 0.485 0.503 0.478
+p5 L3 gate mean 0.437 spearman(gate, popularity) -0.098 gate low->high pop decile 0.443 0.446 0.387
+
+## g1. 20 contexts (seq 0..19, position 400, pass p3): their top-6 rows per level
+L0 pooled distinct 343/360 max multiplicity 3 | per head h0: distinct 114/120 rows-shared 5 max 3 ctx-with-shared 8/20; h1: distinct 117/120 rows-shared 3 max 2 ctx-with-shared 2/20; h2: distinct 112/120 rows-shared 8 max 2 ctx-with-shared 6/20
+L1 pooled distinct 350/360 max multiplicity 2 | per head h0: distinct 118/120 rows-shared 2 max 2 ctx-with-shared 3/20; h1: distinct 117/120 rows-shared 3 max 2 ctx-with-shared 4/20; h2: distinct 115/120 rows-shared 5 max 2 ctx-with-shared 8/20
+L2 pooled distinct 349/360 max multiplicity 2 | per head h0: distinct 117/120 rows-shared 3 max 2 ctx-with-shared 6/20; h1: distinct 118/120 rows-shared 2 max 2 ctx-with-shared 4/20; h2: distinct 114/120 rows-shared 6 max 2 ctx-with-shared 8/20
+L3 pooled distinct 342/360 max multiplicity 3 | per head h0: distinct 112/120 rows-shared 7 max 3 ctx-with-shared 10/20; h1: distinct 111/120 rows-shared 9 max 2 ctx-with-shared 11/20; h2: distinct 119/120 rows-shared 1 max 2 ctx-with-shared 2/20
+
+## g2. distinct rows per 1000 random positions (6000 draws/head; 18000 pooled over heads) vs ideal uniform
+p1 L0 distinct/head 2097 (ideal 5932)  pooled 6254 (ideal 17396)
+p1 L1 distinct/head 1853 (ideal 5932)  pooled 5520 (ideal 17396)
+p1 L2 distinct/head 1612 (ideal 5932)  pooled 4812 (ideal 17396)
+p1 L3 distinct/head 1160 (ideal 5932)  pooled 3471 (ideal 17396)
+p2 L0 distinct/head 2115 (ideal 5932)  pooled 6308 (ideal 17396)
+p2 L1 distinct/head 2069 (ideal 5932)  pooled 6167 (ideal 17396)
+p2 L2 distinct/head 1999 (ideal 5932)  pooled 5964 (ideal 17396)
+p2 L3 distinct/head 1684 (ideal 5932)  pooled 5027 (ideal 17396)
+p3 L0 distinct/head 2100 (ideal 5932)  pooled 6269 (ideal 17396)
+p3 L1 distinct/head 2090 (ideal 5932)  pooled 6238 (ideal 17396)
+p3 L2 distinct/head 2207 (ideal 5932)  pooled 6585 (ideal 17396)
+p3 L3 distinct/head 2183 (ideal 5932)  pooled 6522 (ideal 17396)
+p4 L0 distinct/head 2063 (ideal 5932)  pooled 6158 (ideal 17396)
+p4 L1 distinct/head 2013 (ideal 5932)  pooled 6002 (ideal 17396)
+p4 L2 distinct/head 2170 (ideal 5932)  pooled 6474 (ideal 17396)
+p4 L3 distinct/head 2126 (ideal 5932)  pooled 6345 (ideal 17396)
+p5 L0 distinct/head 2011 (ideal 5932)  pooled 6003 (ideal 17396)
+p5 L1 distinct/head 1949 (ideal 5932)  pooled 5818 (ideal 17396)
+p5 L2 distinct/head 1996 (ideal 5932)  pooled 5963 (ideal 17396)
+p5 L3 distinct/head 1871 (ideal 5932)  pooled 5588 (ideal 17396)
+done 22s

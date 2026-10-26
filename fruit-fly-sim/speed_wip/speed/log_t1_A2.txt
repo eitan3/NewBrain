@@ -1,0 +1,44 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+accum fixes: []
+step  0 K= 3 loss 3.3597 gn 16.481 drop 0.0489
+step  1 K= 2 loss 3.4683 gn 15.068 drop 0.0650
+step  2 K= 7 loss 2.9309 gn 8.702 drop 0.0596
+step  3 K= 4 loss 3.4939 gn 2.505 drop 0.0688
+step  4 K= 9 loss 3.5366 gn 5.675 drop 0.0570
+step  5 K= 9 loss 3.0800 gn 2.725 drop 0.0599
+step  6 K= 9 loss 3.3122 gn 1.966 drop 0.0481
+step  7 K= 5 loss 3.0172 gn 10.427 drop 0.0635
+step  8 K= 8 loss 3.4702 gn 12.200 drop 0.0415
+step  9 K= 3 loss 3.8574 gn 20.728 drop 0.0727
+step 10 K= 3 loss 3.2590 gn 5.912 drop 0.0480
+step 11 K= 2 loss 3.5236 gn 4.746 drop 0.0440
+step 12 K= 2 loss 3.2606 gn 12.087 drop 0.0471
+step 13 K= 2 loss 3.4938 gn 7.117 drop 0.0561
+step 14 K= 2 loss 3.4577 gn 1.559 drop 0.0543
+step 15 K= 3 loss 3.4179 gn 8.049 drop 0.0537
+step 16 K= 9 loss 3.4677 gn 8.589 drop 0.0471
+step 17 K= 3 loss 3.2279 gn 10.020 drop 0.0604
+step 18 K= 2 loss 3.4248 gn 2.469 drop 0.0491
+step 19 K= 7 loss 3.3195 gn 12.643 drop 0.0456
+step 20 K= 2 loss 3.5027 gn 18.149 drop 0.0559
+step 21 K= 9 loss 3.1786 gn 11.371 drop 0.0395
+step 22 K= 9 loss 3.2739 gn 6.726 drop 0.0349
+step 23 K= 4 loss 3.1984 gn 3.216 drop 0.0498
+step 24 K= 2 loss 3.6022 gn 4.895 drop 0.0550
+step 25 K= 4 loss 3.1511 gn 7.677 drop 0.0617
+step 26 K= 9 loss 3.5684 gn 1.479 drop 0.0388
+step 27 K= 6 loss 3.4858 gn 11.653 drop 0.0462
+step 28 K= 3 loss 3.3340 gn 12.315 drop 0.0440
+step 29 K= 3 loss 3.1788 gn 9.962 drop 0.0773
+step 30 K= 7 loss 3.1592 gn 3.263 drop 0.0683
+step 31 K=16 loss 3.2683 gn 9.727 drop 0.0398
+step 32 K= 5 loss 3.4367 gn 12.596 drop 0.0524
+step 33 K=10 loss 3.5552 gn 10.189 drop 0.0436
+step 34 K=14 loss 3.3925 gn 5.830 drop 0.0463
+step 35 K= 4 loss 3.3623 gn 2.795 drop 0.0686
+step 36 K= 3 loss 2.8863 gn 10.008 drop 0.0667
+step 37 K= 3 loss 3.2458 gn 9.249 drop 0.0729
+step 38 K= 2 loss 3.3384 gn 3.258 drop 0.0440
+step 39 K= 6 loss 3.4029 gn 10.900 drop 0.0360
+done 65.8 s, peak alloc 19.02 reserved 19.63

@@ -1,0 +1,73 @@
+{
+ "cli": {
+  "free": 1,
+  "extra_free": 1,
+  "variant": "",
+  "probe_batch": 0,
+  "eval_batch": 0,
+  "report": 0,
+  "out": "report_profile_xfree.json"
+ },
+ "rows": [
+  {
+   "tag": "train x3 (K 6,10,16)",
+   "alloc": 5.33297664,
+   "reserved": 21.063794688,
+   "peak_alloc": 20.250723328,
+   "peak_reserved": 21.063794688
+  },
+  {
+   "tag": "evaluate",
+   "alloc": 5.26825216,
+   "reserved": 12.410945536,
+   "peak_alloc": 8.713413632,
+   "peak_reserved": 22.137536512,
+   "seconds": 21.103863954544067
+  },
+  {
+   "tag": "memory probes",
+   "alloc": 5.26530304,
+   "reserved": 8.516534272,
+   "peak_alloc": 6.15394048,
+   "peak_reserved": 12.410945536,
+   "seconds": 3.474674701690674
+  },
+  {
+   "tag": "free after probes",
+   "alloc": 5.26530304,
+   "reserved": 8.516534272,
+   "peak_alloc": 5.26530304,
+   "peak_reserved": 8.516534272
+  },
+  {
+   "tag": "train K=6 after eval",
+   "alloc": 5.3327744,
+   "reserved": 20.57306112,
+   "peak_alloc": 20.157139456,
+   "peak_reserved": 20.57306112
+  },
+  {
+   "tag": "train K=10 after eval",
+   "alloc": 5.332092928,
+   "reserved": 20.58354688,
+   "peak_alloc": 20.157835776,
+   "peak_reserved": 20.58354688
+  },
+  {
+   "tag": "train K=16 after eval",
+   "alloc": 5.33068288,
+   "reserved": 21.137195008,
+   "peak_alloc": 20.232312832,
+   "peak_reserved": 21.137195008
+  },
+  {
+   "tag": "train K=6 after eval",
+   "alloc": 5.330995712,
+   "reserved": 21.137195008,
+   "peak_alloc": 20.13932288,
+   "peak_reserved": 21.137195008
+  }
+ ],
+ "val": 3.858049988746643,
+ "stats": 1
+}

@@ -1,0 +1,16 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+variant chunk_ce applied
+after load {'tag': 'after_load', 'alloc': 4.697853952, 'reserved': 5.57842432, 'peak_alloc': 7.19821312, 'peak_reserved': 7.69654784}
+{'params': 0.551, 'grads': 0.0, 'opt_state': 0.602, 'opt_state_by_key': {'m': 0.055, 'v': 0.055, 'n': 0.003, 'mom': 0.489}, 'mem_buffers': 3.535, 'mem_buffers_top': {'V': 1.091, 'G': 1.091, 'V_e': 0.403, 'G_e': 0.403, 'P': 0.101, 'P_ema': 0.101, 'P_m': 0.101, 'P_v': 0.101, 'G_P': 0.101, 'qres': 0.006, 'S_acc': 0.004, 'wcount': 0.004, 'lam_r': 0.004, 'psi_r': 0.004, 'wq_ema': 0.003, 'qres_c': 0.002}, 'other_buffers': 0.004, 'mem_params': 0.011, 'emb_head_params': 0.05, 'expert_params': 0.453}
+after warmup {'tag': 'after_warmup', 'alloc': 5.330414592, 'reserved': 20.822622208, 'peak_alloc': 18.888192512, 'peak_reserved': 20.822622208}
+K=2: peak alloc 10.60 GB, peak reserved 20.82 GB, 0.88 s; by phase fwd0:10.10/20.82 bwd0:9.46/20.82 fwd1:10.60/20.82 bwd1:10.00/20.82 clip:5.29/20.82 opt:7.45/20.82 write_counts:5.29/20.82 mem_after_step:5.96/20.82
+K=6: peak alloc 18.90 GB, peak reserved 20.82 GB, 2.23 s; by phase fwd0:18.31/20.82 bwd0:17.98/20.82 fwd1:18.90/20.82 bwd1:18.51/20.82 clip:5.34/20.82 opt:7.51/20.82 write_counts:5.34/20.82 mem_after_step:6.01/20.82
+K=10: peak alloc 18.92 GB, peak reserved 20.84 GB, 2.81 s; by phase fwd0:18.33/20.83 bwd0:17.97/20.83 fwd1:18.92/20.84 bwd1:18.50/20.84 clip:5.34/20.84 opt:7.50/20.84 write_counts:5.34/20.84 mem_after_step:6.01/20.84
+K=16: peak alloc 19.02 GB, peak reserved 20.85 GB, 3.55 s; by phase fwd0:18.41/20.84 bwd0:18.02/20.84 fwd1:19.02/20.85 bwd1:18.56/20.85 clip:5.34/20.85 opt:7.50/20.85 write_counts:5.34/20.85 mem_after_step:6.01/20.85
+time K=2: 0.781 s (median of 3) peak reserved 20.85
+time K=6: 2.190 s (median of 3) peak reserved 21.08
+time K=10: 2.699 s (median of 3) peak reserved 21.08
+time K=16: 3.490 s (median of 3) peak reserved 21.08
+expected step 2.004 s -> 8.2k tok/s
+snapshot {'path': 'C:\\Eitan\\Python\\NewBrain\\fruit-fly-sim\\speed_wip\\vram\\snapshot_K10_chunk_ce.pickle', 'base_alloc': 5.331382272, 'peak_alloc': 18.928138752, 'peak_reserved': 20.023607296}
+wrote C:\Eitan\Python\NewBrain\fruit-fly-sim\speed_wip\vram\step_profile_chunkce.json

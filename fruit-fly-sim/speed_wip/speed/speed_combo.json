@@ -1,0 +1,18 @@
+{
+ "tag": "combo",
+ "variant": "topk_nosync,route_static,rms_fused,spike_fn",
+ "batch": 8,
+ "accum": 4,
+ "first_loss": 3.3234386444091797,
+ "syncs_K6": 54,
+ "times": {
+  "2": 0.6648213863372803,
+  "6": 2.0601279735565186,
+  "10": 2.595984697341919,
+  "16": 3.403923511505127
+ },
+ "expected_step_s": 1.8870528340339658,
+ "tok_s": 8682.321821893991,
+ "peak_alloc_gb": 12.602263552,
+ "peak_reserved_gb": 13.06525696
+}

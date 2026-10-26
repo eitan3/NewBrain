@@ -1,0 +1,80 @@
+--- fruit-fly-sim (launch) /loop_brain.py
++++ fruit-fly-sim (edited) /loop_brain.py
+@@ -36,5 +36,5 @@
+ from memory import (GATE_FEATS, GATE_MODES, ConceptHier, Memory, MemGate, _orderable, concept_loss, concept_targets,
+                     gate_sizes, gate_trace, masked_std)
+-from spiking_lm import RMSNorm, RoutedMLP, SpikingLM, SSDMixer
++from spiking_lm import RMSNorm, RoutedMLP, SpikingLM, SSDMixer, ck_ready, ck_run
+ 
+ 
+@@ -42,4 +42,32 @@
+     """-log softmax(head(h))[t] per row (head under the ambient autocast, log-softmax in fp32: as the plain path)."""
+     return -F.log_softmax(head(h).float(), -1).gather(-1, t[:, None]).squeeze(-1)
++
++
++READOUT_LEAN = False   # (VRAM saver --vram-readout-lean, set by train_lm.apply_vram_savers)
++
++
++def _lean_chunk(head, pfc, want_logits, want_ent, want_kl):
++    """chunked_readout's checkpointed chunk without the hidden references of the plain version: there the checkpoint
++    keeps `fn` until backward, and fn's closure / default box held the PREVIOUS pass's (n, V) logits (pf) and this
++    chunk's detached logits (box["lg"]): ~2 x (B, T, V) bf16 per backprop pass. Here the previous logits come in the
++    box and both are dropped after the first run. Same ops on the same values."""
++    box = {"first": True, "pf": pfc}
++
++    def fn(hc_, tc_, box=box):
++        lg = head(hc_)
++        lp = F.log_softmax(lg.float(), -1)
++        if box["first"]:                              # (first run only: the recompute skips the extras)
++            box["first"] = False
++            pf_ = box.pop("pf", None)
++            with torch.no_grad():
++                box["lg"] = lg.detach() if want_logits else None
++                if want_ent or want_kl:
++                    p = lp.exp()
++                    box["H"] = -(p * lp).sum(-1)
++                    if want_kl:
++                        box["kl"] = (p * (lp - F.log_softmax(pf_.float(), -1))).sum(-1) \
++                            if pf_ is not None else torch.zeros_like(box["H"])
++        return -lp.gather(-1, tc_[:, None]).squeeze(-1)
++    return box, fn
+ 
+ 
+@@ -58,7 +86,26 @@
+     lg_all = H = lkl = None
+     ces = []
++    lean = READOUT_LEAN and grad
+     for a in range(0, n, chunk):
+         hc, tc = hf[a:a + chunk], tf[a:a + chunk]
+         box = {}
++        if lean:  # (VRAM saver --vram-readout-lean: same maths; see _lean_chunk)
++            box, fn = _lean_chunk(head, pf[a:a + chunk] if (want_kl and pf is not None) else None, want_logits,
++                                  want_ent, want_kl)
++            ce = torch.utils.checkpoint.checkpoint(fn, hc, tc, use_reentrant=False)
++            ces.append(ce)
++            if want_logits:
++                if lg_all is None:
++                    lg_all = box["lg"].new_empty(n, box["lg"].size(-1))
++                lg_all[a:a + chunk] = box["lg"]
++            if want_ent or want_kl:
++                if H is None:
++                    H, lkl = box["H"].new_empty(n), box["H"].new_empty(n)
++                H[a:a + chunk] = box["H"]
++                if want_kl:
++                    lkl[a:a + chunk] = torch.log1p(box["kl"].clamp(min=0))
++            for k_ in ("lg", "H", "kl", "pf"):   # (the checkpoint keeps fn -> box alive until backward: empty it)
++                box.pop(k_, None)
++            continue
+ 
+         def fn(hc_, tc_, box=box):
+@@ -1379,6 +1426,9 @@
+                 tg = concept_targets(self.normf(x).detach().to(acc), idx, self.cfg["concepts"], self.cfg["concept_eot"])
+                 wl = self.cfg["concept_weights"]
++                # (VRAM saver --vram-ckpt-concept: each level's loss terms recomputed in backward; same maths)
++                cl_fn = (lambda *a: ck_run(concept_loss, *a)) if (getattr(self, "ckpt_concept", False)
++                                                                   and ck_ready()) else concept_loss
+                 for mus, nus in hier_preds:
+-                    c_losses.append(sum(w * concept_loss(mu, nu, t, v) for w, mu, nu, (t, v) in zip(wl, mus, nus, tg)))
++                    c_losses.append(sum(w * cl_fn(mu, nu, t, v) for w, mu, nu, (t, v) in zip(wl, mus, nus, tg)))
+                 with torch.no_grad():  # collapse detectors and fit per level (tensors: no host sync)
+                     st = {}

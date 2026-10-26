@@ -1,0 +1,95 @@
+{
+ "cli": {
+  "free": 1,
+  "extra_free": 0,
+  "variant": "",
+  "probe_batch": 0,
+  "eval_batch": 0,
+  "report": 1,
+  "out": "report_profile.json"
+ },
+ "rows": [
+  {
+   "tag": "train x3 (K 6,10,16)",
+   "alloc": 5.33024768,
+   "reserved": 20.900216832,
+   "peak_alloc": 20.24134912,
+   "peak_reserved": 20.900216832
+  },
+  {
+   "tag": "evaluate",
+   "alloc": 5.268566528,
+   "reserved": 23.04770048,
+   "peak_alloc": 8.713326592,
+   "peak_reserved": 23.04770048,
+   "seconds": 49.675543785095215
+  },
+  {
+   "tag": "free before report",
+   "alloc": 5.268566528,
+   "reserved": 8.243904512,
+   "peak_alloc": 5.268566528,
+   "peak_reserved": 23.04770048
+  },
+  {
+   "tag": "loop_report",
+   "alloc": 5.2650112,
+   "reserved": 8.512339968,
+   "peak_alloc": 6.860460544,
+   "peak_reserved": 8.512339968,
+   "seconds": 59.2134485244751
+  },
+  {
+   "tag": "free after report",
+   "alloc": 5.2650112,
+   "reserved": 8.243904512,
+   "peak_alloc": 5.2650112,
+   "peak_reserved": 8.512339968
+  },
+  {
+   "tag": "memory probes",
+   "alloc": 5.265617408,
+   "reserved": 8.243904512,
+   "peak_alloc": 6.15509248,
+   "peak_reserved": 8.243904512,
+   "seconds": 3.7392849922180176
+  },
+  {
+   "tag": "free after probes",
+   "alloc": 5.265617408,
+   "reserved": 8.243904512,
+   "peak_alloc": 5.265617408,
+   "peak_reserved": 8.243904512
+  },
+  {
+   "tag": "train K=6 after eval",
+   "alloc": 5.331329536,
+   "reserved": 20.5520896,
+   "peak_alloc": 20.149307904,
+   "peak_reserved": 20.5520896
+  },
+  {
+   "tag": "train K=10 after eval",
+   "alloc": 5.330039808,
+   "reserved": 21.101543424,
+   "peak_alloc": 20.14740992,
+   "peak_reserved": 21.101543424
+  },
+  {
+   "tag": "train K=16 after eval",
+   "alloc": 5.333627904,
+   "reserved": 21.11832064,
+   "peak_alloc": 20.230422016,
+   "peak_reserved": 21.11832064
+  },
+  {
+   "tag": "train K=6 after eval",
+   "alloc": 5.329539072,
+   "reserved": 21.11832064,
+   "peak_alloc": 20.134106624,
+   "peak_reserved": 21.11832064
+  }
+ ],
+ "val": 3.8615482687950133,
+ "stats": 0
+}

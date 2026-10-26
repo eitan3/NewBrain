@@ -1,0 +1,73 @@
+--- a/loop_brain.py
++++ b/loop_brain.py
+@@ -731,9 +731,12 @@
+         hier_preds, margins, prev_mu, pm = [], [], None, None   # concept / memory (plan_v2/12); pm: private read
+         if mem is not None:
+             mem.begin_forward(self.training and tgt is not None)
+-            if (mem.S and mem.read0) or mem.R:  # the read before pass 1, from s_0 (token-keyed; --mem-read0)
++            # the memory use before pass 1, addressed from s_0, which depends only on the token (--mem-read0). With
++            # --mem-read0 0 nothing is read before pass 1 (neither shared nor private): the first memory use is
++            # after pass 1, from the thought
++            if mem.read0 and (mem.S or mem.R):
+                 with torch.set_grad_enabled(torch.is_grad_enabled() and K - bptt <= 0):
+-                    (_, _, M, q1, mg), sel = self._hier_step(s, read=bool(mem.read0), address=True, k=-1)
++                    (_, _, M, q1, mg), sel = self._hier_step(s, read=True, address=True, k=-1)
+                     if mg is not None:
+                         margins.append(mg)
+                     if M is not None:
+--- a/train_lm.py
++++ b/train_lm.py
+@@ -219,7 +219,8 @@
+         mem = getattr(model, "mem", None)
+         if mem is not None:  # memory knock-outs: shared reads = 0, private reads = 0, one level's reads = 0
+             kos = ([("shared", "ko_shared", True)] if mem.S else []) + ([("private", "ko_private", True)] if mem.R else []) \
+-                + ([(f"level{l + 1}", "ko_levels", (l,)) for l in range(mem.L)] if mem.S else [])
++                + ([(f"level{l + 1}", "ko_levels", (l,)) for l in range(mem.L)] if mem.S else []) \
++                + ([("read0", "read0", False)] if mem.read0 else [])  # the token-keyed read before pass 1
+             for name, attr, value in kos:
+                 old = getattr(mem, attr)
+                 setattr(mem, attr, value)
+@@ -450,7 +451,7 @@
+     ap.add_argument("--mem-topm", type=int, default=8, help="product keys: top-m per half")
+     ap.add_argument("--mem-topk", type=int, default=6, help="product keys: rows read per head")
+     ap.add_argument("--mem-tau", type=float, default=0.03, help="softmax temperature of the read weights")
+-    ap.add_argument("--mem-read0", type=int, default=1, help="1 = also read before the first pass (from s_0)")
++    ap.add_argument("--mem-read0", type=int, default=1, help="1 = also read before the first pass (from s_0: keyed by the token alone); 0 = the first memory use is after pass 1")
+     ap.add_argument("--mem-private", type=int, default=0, help="private memory rows per expert (0 = off)")
+     ap.add_argument("--mem-lr", type=float, default=0.01, help="MemOpt (row-Adagrad) learning rate of the tables")
+     ap.add_argument("--mem-s0", default="auto", help="Adagrad prior S0 (absolute), or auto = 100 x median G^2")
+--- a/test_memory.py
++++ b/test_memory.py
+@@ -813,3 +813,32 @@
+     m2 = LoopBrain(**ck["cfg"])
+     m2.load_state_dict(ck["state"], strict=True)
+     assert m2.mem.is_frozen and m2.blocks[0].mlp.E == 12 and m2.mem._e_live == 12
++
++
++# ---------------------------------------------------------------- --mem-read0 0: nothing is read before pass 1
++def test_18_read0_off_means_no_memory_use_before_pass_1():
++    for read0 in (1, 0):
++        m = mem_loop(mem_read0=read0)
++        m.eval()
++        calls = []
++        sh, pr = m.mem.read_shared, m.mem.private
++        m.mem.read_shared = lambda *a, **k: (calls.append("shared"), sh(*a, **k))[1]
++        m.mem.private = lambda *a, **k: (calls.append("private"), pr(*a, **k))[1]
++        hs = m._hier_step
++        steps = []
++        m._hier_step = lambda s, read, address, k=0: (steps.append((k, read, address)), hs(s, read, address, k))[1]
++        x = torch.randint(1, 50, (2, 16))
++        m.K = 1  # one pass: the only possible memory use is the one before it (after the last pass nothing is read)
++        with torch.no_grad():
++            m(x)
++        if read0:
++            assert steps[0] == (-1, True, True) and "shared" in calls and "private" in calls
++        else:
++            assert all(k >= 0 for k, _, _ in steps) and not any(a for _, _, a in steps) and calls == []
++        calls.clear(); steps.clear()
++        m.K = 3
++        with torch.no_grad():
++            m(x)
++        n_shared = calls.count("shared")
++        assert n_shared == (3 if read0 else 2)  # reads after passes 1 and 2 (+ the pre-pass read when on)
++        assert sum(1 for k, _, a in steps if a and k == -1) == read0

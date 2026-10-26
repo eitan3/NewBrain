@@ -1,0 +1,4 @@
+C256_T1_w1_m4_kc8 (key slots x1): lvl 0: r1 1.000 own 1.000 cand 9 | lvl 1: r1 0.342 own 0.342 cand 9 | lvl 2: r1 0.215 own 0.215 cand 8
+C256_T4_w1_m4_kc8 (key slots x4): lvl 0: r1 1.000 own 1.000 cand 33 | lvl 1: r1 0.773 own 0.773 cand 33 | lvl 2: r1 0.572 own 0.574 cand 33
+C256_T4_w2_m4_kc8 (key slots x8): lvl 0: r1 1.000 own 1.000 cand 64 | lvl 1: r1 0.893 own 0.893 cand 64 | lvl 2: r1 0.723 own 0.731 cand 63
+C256_T4_w4_m4_kc8 (key slots x16): lvl 0: r1 1.000 own 1.000 cand 124 | lvl 1: r1 0.946 own 0.947 cand 124 | lvl 2: r1 0.821 own 0.835 cand 123

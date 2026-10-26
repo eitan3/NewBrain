@@ -1,0 +1,7 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+speed variant topk_nosync
+K=2: 0.676 s
+K=6: 2.138 s
+K=10: 2.675 s
+K=16: 3.508 s
+topk: 8.41k tok/s, first loss 3.322496, syncs/K6-step 170, peak 13.20 GB

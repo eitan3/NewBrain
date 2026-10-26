@@ -1,0 +1,98 @@
+=== wiki_val: 64 windows x 512 positions = 32,768 positions; K=6, capacity dropless
+mean CE: on 3.9524  off 3.9799  ko_shared 3.9770  ko_private 3.9547   (off - on = +0.0275)
+0. reproducibility: the first 8 windows again at batch size 1 (vs 2); the CE is deterministic for a fixed batch, but expert-routing near-ties can flip with the GEMM shapes
+  CE on         |diff| mean 0.0070 max 0.623  frac > 0.01: 0.061
+  CE off        |diff| mean 0.0118 max 0.673  frac > 0.01: 0.145
+  CE ko_shared  |diff| mean 0.0077 max 0.862  frac > 0.01: 0.072
+  CE ko_private |diff| mean 0.0081 max 0.679  frac > 0.01: 0.090
+  b_full     test-retest corr 0.986   mean|b| 0.2453   mean|b - b'| 0.0156   frac |b - b'| > 0.01: 0.149
+  b_shared   test-retest corr 0.988   mean|b| 0.2365   mean|b - b'| 0.0111   frac |b - b'| > 0.01: 0.076
+  b_private  test-retest corr 0.954   mean|b| 0.1205   mean|b - b'| 0.0118   frac |b - b'| > 0.01: 0.093
+
+1. concentration of b_t = CE(off) - CE(on): share of the positive benefit (pos) / net benefit (net) held by the top x% of positions; neg = the bottom x%'s share of the negative mass
+  b_full     mean +0.0275  frac b>0 0.564  sum+ 4414.0  sum- 3514.3  net +899.7
+     top x%:   1%: pos 0.096 net +0.471 neg 0.115   5%: pos 0.311 net +1.524 neg 0.373  10%: pos 0.490 net +2.405 neg 0.579
+              20%: pos 0.731 net +3.587 neg 0.833  30%: pos 0.880 net +4.316 neg 0.958  50%: pos 0.997 net +4.892 neg 1.000
+  b_shared   mean +0.0246  frac b>0 0.561  sum+ 4236.4  sum- 3429.2  net +807.2
+     top x%:   1%: pos 0.102 net +0.534 neg 0.116   5%: pos 0.321 net +1.687 neg 0.371  10%: pos 0.503 net +2.639 neg 0.578
+              20%: pos 0.742 net +3.896 neg 0.829  30%: pos 0.887 net +4.656 neg 0.955  50%: pos 0.998 net +5.236 neg 1.000
+  b_private  mean +0.0023  frac b>0 0.515  sum+ 2062.4  sum- 1986.8  net +75.6
+     top x%:   1%: pos 0.103 net +2.803 neg 0.106   5%: pos 0.335 net +9.130 neg 0.347  10%: pos 0.525 net +14.323 neg 0.546
+              20%: pos 0.771 net +21.031 neg 0.798  30%: pos 0.913 net +24.915 neg 0.933  50%: pos 1.000 net +27.280 neg 1.000
+
+2. benefit by position type (input token at t; types overlap; share = of the total over all positions)
+  type                       frac |   b_full mean   net%   pos% | b_shared mean   net%   pos% | b_private mean   net%   pos%
+  EOT                       0.001 |       -0.0298   -0.1    0.0 |       -0.0302   -0.1    0.0 |       -0.0115   -0.3    0.0
+  number                    0.028 |       +0.0177    1.8    2.3 |       +0.0149    1.7    2.2 |       -0.0042   -5.1    2.2
+  cap_word_start            0.157 |       +0.0257   14.7   16.1 |       +0.0272   17.3   16.5 |       -0.0025  -16.8   15.5
+  rare_token                0.098 |       +0.0080    2.9    9.0 |       +0.0093    3.7    9.2 |       +0.0010    4.3   10.1
+  after_cap_or_rare_1-3     0.540 |       +0.0264   52.0   53.8 |       +0.0246   53.9   54.0 |       +0.0014   33.5   53.9
+  punctuation               0.108 |       +0.0296   11.7   10.2 |       +0.0218    9.6    9.9 |       +0.0034   16.1   10.2
+  whitespace                0.041 |       +0.0241    3.6    3.5 |       +0.0223    3.7    3.4 |       +0.0037    6.6    3.0
+  first32_after_EOT         0.021 |       +0.0953    7.3    3.2 |       +0.0868    7.4    3.3 |       +0.0075    6.8    1.9
+  first32_of_window         0.062 |       +0.0412    9.4    6.9 |       +0.0411   10.4    7.1 |       +0.0031    8.4    6.3
+  ordinary                  0.259 |       +0.0312   29.4   26.9 |       +0.0250   26.2   26.3 |       +0.0060   66.9   27.2
+  freq_d0                   0.110 |       +0.0347   13.9   11.5 |       +0.0285   12.8   11.3 |       +0.0045   21.4   10.6
+  freq_d1                   0.099 |       +0.0246    8.9    9.2 |       +0.0227    9.1    9.1 |       +0.0007    2.9    9.2
+  freq_d2                   0.097 |       +0.0359   12.7   10.2 |       +0.0295   11.6    9.9 |       +0.0031   12.9    9.5
+  freq_d3                   0.105 |       +0.0325   12.4   11.1 |       +0.0326   13.8   11.3 |       +0.0002    0.7   10.5
+  freq_d4                   0.094 |       +0.0380   13.0    9.9 |       +0.0264   10.1    9.7 |       +0.0004    1.6    9.3
+  freq_d5                   0.099 |       +0.0233    8.4    9.8 |       +0.0236    9.4   10.0 |       +0.0012    5.0    9.7
+  freq_d6                   0.100 |       +0.0287   10.4    9.9 |       +0.0265   10.7    9.8 |       +0.0017    7.5   10.1
+  freq_d7                   0.103 |       +0.0238    8.9   10.1 |       +0.0224    9.4   10.3 |       +0.0089   39.5   11.3
+  freq_d8                   0.096 |       +0.0244    8.6    9.2 |       +0.0240    9.4    9.4 |       +0.0010    4.3    9.8
+  freq_d9                   0.098 |       +0.0080    2.9    9.0 |       +0.0093    3.7    9.2 |       +0.0010    4.3   10.1
+  target_freq_d0            0.110 |       +0.0732   29.3    9.2 |       +0.0552   24.7    8.3 |       +0.0127   60.8    8.2
+  target_freq_d1            0.099 |       +0.0651   23.5    9.2 |       +0.0507   20.4    8.7 |       +0.0072   31.2    8.6
+  target_freq_d2            0.097 |       +0.0671   23.7   10.3 |       +0.0584   23.0   10.0 |       +0.0066   27.8    9.5
+  target_freq_d3            0.105 |       +0.0550   21.0   11.2 |       +0.0539   22.9   11.4 |       +0.0115   52.3   11.3
+  target_freq_d4            0.094 |       +0.0359   12.3    9.6 |       +0.0372   14.2    9.8 |       +0.0006    2.4    9.4
+  target_freq_d5            0.099 |       +0.0273    9.8   10.8 |       +0.0215    8.6   10.6 |       +0.0035   15.0   10.8
+  target_freq_d6            0.100 |       -0.0004   -0.1    9.9 |       +0.0019    0.8   10.3 |       +0.0011    4.9   11.0
+  target_freq_d7            0.103 |       -0.0053   -2.0   10.7 |       +0.0010    0.4   11.1 |       -0.0061  -27.4   10.9
+  target_freq_d8            0.096 |       -0.0174   -6.1    9.8 |       -0.0127   -5.0   10.1 |       -0.0051  -21.1   10.3
+  target_freq_d9            0.098 |       -0.0322  -11.4    9.2 |       -0.0253  -10.0    9.7 |       -0.0109  -45.9   10.1
+
+3. ROC AUC for 'b_t in the top 20.0%' (AUC: raw, > 0.5 = high feature -> high benefit; cv: 1-feature logistic regression, 5-fold by sequence)
+  (constant or non-finite, dropped: dmu1_r0, dmu2_r0, dmu3_r0, dmu4_r0, delta_r0)
+  feature             AUC     cv
+  ent_r1            0.615  0.614
+  ent_mean          0.614  0.613
+  ent_r0            0.609  0.608
+  dmu1_mean         0.530  0.529
+  gbar_r0           0.525  0.525
+  dmu1_r1           0.523  0.522
+  gbar_r1           0.523  0.522
+  gbar_mean         0.522  0.521
+  dmu4_mean         0.520  0.519
+  dmu2_mean         0.520  0.519
+  dmu3_mean         0.520  0.518
+  surprise          0.519  0.517
+  dmu2_r1           0.518  0.515
+  surprise_trace    0.517  0.515
+  dmu4_r1           0.517  0.514
+  dmu3_r1           0.516  0.513
+  delta_mean        0.516  0.514
+  delta_r1          0.511  0.508
+  nu4_r0            0.510  0.506
+  nu3_r0            0.510  0.505
+  nu4_r1            0.508  0.504
+  nu4_mean          0.508  0.502
+  nu2_r0            0.508  0.499
+  nu3_r1            0.507  0.502
+  nu3_mean          0.507  0.500
+  nu1_r0            0.506  0.496
+  nu2_r1            0.505  0.494
+  nu2_mean          0.505  0.490
+  nu1_r1            0.504  0.488
+  nu1_mean          0.503  0.486
+  doc_start         0.501  0.494
+  log_train_freq (extra)  0.511  0.510
+  log_pos_in_doc (extra)  0.487  0.511
+  logistic regression, all 31 features, cv AUC (b_full): 0.626   + extras: 0.627   (5 folds)
+  logistic regression, all 31 features, cv AUC (b_shared): 0.626   + extras: 0.627   (5 folds)
+  logistic regression, all 31 features, cv AUC (b_private): 0.620   + extras: 0.620   (5 folds)
+  largest standardised LR weights (b_full): nu4_mean -1.00, nu4_r1 +0.80, nu3_mean +0.47, ent_r1 +0.45, nu2_r1 -0.45, nu3_r1 -0.40, nu4_r0 +0.38, nu1_mean +0.27
+
+NO-GO (wiki_val): top 20% hold 0.731 of the positive benefit (need >= 0.6); best cross-validated AUC 0.626 (need >= 0.75)
+

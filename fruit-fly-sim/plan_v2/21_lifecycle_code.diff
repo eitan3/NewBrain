@@ -1,0 +1,2074 @@
+--- plan_v2/baseline_mem_v3/memory.py	2026-10-23 22:52:06.935569500 +0300
++++ memory.py	2026-10-24 03:23:37.824720900 +0300
+@@ -5,6 +5,13 @@
+     Memory         translators + product keys (2), shared pool read by MemRead (3), MemOpt (3.1), private expert
+                    memory (4), sub-key balancing and the freeze (2.2), margin loss (2.3), copy-on-split
+     MemoryProbes   drift probes, stability guard, repair (5, 6)
++    LifeCycle      the memory life cycle (plan_v2/21): infancy (decaying, rewritable rows) -> ramp -> mature (frozen)
++
++Life cycle (plan_v2/21, every part behind its flag): lazy row decay through a global Lambda(t) and a per-row Lambda_r
++(applied on read through the MemRead weights and on write in MemOpt), a discounted accumulator through Psi(t) and
++Psi_r, an uncapped dead-key restart with a band reset, fixed random addressing (addr_learn False), a coarse
++product-key pool next to the fine one (one table, rows at an offset) and neighbour writes (ranks km+1 .. nbr written
++in MemRead's backward only).
+ 
+ Tables (V_sh, V_e and the private keys P) are BUFFERS, never nn.Parameters: BrainOpt, clip_grad_norm_,
+ carry_brain_state, build_opt and model.zero_grad never see them. Their gradients go through MemRead / GatherRows
+@@ -21,6 +28,8 @@
+ import torch.utils.checkpoint
+ 
+ NRES = 64       # recent query halves kept per sub-key codebook (re-seeding dead sub-keys)
++NRES_RESTART = 1024   # --mem-restart: the larger reservoir (distinct slots per restart event)
++S_FLOOR = 0.1   # --mem-life: the discounted accumulator never falls below S_FLOOR x S0
+ P_TOPK = 4      # private memory: rows read per (token, chosen expert)
+ # speed (plan_v2/14, same math)
+ TOPK_SYNC_FREE = False    # stable_topk boundary ties: False = those rows are redone by the full stable sort (one host
+@@ -120,12 +129,15 @@
+ 
+ class MemRead(torch.autograd.Function):
+     """r[b] = sum_j w[b, j] V[rows[b, j]] (embedding_bag, mode sum). Backward: index_add_ into the ONE preallocated
+-    grad buffer G (no fresh table-sized allocation), and the gradient of the weights w. V gets no .grad."""
++    grad buffer G (no fresh table-sized allocation), and the gradient of the weights w. V gets no .grad.
++    Optional (plan_v2/21): gw = the weights of the G write instead of w (--mem-life: w = omega x the pending decay
++    factors f, gw = omega, so G holds dL/dV in the rows' current, decayed units); xrows / xw = extra rows written
++    with weights xw in backward only (neighbour writes: no forward cost, no gradient to xw)."""
+ 
+     @staticmethod
+-    def forward(ctx, anchor, w, V, G, rows):
++    def forward(ctx, anchor, w, V, G, rows, gw=None, xrows=None, xw=None):
+         ctx.save_for_backward(rows, w)
+-        ctx.V, ctx.G = V, G
++        ctx.V, ctx.G, ctx.gw, ctx.x = V, G, gw, (xrows, xw)
+         return F.embedding_bag(rows, V, per_sample_weights=w.to(V.dtype), mode="sum")
+ 
+     @staticmethod
+@@ -135,10 +147,16 @@
+         g = gout.to(V.dtype)
+         B, k = rows.shape
+         if G is not None:  # ONE flattened index_add_ (column-major: the order of adds of one column at a time)
++            wg = w if ctx.gw is None else ctx.gw
+             kc = max(1, READ_BWD_ELEMS // max(1, g.numel()))                    # (columns per chunk: bounded)
+             for c in range(0, k, kc):
+                 G.index_add_(0, rows[:, c:c + kc].t().reshape(-1),
+-                             (w[:, c:c + kc].t().to(G.dtype)[..., None] * g[None]).reshape(-1, g.size(1)))
++                             (wg[:, c:c + kc].t().to(G.dtype)[..., None] * g[None]).reshape(-1, g.size(1)))
++            xrows, xw = ctx.x
++            if xrows is not None:  # neighbour writes: G += xw g on the extra rows (after the read's own columns)
++                for c in range(0, xrows.size(1), kc):
++                    G.index_add_(0, xrows[:, c:c + kc].t().reshape(-1),
++                                 (xw[:, c:c + kc].t().to(G.dtype)[..., None] * g[None]).reshape(-1, g.size(1)))
+         dw = None
+         if ctx.needs_input_grad[1]:
+             if READ_DW_BMM:  # dw[b, j] = <g[b], V[rows[b, j]]>: one gather + bmm (in chunks of bags)
+@@ -147,7 +165,7 @@
+                                 for c in range(0, B, nb)]).to(w.dtype)
+             else:
+                 dw = torch.stack([(g * F.embedding(rows[:, j], V)).sum(-1) for j in range(k)], 1).to(w.dtype)
+-        return None, dw, None, None, None
++        return None, dw, None, None, None, None, None, None
+ 
+ 
+ class GatherRows(torch.autograd.Function):
+@@ -320,15 +338,32 @@
+     memory of R rows per expert, preallocated for n_exp experts. See the module doc and plan sections 2-4."""
+ 
+     def __init__(self, d, ds, L, H=3, S=512, m=8, km=6, tau=0.03, dv=256, R=0, n_exp=0, n_live=0, read0=True,
+-                 addr_sg=True, margin=(0.01, 0.01), ema=0.999, seed=0):
++                 addr_sg=True, margin=(0.01, 0.01), ema=0.999, seed=0, life=False, addr_learn=True, restart=0,
++                 coarse=0, coarse_heads=1, nbr=0, nbr_w=0.15):
+         super().__init__()
+         assert km <= m and km + 1 <= m * m, "product-key top-k is exact only for k <= m"
+         assert not S or S >= m + 1, "each half needs at least m + 1 sub-keys (the margin uses the (m+1)-th)"
+         assert not R or R >= P_TOPK
++        assert not coarse or (S and coarse >= m + 1), "the coarse pool needs the shared pool and >= m + 1 sub-keys"
++        assert not nbr or (S and km + 1 <= nbr <= m * m), "neighbour writes: km + 1 <= --mem-nbr <= m^2"
+         self.d, self.ds, self.L, self.H, self.S, self.m, self.km = d, ds, L, H, S, m, km
+         self.tau, self.dv, self.R, self.Emax = tau, dv, R, n_exp
+         self.read0, self.addr_sg, self.ema = bool(read0), bool(addr_sg), ema
+         self.lam_m, self.delta = float(margin[0]), float(margin[1])
++        # plan_v2/21 (all off by default): life cycle, fixed addressing, restart, coarse pool, neighbour writes
++        self.life, self.addr_learn, self.restart = bool(life), bool(addr_learn), int(restart)
++        self.Sc, self.Hc, self.nbr, self.nbr_w = int(coarse), int(coarse_heads), int(nbr or 0), float(nbr_w)
++        self.nres = NRES_RESTART if self.restart else NRES
++        if not self.addr_learn:  # fixed random addressing: no margin loss (the margin only trains W_q / the keys)
++            self.lam_m = 0.0
++        self.ko_coarse = False     # knock-out probe: no coarse read
++        self.restart_zero = False  # --mem-restart-zero: a re-seeded key's band also gets V <- 0 (the trainer sets it)
++        self.decay0, self.beta0 = 1e-3, 0.99   # --mem-decay / --mem-acc-beta (the trainer sets them; LifeCycle ramps)
++        # host state of the life cycle and the restart (in the extra state when either is on): Lam / Psi = the global
++        # decay / discount sums (fp64), the current per-step rates, the restart clock and the switch
++        self.life_state = dict(Lam=0.0, Psi=0.0, decay=None, beta=None, restart_every=None, last_restart=0,
++                               phase="infancy", t_switch=None, reason=None, stab_run=0, settled=False) \
++            if (self.life or self.restart) else {}
+         self.ain = d + ds
+         # MemOpt and schedule (the trainer sets these)
+         self.lr, self.s0_cfg, self.clip, self.balance_every, self.usage_rate = 0.01, "auto", 0.05, 250, 0.01
+@@ -374,7 +409,7 @@
+             self.register_buffer("G", torch.zeros(n, dv), persistent=False)
+             self.register_buffer("U", torch.full((L, H, 2, S), 1.0 / S))
+             self.register_buffer("pend", torch.zeros(L, H, 2, S), persistent=False)
+-            self.register_buffer("qres", torch.zeros(L, H, 2, NRES, 64), persistent=False)
++            self.register_buffer("qres", torch.zeros(L, H, 2, self.nres, 64), persistent=False)
+             self.register_buffer("win", torch.zeros(L, H, 2, S), persistent=False)   # --mem-balance-keep: uses since
+                                                                                      # the last balancing event
+             self.gates.w = nn.Parameter(torch.randn(L, H, ds + dv) * 0.02)
+@@ -403,6 +438,41 @@
+             self.gates.b_e = nn.Parameter(torch.full((E,), -2.0))
+             self.w_p = nn.Linear(dv, d, bias=False)
+             nn.init.zeros_(self.w_p.weight)
++        # ---- plan_v2/21, built after everything else (so the existing parts' initialisation is unchanged)
++        # pools of the shared table: (suffix, S, H, row offset); the coarse pool's rows follow the fine pool's
++        self.pools = [("", S, H, 0)] if S else []
++        if self.Sc:
++            Sc, Hc, n0 = self.Sc, self.Hc, L * S * S
++            self.pools.append(("_c", Sc, Hc, n0))
++            nc = L * Sc * Sc
++            self.V = torch.cat([self.V, torch.randn(nc, dv) * 0.02])
++            self.S_acc = torch.cat([self.S_acc, self.S_acc.new_zeros(nc)])
++            self.wcount = torch.cat([self.wcount, self.wcount.new_zeros(nc)])
++            self.G = torch.cat([self.G, self.G.new_zeros(nc, dv)])
++            self.keys.wq_c = nn.Parameter(torch.randn(L, Hc, 128, self.ain) * 0.02)
++            self.keys.k1_c = nn.Parameter(F.normalize(torch.randn(L, Hc, Sc, 64), dim=-1))
++            self.keys.k2_c = nn.Parameter(F.normalize(torch.randn(L, Hc, Sc, 64), dim=-1))
++            self.register_buffer("wq_c_ema", self.keys.wq_c.detach().clone())
++            self.register_buffer("k1_c_ema", self.keys.k1_c.detach().clone())
++            self.register_buffer("k2_c_ema", self.keys.k2_c.detach().clone())
++            self.register_buffer("U_c", torch.full((L, Hc, 2, Sc), 1.0 / Sc))
++            self.register_buffer("pend_c", torch.zeros(L, Hc, 2, Sc), persistent=False)
++            self.register_buffer("qres_c", torch.zeros(L, Hc, 2, self.nres, 64), persistent=False)
++            self.register_buffer("win_c", torch.zeros(L, Hc, 2, Sc), persistent=False)
++            self.gates.w_c = nn.Parameter(torch.randn(L, Hc, ds + dv) * 0.02)
++            self.gates.b_c = nn.Parameter(torch.full((L, Hc), -2.0))
++            self.w_o_c = nn.Parameter(torch.zeros(L, d, dv))
++        if self.life:  # lazy decay / discount: Lambda_r, Psi_r per row; the device copies of Lambda(t), Psi(t)
++            if S:
++                self.register_buffer("lam_r", torch.zeros(self.V.size(0)))
++                self.register_buffer("psi_r", torch.zeros(self.V.size(0)))
++            if R:
++                self.register_buffer("lam_r_e", torch.zeros(self.V_e.size(0)))
++                self.register_buffer("psi_r_e", torch.zeros(self.V_e.size(0)))
++            self.register_buffer("lam_now", torch.zeros(()), persistent=False)
++            self.register_buffer("psi_now", torch.zeros(()), persistent=False)
++        if not self.addr_learn:  # fixed random W_q and sub-keys: no gradient from the start (EMA == online)
++            self._apply_freeze()
+         self._sync_host()
+ 
+     # ------------------------------------------------------------ state
+@@ -412,23 +482,50 @@
+         self._step = int(self.n_step.item())
+         self._s0 = [float(v) for v in self.s0.tolist()]
+         self._e_live = int(self.e_live.item()) if self.R else 0
++        if self.life:
++            self.lam_now.fill_(self.life_state["Lam"])
++            self.psi_now.fill_(self.life_state["Psi"])
+ 
+     @property
+     def is_frozen(self):
+         return self._frozen
+ 
++    @property
++    def _decaying(self):
++        """--mem-life with the rows not yet settled (the decay factors apply on read and write)."""
++        return self.life and not self.life_state["settled"]
++
+     def get_extra_state(self):
++        if self.life_state:
++            return {"probe_state": self.probe_state, "life": dict(self.life_state)}
+         return {"probe_state": self.probe_state}
+ 
+     def set_extra_state(self, state):
+         self.probe_state = dict(state.get("probe_state", {})) if isinstance(state, dict) else {}
++        if self.life_state and isinstance(state, dict) and "life" in state:
++            self.life_state.update(state["life"])
+ 
+     def _load_from_state_dict(self, *args, **kwargs):
+         super()._load_from_state_dict(*args, **kwargs)
+         self._sync_host()
+-        if self._frozen:  # the freeze is part of the state: re-applied on reload
++        if self._frozen or not self.addr_learn:  # the freeze is part of the state: re-applied on reload
+             self._apply_freeze()
+ 
++    def host_state(self):
++        """What a full resume needs beyond state_dict(): the non-persistent buffers (the grad buffers excepted:
++        zero between optimizer steps), the RNGs and the logging stats."""
++        bufs = {n: b.clone() for n, b in self.named_buffers(recurse=False)
++                if n in self._non_persistent_buffers_set and n not in ("G", "G_e", "G_P")}
++        return dict(bufs=bufs, gen=self.gen.get_state(), gen_margin=self.gen_margin.get_state(), stats=dict(self.stats))
++
++    def load_host_state(self, st):
++        for n, b in st["bufs"].items():
++            getattr(self, n).copy_(b)
++        self.gen.set_state(st["gen"].cpu())
++        self.gen_margin.set_state(st["gen_margin"].cpu())
++        self.stats = dict(st["stats"])
++        self._sync_host()
++
+     def _apply_freeze(self):
+         for p in self.keys.parameters():
+             p.requires_grad_(False)
+@@ -442,12 +539,79 @@
+         if self.S:
+             self.keys.k1.copy_(self.k1_ema)
+             self.keys.k2.copy_(self.k2_ema)
++        if self.Sc:
++            self.keys.wq_c.copy_(self.wq_c_ema)
++            self.keys.k1_c.copy_(self.k1_c_ema)
++            self.keys.k2_c.copy_(self.k2_c_ema)
+         if self.R:
+             self.P.copy_(self.P_ema)
+             self.G_P.zero_()  # (the keys get no gradient from now on: after_step no longer clears G_P)
+         self.frozen.fill_(1)
+         self._frozen = True
+         self._apply_freeze()
++        if self._decaying:  # mature: no decay from now on, the pending factors are applied once
++            self.settle()
++
++    # ------------------------------------------------------------ life cycle (plan_v2/21 section 1)
++    def _tables(self, which):
++        """The per-row tables of the shared (0) / private (1) memory that move together with a row."""
++        t = [self.V, self.wcount, self.S_acc] if which == 0 else [self.V_e, self.wcount_e, self.S_e]
++        if self.life:
++            t += [self.lam_r, self.psi_r] if which == 0 else [self.lam_r_e, self.psi_r_e]
++        return t
++
++    def _factors(self, rows, which=0):
++        """The pending decay exp(-(Lambda(t) - Lambda_r)) of the gathered rows (None when no decay is pending)."""
++        if not self._decaying:
++            return None
++        lr = self.lam_r if which == 0 else self.lam_r_e
++        return torch.exp(lr[rows] - self.lam_now)
++
++    def life_advance(self, decay, beta):
++        """One optimizer step of the global sums: Lambda += -log(1 - lambda), Psi += -log(beta) (fp64 on the host,
++        an fp32 device copy)."""
++        ls = self.life_state
++        ls["Lam"] += -math.log1p(-decay)
++        ls["Psi"] += -math.log(beta)
++        self.lam_now.fill_(ls["Lam"])
++        self.psi_now.fill_(ls["Psi"])
++
++    @torch.no_grad()
++    def settle(self, chunk=1 << 16):
++        """Apply every row's pending decay and discount once (V <- f V, S <- max(B S, floor), Lambda_r <- Lambda,
++        Psi_r <- Psi): the effective values do not change; from then on the plain row-Adagrad applies."""
++        for which in (0, 1):
++            if (which == 0 and not self.S) or (which == 1 and not self.R):
++                continue
++            V, _, S_acc, lr, pr = self._tables(which)
++            floor = S_FLOOR * self._s0[which] if self._s0[which] > 0 else 0.0
++            for c in range(0, V.size(0), chunk):
++                sl = slice(c, c + chunk)
++                V[sl] *= torch.exp(lr[sl] - self.lam_now)[:, None]
++                S_acc[sl] = torch.clamp(S_acc[sl] * torch.exp(pr[sl] - self.psi_now), min=floor)
++            pr.copy_(self.psi_now.expand_as(pr))
++            lr.copy_(self.lam_now.expand_as(lr))
++        self.life_state["settled"] = True
++
++    def _reset_rows(self, which, rows, full=False, zero=False):
++        """Rows of a split / re-seeded key: S <- S0 (Psi_r <- Psi). full (plan_v2/21 section 1.3, the band of a
++        re-seeded key): also the write count 0 and the pending decay applied (V <- f V, Lambda_r <- Lambda: the
++        content keeps its decayed value; a band is shared with the other heads' live keys, so V is not cleared);
++        zero (--mem-restart-zero): also V <- 0. rows: distinct."""
++        S_acc = self.S_acc if which == 0 else self.S_e
++        self._reset_s(S_acc, rows, which)
++        if self.life:
++            (self.psi_r if which == 0 else self.psi_r_e).index_fill_(0, rows, self.psi_now)
++        if full or zero:
++            V = self.V if which == 0 else self.V_e
++            (self.wcount if which == 0 else self.wcount_e).index_fill_(0, rows, 0)
++            if zero:
++                V.index_fill_(0, rows, 0.0)
++            elif self._decaying:
++                f = self._factors(rows, which)
++                V.index_copy_(0, rows, V.index_select(0, rows) * f[:, None])
++            if self.life:
++                (self.lam_r if which == 0 else self.lam_r_e).index_fill_(0, rows, self.lam_now)
+ 
+     def begin_forward(self, collect):
+         """Start of a forward. collect (a training micro-batch): usage counts and, for the EMA norm statistics,
+@@ -496,25 +660,45 @@
+             if self._frozen and self.addr_sg:  # theta == theta_bar and the same sg input: the same queries
+                 out["q"] = (q1, q2)
+             if S:
+-                out["i"], out["j"], out["I1"], out["I2"] = self._addr(q1, q2)
++                kk = max(km + 1, self.nbr)     # --mem-nbr: the top-nbr pairs (reads use the top-km)
++                out["i"], out["j"], out["I1"], out["I2"] = self._addr(q1, q2, kk=kk)
+                 off = (torch.arange(L, device=a.device) * S * S).view(L, 1, 1, 1)
+                 out["rows"] = off + out["i"][..., :km] * S + out["j"][..., :km]
++                if self.nbr:  # the neighbour rows: ranks km + 1 .. nbr
++                    out["nrows"] = off + out["i"][..., km:self.nbr] * S + out["j"][..., km:self.nbr]
+                 if collect and self._collect:  # sub-key usage (top-m selections) and recent query halves
+-                    sel = torch.stack([out["I1"][..., :m], out["I2"][..., :m]], 2).flatten(3)    # (L, H, 2, N m)
+-                    self.pend.scatter_add_(-1, sel, torch.ones_like(sel, dtype=self.pend.dtype))
+-                    pos = torch.linspace(0, a.size(1) - 1, NRES, device=a.device).long()
+-                    self.qres[:, :, 0] = q1[:, :, pos]
+-                    self.qres[:, :, 1] = q2[:, :, pos]
++                    self._usage(out, q1, q2, a.size(1), "")
++            for sfx, Sp, _, off0 in self.pools[1:]:  # the coarse pool: its own fixed translator and sub-keys
++                q1c, q2c = self._queries(a_hat, getattr(self, f"wq{sfx}_ema"))
++                o = {}
++                if self._frozen and self.addr_sg:
++                    o["q"] = (q1c, q2c)
++                o["i"], o["j"], o["I1"], o["I2"] = self._addr(q1c, q2c, sfx)
++                off = off0 + (torch.arange(L, device=a.device) * Sp * Sp).view(L, 1, 1, 1)
++                o["rows"] = off + o["i"][..., :km] * Sp + o["j"][..., :km]
++                if collect and self._collect:
++                    self._usage(o, q1c, q2c, a.size(1), sfx)
++                out[sfx[1:]] = o
+         return out
+ 
+-    def _addr(self, q1, q2):
++    def _usage(self, o, q1, q2, n, sfx):
++        """select(): a pool's sub-key usage (top-m selections) and its recent query halves."""
++        m = self.m
++        pend, qres = getattr(self, "pend" + sfx), getattr(self, "qres" + sfx)
++        sel = torch.stack([o["I1"][..., :m], o["I2"][..., :m]], 2).flatten(3)    # (L, H, 2, N m)
++        pend.scatter_add_(-1, sel, torch.ones_like(sel, dtype=pend.dtype))
++        pos = torch.linspace(0, n - 1, self.nres, device=q1.device).long()
++        qres[:, :, 0] = q1[:, :, pos]
++        qres[:, :, 1] = q2[:, :, pos]
++
++    def _addr(self, q1, q2, sfx="", kk=None):
+         """select()'s product-key addressing, all levels and both halves at once: the score GEMMs stay one call per
+         level and half (the same kernels as one level at a time), written into one buffer; then ONE stable_topk over
+         every (half, level, head, token) row and ONE pk_topk. Levels are grouped so that a group's buffer stays
+-        under SELECT_BUDGET elements. Returns i, j (L, H, N, km + 1), I1, I2 (L, H, N, m + 1)."""
++        under SELECT_BUDGET elements. Returns i, j (L, H, N, kk = km + 1), I1, I2 (L, H, N, m + 1). sfx: the pool."""
+         L, H, N = q1.shape[:3]
+-        S, m, km = self.S, self.m, self.km
+-        k1, k2 = F.normalize(self.k1_ema, dim=-1), F.normalize(self.k2_ema, dim=-1)
++        S, m, km = self.Sc if sfx else self.S, self.m, (kk or self.km + 1) - 1
++        k1, k2 = F.normalize(getattr(self, f"k1{sfx}_ema"), dim=-1), F.normalize(getattr(self, f"k2{sfx}_ema"), dim=-1)
+         per = max(1, min(L, SELECT_BUDGET // max(1, 2 * H * N * S)))
+         outs = []
+         for l0 in range(0, L, per):
+@@ -555,6 +739,8 @@
+             out = {"q1": q1[0, 0]}
+             if self.S:
+                 i, j = sel["i"], sel["j"]
++                if self.nbr:  # (the extra neighbour pairs are scored below, without gradient)
++                    i, j = i[..., :km + 1], j[..., :km + 1]
+                 if margin:  # + the per-half boundary sub-keys (m-th, (m+1)-th)
+                     i, j = torch.cat([i, sel["I1"][..., m - 1:m + 1]], -1), torch.cat([j, sel["I2"][..., m - 1:m + 1]], -1)
+                 r1, r2 = self._key_rows(self.keys.k1, i), self._key_rows(self.keys.k2, j)
+@@ -570,6 +756,23 @@
+                     sig = (q1[..., None, :] * r1).sum(-1) + (q2[..., None, :] * r2).sum(-1)
+                 out["sig"] = sig
+                 out["w"] = torch.softmax(sig[..., :self.km] / self.tau, -1)
++                if self.nbr and self.training:  # neighbour-write weights (training only: eval never writes): alpha x
++                    # softmax over ranks km + 1 .. nbr of sigma / tau
++                    with torch.no_grad():
++                        ix, jx = sel["i"][..., km + 1:], sel["j"][..., km + 1:]
++                        sx = (self._key_scores(q1.detach(), self.keys.k1, ix)
++                              + self._key_scores(q2.detach(), self.keys.k2, jx))
++                        sn = torch.cat([sig[..., km:km + 1].detach(), sx], -1)
++                        out["wn"] = self.nbr_w * torch.softmax(sn / self.tau, -1)
++            for sfx, _, _, _ in self.pools[1:]:  # the coarse pool: its own translator / sub-keys, no margin
++                sc = sel[sfx[1:]]
++                if "q" in sc:
++                    p1, p2 = sc["q"]
++                else:
++                    p1, p2 = self._queries(a_hat, getattr(self.keys, "wq" + sfx))
++                sg = (self._key_scores(p1, getattr(self.keys, "k1" + sfx), sc["i"])
++                      + self._key_scores(p2, getattr(self.keys, "k2" + sfx), sc["j"]))
++                out[sfx[1:]] = dict(sig=sg, w=torch.softmax(sg[..., :km] / self.tau, -1))
+         return out
+ 
+     def gaps(self, a_hat, sel):
+@@ -598,15 +801,27 @@
+         return loss
+ 
+     # ------------------------------------------------------------ shared read (3)
+-    def read_shared(self, w, sel, pbar):
+-        """One fused MemRead for all L x H heads, gates and W_o. Returns M (N, d) and the gates (N, L, H)."""
++    def read_shared(self, w, sel, pbar, on=None):
++        """One fused MemRead for all L x H heads, gates and W_o. Returns M (N, d) and the gates (N, L, H).
++        on: the online() outputs (the neighbour-write weights; the coarse pool's weights, whose read, gates and W_o^c
++        are added to M: one more MemRead; its gates are stored in on["g_c"])."""
+         L, H, km, dv = self.L, self.H, self.km, self.dv
+         N = w.size(2)
+         rows = sel["rows"].permute(2, 0, 1, 3).reshape(N * L * H, km)
+         ww = w.permute(2, 0, 1, 3).reshape(N * L * H, km)
+         write = torch.is_grad_enabled() and self.write_on
+         with fp32_math(pbar.device.type):
+-            r = MemRead.apply(_anchor(pbar.device, write), ww, self.V, self.G if write else None, rows)
++            if self._decaying or (self.nbr and write):  # (plan_v2/21: the decay factors, the neighbour writes)
++                ex = {}
++                if self.nbr and write:
++                    nx = self.nbr - km
++                    ex = dict(xrows=sel["nrows"].permute(2, 0, 1, 3).reshape(N * L * H, nx),
++                              xw=on["wn"].permute(2, 0, 1, 3).reshape(N * L * H, nx))
++                f = self._factors(rows)
++                r = MemRead.apply(_anchor(pbar.device, write), ww if f is None else ww * f, self.V,
++                                  self.G if write else None, rows, None if f is None else ww.detach(), *ex.values())
++            else:
++                r = MemRead.apply(_anchor(pbar.device, write), ww, self.V, self.G if write else None, rows)
+         r = r.view(N, L, H, dv)
+         gw = self.gates.w
+         pb = pbar.flatten(0, -2)
+@@ -618,6 +833,27 @@
+             g = g * keep[None, :, None]
+         u = (g[..., None].to(r.dtype) * r).sum(2)                                    # (N, L, dv)
+         M = torch.einsum("nlc,ldc->nd", u.to(self.w_o.dtype), self.w_o)
++        for sfx, _, Hp, _ in self.pools[1:]:  # the coarse pool: M += sum_l W_o^c,l g^c r^c
++            if self.ko_coarse:
++                continue
++            sc, oc = sel[sfx[1:]], on[sfx[1:]]
++            rows = sc["rows"].permute(2, 0, 1, 3).reshape(N * L * Hp, km)
++            ww = oc["w"].permute(2, 0, 1, 3).reshape(N * L * Hp, km)
++            with fp32_math(pbar.device.type):
++                f = self._factors(rows)
++                r = MemRead.apply(_anchor(pbar.device, write), ww if f is None else ww * f, self.V,
++                                  self.G if write else None, rows, None if f is None else ww.detach())
++            r = r.view(N, L, Hp, dv)
++            gw = getattr(self.gates, "w" + sfx)
++            gc = torch.sigmoid(torch.einsum("nc,lhc->nlh", pb.to(gw.dtype), gw[..., :self.ds])
++                               + torch.einsum("nlhc,lhc->nlh", r.to(gw.dtype), gw[..., self.ds:])
++                               + getattr(self.gates, "b" + sfx))
++            if self.ko_levels:
++                gc = gc * keep[None, :, None]
++            u = (gc[..., None].to(r.dtype) * r).sum(2)
++            w_o = getattr(self, "w_o" + sfx)
++            M = M + torch.einsum("nlc,ldc->nd", u.to(w_o.dtype), w_o)
++            oc["g"] = gc
+         return M, g
+ 
+     # ------------------------------------------------------------ private expert memory (4)
+@@ -656,7 +892,12 @@
+                 Pk = GatherRows.apply(_anchor(dev, True), Pf, self.G_P, rows) if learn else Pf[rows]
+                 Pk = F.normalize(Pk, dim=-1)
+                 w = torch.softmax((q1.to(dt)[t_k][:, None, :] * Pk).sum(-1) / tau, -1)
+-                rho = MemRead.apply(_anchor(dev, write), w, self.V_e, self.G_e if write else None, rows)
++                fe = self._factors(rows, 1)   # --mem-life: the pending decay of the private rows
++                if fe is None:
++                    rho = MemRead.apply(_anchor(dev, write), w, self.V_e, self.G_e if write else None, rows)
++                else:
++                    rho = MemRead.apply(_anchor(dev, write), w * fe, self.V_e, self.G_e if write else None, rows,
++                                        w.detach())
+                 z = rho.new_zeros(N, self.dv).index_add_(
+                     0, t_k, rho * (g_k.to(dt) * torch.sigmoid(b_e[e_k].to(dt)))[:, None])
+             return self.w_p(z.to(self.w_p.weight.dtype))
+@@ -683,7 +924,7 @@
+             R = self.R
+             for t in (self.P, self.P_ema, self.U_e, self.gates.b_e.data):
+                 t[dst] = t[src]
+-            for t in (self.V_e, self.S_e, self.wcount_e, self.P_m, self.P_v, self.P_n):
++            for t in self._tables(1) + [self.P_m, self.P_v, self.P_n]:
+                 tv = t.view(self.Emax, R, *t.shape[1:])
+                 tv[dst] = tv[src]
+         self.e_live.fill_(E0 + n)
+@@ -715,7 +956,9 @@
+         """Sparse row-Adagrad with a prior: for rows with G_r != 0: S_r += mean_i G_ri^2 (S starts at S0),
+         dV = -lr G_r / sqrt(S_r), clipped to |dV| <= clip; V_r += dV. Other rows stay bit-identical. Only the
+         touched rows idx (any bit set in G_r: a superset of G_r != 0) are gathered, updated and written back; G
+-        is cleared on them (the other rows are zero already)."""
++        is cleared on them (the other rows are zero already).
++        --mem-life (plan_v2/21), before the update: V_r <- exp(-(Lambda - Lambda_r)) V_r, Lambda_r <- Lambda, and
++        the discounted accumulator S_r <- max(exp(-(Psi - Psi_r)) S_r + mean G_r^2, S_FLOOR x S0), Psi_r <- Psi."""
+         if self._s0[which] < 0:  # S0: absolute, or auto = 100 x median over the written rows (first write step)
+             ms = []
+             for c in range(0, idx.numel(), chunk):  # (per-row means first: no table-sized temporary)
+@@ -728,17 +971,30 @@
+             S_acc.fill_(s0)
+             self.s0[which] = s0
+             self._s0[which] = s0
++            if self.life:  # (S0 is set now: its discount starts now)
++                (self.psi_r if which == 0 else self.psi_r_e).copy_(self.psi_now.expand_as(S_acc))
+         lr, clip = self.lr, self.clip
++        life = self._decaying
++        if life:
++            lam_r, psi_r = (self.lam_r, self.psi_r) if which == 0 else (self.lam_r_e, self.psi_r_e)
++            floor = S_FLOOR * self._s0[which]
+         for c in range(0, idx.numel(), chunk):
+             ii = idx[c:c + chunk]
+             g = G.index_select(0, ii)
+             act = (g != 0).any(1)
+             s = S_acc.index_select(0, ii)
+-            s = torch.where(act, s + (g * g).mean(1), s)
++            v = V.index_select(0, ii)
++            if life:  # the pending decay and discount first, then the usual update
++                lri, pri = lam_r.index_select(0, ii), psi_r.index_select(0, ii)
++                s = torch.where(act, torch.clamp(s * torch.exp(pri - self.psi_now) + (g * g).mean(1), min=floor), s)
++                v = torch.where(act[:, None], v * torch.exp(lri - self.lam_now)[:, None], v)
++                lam_r.index_copy_(0, ii, torch.where(act, self.lam_now, lri))
++                psi_r.index_copy_(0, ii, torch.where(act, self.psi_now, pri))
++            else:
++                s = torch.where(act, s + (g * g).mean(1), s)
+             dv = -lr * g / s.sqrt()[:, None]
+             nrm = dv.norm(dim=1, keepdim=True)
+             dv = dv * (clip / nrm.clamp(min=1e-30)).clamp(max=1.0)
+-            v = V.index_select(0, ii)
+             V.index_copy_(0, ii, torch.where(act[:, None], v + dv, v))
+             S_acc.index_copy_(0, ii, s)
+             wcount.index_add_(0, ii, act.to(wcount.dtype))
+@@ -776,6 +1032,10 @@
+             counts = cnt.tolist() if cnt is not None else []
+         self._step += 1
+         self.n_step.fill_(self._step)
++        ls = self.life_state
++        if self._decaying:  # Lambda(t), Psi(t) of this step (the writes below and the next reads use them)
++            self.life_advance(self.decay0 if ls["decay"] is None else ls["decay"],
++                              self.beta0 if ls["beta"] is None else ls["beta"])
+         ema = self.ema
+         if not self._frozen:
+             cnt = self.ns_cnt.clamp(min=1)
+@@ -783,15 +1043,18 @@
+             self.norm_m.copy_(torch.where(has, ema * self.norm_m + (1 - ema) * self.ns_sum / cnt, self.norm_m))
+             self.norm_v.copy_(torch.where(has, ema * self.norm_v + (1 - ema) * self.ns_sq / cnt, self.norm_v))
+             self.wq_ema.lerp_(self.keys.wq.detach(), 1 - ema)
+-            if self.S:
+-                self.k1_ema.lerp_(self.keys.k1.detach(), 1 - ema)
+-                self.k2_ema.lerp_(self.keys.k2.detach(), 1 - ema)
+-                tot = self.pend.sum(-1, keepdim=True)
+-                self.U.copy_(torch.where(tot > 0, (1 - self.usage_rate) * self.U + self.usage_rate * self.pend
+-                                         / tot.clamp(min=1), self.U))
+-                if self.balance_keep:
+-                    self.win += self.pend
+-                self.pend.zero_()
++            for sfx, _, _, _ in self.pools:
++                if sfx:
++                    getattr(self, f"wq{sfx}_ema").lerp_(getattr(self.keys, "wq" + sfx).detach(), 1 - ema)
++                getattr(self, f"k1{sfx}_ema").lerp_(getattr(self.keys, "k1" + sfx).detach(), 1 - ema)
++                getattr(self, f"k2{sfx}_ema").lerp_(getattr(self.keys, "k2" + sfx).detach(), 1 - ema)
++                pend, U = getattr(self, "pend" + sfx), getattr(self, "U" + sfx)
++                tot = pend.sum(-1, keepdim=True)
++                U.copy_(torch.where(tot > 0, (1 - self.usage_rate) * U + self.usage_rate * pend
++                                    / tot.clamp(min=1), U))
++                if self.balance_keep or self.restart:
++                    getattr(self, "win" + sfx).add_(pend)
++                pend.zero_()
+             if self.R:
+                 self._adam_keys(lr, self._rows("P", counts))
+                 self.P_ema.lerp_(self.P, 1 - ema)
+@@ -803,9 +1066,14 @@
+                 self.pend_e.zero_()
+             if self.balance_every and self._step % self.balance_every == 0:
+                 self.balance()
++            if self.restart and self.S:  # --mem-restart: re-seed every key unused since the last event
++                every = self.restart if ls["restart_every"] is None else ls["restart_every"]
++                if every and self._step - ls["last_restart"] >= every:
++                    self.restart_keys()
++                    ls["last_restart"] = self._step
+         else:  # (G_P stays zero after the freeze: cleared by freeze())
+-            if self.S:
+-                self.pend.zero_()
++            for sfx, _, _, _ in self.pools:
++                getattr(self, "pend" + sfx).zero_()
+             if self.R:
+                 self.pend_e.zero_()
+         if self.S:
+@@ -832,13 +1100,13 @@
+         if self._s0[which] > 0:
+             S_acc.index_fill_(0, rows, self._s0[which])
+ 
+-    def _bands(self, l, half, i):
+-        """band() for many keys at once (CPU LongTensors (n,)): (n, S)."""
+-        S = self.S
++    def _bands(self, l, half, i, S=None, off=0):
++        """band() for many keys at once (CPU LongTensors (n,)): (n, S). S, off: another pool's size and row offset."""
++        S = S or self.S
+         a = torch.arange(S)
+-        return l[:, None] * S * S + torch.where(half[:, None] == 0, i[:, None] * S + a, a * S + i[:, None])
++        return off + l[:, None] * S * S + torch.where(half[:, None] == 0, i[:, None] * S + a, a * S + i[:, None])
+ 
+-    def _reset_keys(self, l, h, half, i):
++    def _reset_keys(self, l, h, half, i, sfx=""):
+         """The trainer's fresh optimizer moments for edited sub-keys, one call per codebook half (the reset value,
+         the median of the second moments, does not change when entries are set to it: one call == one per key)."""
+         if self.opt_reset is None:
+@@ -846,7 +1114,54 @@
+         for hf in (0, 1):
+             s = half == hf
+             if s.any():
+-                self.opt_reset(f"mem.keys.k{hf + 1}", (l[s], h[s], i[s]))
++                self.opt_reset(f"mem.keys.k{hf + 1}{sfx}", (l[s], h[s], i[s]))
++
++    @torch.no_grad()
++    def restart_keys(self):
++        """--mem-restart (plan_v2/21 section 2), per pool: every sub-key unused since the last event (no top-m
++        selection: the window win) is re-seeded, uncapped, as normalize(a recent query half + N(0, 0.05)) from the
++        reservoir of nres recent query halves of its codebook: distinct slots per event (a random order of the
++        recorded slots per codebook, with the dedicated RNG). Its band's MemOpt state is reset (S = S0, write
++        count 0, Lambda_r / Psi_r brought current with the pending decay applied; V <- 0 only with
++        --mem-restart-zero: the band's rows are shared with the other heads' live keys). No splits. Host syncs: two small transfers (win, qres.any) per pool."""
++        gen, st = self.gen, {}
++        for sfx, S, H, off in self.pools:
++            L, nres, dev = self.L, self.nres, self.V.device
++            win, Uv = getattr(self, "win" + sfx), getattr(self, "U" + sfx).view(-1, S)
++            qres = getattr(self, "qres" + sfx).view(-1, nres, 64)
++            dead = (win.view(-1, S) == 0).cpu()                                 # (C, S)
++            okq = qres.any(-1).cpu()                                            # (C, nres)
++            C = dead.size(0)
++            order = torch.where(okq, torch.rand(C, nres, generator=gen), torch.full((C, nres), 2.0))
++            order = order.argsort(dim=1, stable=True)                           # recorded slots first, random order
++            rank = dead.long().cumsum(1) - 1                                    # the t-th dead key of its codebook
++            c, i = dead.nonzero(as_tuple=True)
++            r = rank[c, i]
++            ok = r < okq.sum(1)[c]
++            c, i, r = c[ok], i[ok], r[ok]
++            n = len(c)
++            if n:
++                slot = order[c, r]
++                noise = torch.randn(n, 64, generator=gen) * 0.05
++                l, h, half = c // (2 * H), (c // 2) % H, c % 2
++                q = qres[c.to(dev), slot.to(dev)]
++                new = F.normalize(q + noise.to(q), dim=-1)
++                K = (getattr(self.keys, "k1" + sfx).data, getattr(self.keys, "k2" + sfx).data)
++                Ke = (getattr(self, f"k1{sfx}_ema"), getattr(self, f"k2{sfx}_ema"))
++                for hf in (0, 1):
++                    s = half == hf
++                    if s.any():
++                        ls, hs, ist, sd = l[s].to(dev), h[s].to(dev), i[s].to(dev), s.to(dev)
++                        K[hf][ls, hs, ist] = new[sd].to(K[hf])
++                        Ke[hf][ls, hs, ist] = new[sd].to(Ke[hf])
++                self._reset_rows(0, torch.unique(self._bands(l, half, i, S, off).flatten()).to(dev), full=True,
++                                 zero=self.restart_zero)
++                self._reset_keys(l, h, half, i, sfx)
++                Uv[c.to(dev), i.to(dev)] = 1.0 / S
++            win.zero_()
++            st["dead" + sfx] = n
++        self.stats["restart"] = st
++        return st
+ 
+     @torch.no_grad()
+     def balance(self):
+@@ -861,7 +1176,7 @@
+         row map M (M[dst] = M[src] split by split) gives every row's final source, then one gather / scatter.
+         Host syncs: two small transfers (qres.any, lastq_ok) per event."""
+         gen, st = self.gen, dict(splits=0, dead=0, p_splits=0, p_dead=0)
+-        if self.S:
++        if self.S and not self.restart:  # (--mem-restart: the shared pools are re-seeded by restart_keys instead)
+             L, H, S = self.L, self.H, self.S
+             dev = self.V.device
+             cap = max(1, int(self.balance_max * S)) if self.balance_max > 0 else 0
+@@ -890,9 +1205,9 @@
+                     M[dst[t]] = M[src[t]]
+                 rows = np.nonzero(M != np.arange(L * S * S))[0]
+                 rows, srcs = torch.from_numpy(rows).to(dev), torch.from_numpy(M[rows]).to(dev)
+-                for T in (self.V, self.wcount, self.S_acc):
++                for T in self._tables(0):
+                     T.index_copy_(0, rows, T.index_select(0, srcs))
+-                self._reset_s(self.S_acc, torch.from_numpy(np.concatenate([src, dst]).ravel()).to(dev), 0)
++                self._reset_rows(0, torch.from_numpy(np.concatenate([src, dst]).ravel()).to(dev))
+                 self._reset_keys(torch.cat([l, l]), torch.cat([h, h]), torch.cat([half, half]), torch.cat([i, j]))
+                 cd, id_, jd = c.to(dev), i.to(dev), j.to(dev)
+                 u = Uv[cd, id_] / 2
+@@ -917,7 +1232,7 @@
+                             ls, hs, ist, sd = l[s].to(dev), h[s].to(dev), i[s].to(dev), s.to(dev)
+                             K[hf][ls, hs, ist] = new[sd].to(K[hf])
+                             Ke[hf][ls, hs, ist] = new[sd].to(Ke[hf])
+-                    self._reset_s(self.S_acc, self._bands(l, half, i).flatten().to(dev), 0)
++                    self._reset_rows(0, torch.unique(self._bands(l, half, i).flatten()).to(dev), full=self.life)
+                     self._reset_keys(l, h, half, i)
+                     Uv[c.to(dev), i.to(dev)] = 1.0 / S
+                     st["dead"] = len(kept)
+@@ -940,10 +1255,10 @@
+                     Pt[e, j] = F.normalize(pi + eps, dim=-1)
+                     Pt[e, i] = F.normalize(pi - eps, dim=-1)
+                 ri, rj = e * R + i, e * R + j                                  # (every row in at most one split)
+-                for t in (self.V_e, self.wcount_e, self.S_e):
++                for t in self._tables(1):
+                     t.index_copy_(0, rj, t.index_select(0, ri))
+                 rij = torch.cat([ri, rj])
+-                self._reset_s(self.S_e, rij, 1)
++                self._reset_rows(1, rij)
+                 for t in (self.P_m, self.P_v, self.P_n):
+                     t.index_fill_(0, rij, 0)
+                 u = self.U_e[e, i] / 2
+@@ -957,7 +1272,7 @@
+                 self.P[e, i] = new.to(Pv)
+                 self.P_ema[e, i] = new.to(Pv)
+                 ri = e * R + i
+-                self._reset_s(self.S_e, ri, 1)
++                self._reset_rows(1, ri, full=self.life, zero=self.life)   # (a private row: its key's alone)
+                 for t in (self.P_m, self.P_v, self.P_n):
+                     t.index_fill_(0, ri, 0)
+                 self.U_e[e, i] = 1.0 / R
+@@ -976,10 +1291,24 @@
+             mean = self.U.mean(-1, keepdim=True)
+             out["subkeys_busy"] = (self.U > 4 * mean).float().mean().item()
+             out["subkeys_dead"] = (self.U < 0.05 * mean).float().mean().item()
+-            wc = self.wcount.view(self.L, -1).float()
++            wc = self.wcount[:self.L * self.S * self.S].view(self.L, -1).float()   # (the fine pool)
+             out["rows_unwritten_by_level"] = (wc == 0).float().mean(1).tolist()
+             qs = torch.tensor([0.1, 0.5, 0.9], device=wc.device)
+             out["wcount_q10_50_90"] = torch.quantile(wc.flatten()[::max(1, wc.numel() // (1 << 22))], qs).tolist()
++            n0 = self.L * self.S * self.S
++            if self.Sc:
++                mean = self.U_c.mean(-1, keepdim=True)
++                out["subkeys_busy_c"] = (self.U_c > 4 * mean).float().mean().item()
++                out["subkeys_dead_c"] = (self.U_c < 0.05 * mean).float().mean().item()
++                out["rows_unwritten_c"] = (self.wcount[n0:] == 0).float().mean().item()
++            if self.life:  # mean |V| (with the pending decay) per write-count bucket 1-10, 10-100, 100+
++                for sfx, sl in (("", slice(0, n0)), ("_c", slice(n0, None))) if self.Sc else (("", slice(0, n0)),):
++                    nrm = self.V[sl].norm(dim=1)
++                    f = self._factors(torch.arange(nrm.numel(), device=nrm.device) + sl.start)
++                    nrm = nrm if f is None else nrm * f
++                    wcs = self.wcount[sl]
++                    out["vnorm_by_wcount" + sfx] = [nrm[(wcs >= a) & (wcs < b)].mean().item() if ((wcs >= a) & (wcs < b)).any()
++                                                    else float("nan") for a, b in ((1, 10), (10, 100), (100, 2 ** 31 - 1))]
+         if self.R:
+             E = self._e_live
+             Ue = self.U_e[:E]
+@@ -1070,6 +1399,11 @@
+         out[f"{prefix}stab_w_by_pass"] = by_pass
+         if reads[0][0]["k"] < 0:
+             out[f"{prefix}stab_w_pass0"] = by_pass[0]
++        if reads[0][0].get("rows_c") is not None and reads[0][1].get("rows_c") is not None:  # the coarse pool
++            ov = [self._overlap(c["rows_c"], c["w_c"], r["rows_c"]) for i, (c, r) in enumerate(reads) if i in main]
++            out[f"{prefix}stab_w_c"] = torch.stack([w for _, w in ov]).mean().item()
++            out[f"{prefix}stab_set_c"] = torch.stack([s for s, _ in ov]).mean().item()
++            out[f"{prefix}stab_w_by_level_c"] = torch.stack([w for _, w in ov]).mean((0, 1, 3)).tolist()
+         drift = [((c["a"] - r["a"]).norm(dim=-1) / r["a"].norm(dim=-1).clamp(min=1e-12)).mean(1)
+                  for c, r in reads]                                                       # (L,) per read
+         out[f"{prefix}input_drift_by_level"] = torch.stack(drift).mean(0).tolist()
+@@ -1101,6 +1435,11 @@
+                 out["mem_reuse_overlap"] = {str(k): v for k, v in ro}
+             out["mem_gate_by_level_pass"] = [r["g"].float().mean((0, 2)).tolist() for r in cur["B"]["reads"]
+                                              if r.get("g") is not None]
++            if mem.life:  # the gate means per pool (the life-cycle log: do the gates fall as the rows decay?)
++                for sfx in ("", "_c"):
++                    gs = [r["g" + sfx].float().mean() for r in cur["B"]["reads"] if r.get("g" + sfx) is not None]
++                    if gs:
++                        out["mem_gate_mean" + sfx] = torch.stack(gs).mean().item()
+             coll = []  # collisions: distinct probe positions per addressed row (sets A and B, reads after a pass)
+             sets = [(s, r["rows"]) for s, n in enumerate(("A", "B")) for r in cur[n]["reads"] if r["k"] >= 0]
+             if sets:
+@@ -1191,3 +1530,66 @@
+             for row in pairs:
+                 per_level[row // (mem.S * mem.S)] += 1
+         return per_level
++
++
++# ---------------------------------------------------------------- the life cycle (plan_v2/21 section 1.4)
++class LifeCycle:
++    """--mem-life: infancy -> ramp -> mature, driven by the trainer once per step (begin_step, at the top of the
++    step) and after every probe evaluation (observe). Its state lives in mem.life_state (the memory's extra state:
++    checkpoints and --resume carry it). The switch fires at the first of (a) the probe stability vs the last probe
++    eval >= switch_stab on switch_n consecutive probe evals, (b) the learning-rate decay start, (c) the safety cap,
++    and only once no more births can happen. Over the ramp (rho: 0 -> 1) the decay lambda and 1 - beta fall
++    linearly to 0 and the restart interval grows from N to 10 N; at its end the trainer runs the freeze path."""
++
++    def __init__(self, mem, steps, decay=1e-3, beta=0.99, switch_stab=0.9, switch_n=3, switch_max=0.9, lr_decay=0.2,
++                 ramp=0.05):
++        self.mem = mem
++        mem.decay0, mem.beta0 = decay, beta
++        self.decay, self.beta, self.stab, self.n = decay, beta, switch_stab, switch_n
++        self.t_decay = (1 - lr_decay) * steps          # (b) the learning-rate decay start
++        self.t_max = switch_max * steps                # (c) the safety cap
++        self.ramp = max(1, round(ramp * steps))
++
++    @property
++    def state(self):
++        return self.mem.life_state
++
++    def observe(self, stab):
++        """After a probe evaluation: the w-weighted row stability vs the last probe evaluation (mem_last_stab_w)."""
++        st = self.state
++        if st["phase"] == "infancy" and stab is not None:
++            st["stab_run"] = st["stab_run"] + 1 if stab >= self.stab else 0
++
++    def rho(self, step):
++        st = self.state
++        if st["phase"] == "infancy":
++            return 0.0
++        if st["phase"] == "mature":
++            return 1.0
++        return min(1.0, (step - st["t_switch"]) / self.ramp)
++
++    def begin_step(self, step, births_done):
++        """The switch check and this step's rates (lambda, beta, restart interval: used by after_step). Returns True
++        when the ramp has ended (and no births are left): the trainer then runs the freeze path and calls mature()."""
++        st = self.state
++        if st["phase"] == "infancy":
++            reason = ("stab" if st["stab_run"] >= self.n else "lr_decay" if step >= self.t_decay
++                      else "max" if step >= self.t_max else None)
++            if reason is not None and births_done:
++                st.update(phase="ramp", t_switch=step, reason=reason)
++        rho = self.rho(step)
++        N = self.mem.restart
++        if st["phase"] == "mature":
++            st.update(decay=0.0, beta=1.0, restart_every=0)
++        else:
++            st.update(decay=(1 - rho) * self.decay, beta=1 - (1 - rho) * (1 - self.beta),
++                      restart_every=round(N * (1 + 9 * rho)) if N else 0)
++        return st["phase"] == "ramp" and rho >= 1.0 and births_done
++
++    def mature(self):
++        self.state.update(phase="mature", decay=0.0, beta=1.0, restart_every=0)
++
++    def log(self):
++        st = self.state
++        return dict(phase=st["phase"], decay=st["decay"], beta=st["beta"], Lam=st["Lam"], reason=st["reason"],
++                    t_switch=st["t_switch"], stab_run=st["stab_run"])
+--- plan_v2/baseline_mem_v3/loop_brain.py	2026-10-23 19:25:00.558432900 +0300
++++ loop_brain.py	2026-10-24 03:23:37.938859100 +0300
+@@ -260,7 +260,8 @@
+                  think_fb=False, think_target="bag", think_use=False, readout_frac=1.0, concepts=None,
+                  concept_weights=None, concept_inject_rank=64, concept_eot=0, mem_shared=0, mem_heads=3, mem_topm=8,
+                  mem_topk=6, mem_tau=0.03, mem_read0=1, mem_private=0, mem_dv=256, mem_addr_sg=1,
+-                 mem_margin=(0.01, 0.01), mem_ema=0.999, mem_max_experts=0, **_):
++                 mem_margin=(0.01, 0.01), mem_ema=0.999, mem_max_experts=0, mem_life=0, mem_addr_learn=1, mem_restart=0,
++                 mem_coarse=0, mem_coarse_heads=1, mem_nbr=0, mem_nbr_w=0.15, **_):
+         nn.Module.__init__(self)
+         moe = dict(moe or dict(n_exp=384, k=6, hidden=192, shared=384, capacity=0))
+         if waves and not sheet_cols:  # fixed expert sheet, set by the starting pool (kept when it grows)
+@@ -359,13 +360,16 @@
+             assert slots, "--concepts needs the workspace (--slots)"
+             self._build_memory(d, slots, moe, halt, think_fb, think_use, concepts, concept_weights,
+                                concept_inject_rank, concept_eot, mem_shared, mem_heads, mem_topm, mem_topk, mem_tau,
+-                               mem_read0, mem_private, mem_dv, mem_addr_sg, mem_margin, mem_ema, mem_max_experts)
++                               mem_read0, mem_private, mem_dv, mem_addr_sg, mem_margin, mem_ema, mem_max_experts,
++                               dict(mem_life=mem_life, mem_addr_learn=mem_addr_learn, mem_restart=mem_restart,
++                                    mem_coarse=mem_coarse, mem_coarse_heads=mem_coarse_heads, mem_nbr=mem_nbr,
++                                    mem_nbr_w=mem_nbr_w))
+         else:
+             assert not (mem_shared or mem_private), "the memory needs --concepts (its queries come from the levels)"
+ 
+     def _build_memory(self, d, slots, moe, halt, think_fb, think_use, concepts, concept_weights, rank, eot,
+                       mem_shared, mem_heads, mem_topm, mem_topk, mem_tau, mem_read0, mem_private, mem_dv,
+-                      mem_addr_sg, mem_margin, mem_ema, mem_max_experts):
++                      mem_addr_sg, mem_margin, mem_ema, mem_max_experts, life):
+         concepts = [int(n) for n in concepts]
+         L = len(concepts)
+         weights = [float(w) for w in (concept_weights or [1.0, 1.0, 0.5, 0.5][:L] + [0.5] * max(0, L - 4))]
+@@ -376,6 +380,11 @@
+                         mem_shared=mem_shared, mem_heads=mem_heads, mem_topm=mem_topm, mem_topk=mem_topk,
+                         mem_tau=mem_tau, mem_read0=mem_read0, mem_private=mem_private, mem_dv=mem_dv,
+                         mem_addr_sg=mem_addr_sg, mem_margin=list(mem_margin), mem_ema=mem_ema, mem_max_experts=emax)
++        # plan_v2/21 (life cycle, fixed addressing, restart, coarse pool, neighbour writes): in cfg only when not at
++        # the default, so a model without them has exactly the old cfg
++        dflt = dict(mem_life=0, mem_addr_learn=1, mem_restart=0, mem_coarse=0, mem_coarse_heads=1, mem_nbr=0,
++                    mem_nbr_w=0.15)
++        self.cfg.update({k: v for k, v in life.items() if v != dflt[k]})
+         base = torch.initial_seed()
+         with torch.random.fork_rng(devices=[]):  # a dedicated stream: the global one is left exactly where it was
+             torch.manual_seed((base + 7919) % (2 ** 63))
+@@ -390,7 +399,10 @@
+             if mem_shared or mem_private:
+                 self.mem = Memory(d, 64, L, H=mem_heads, S=mem_shared, m=mem_topm, km=mem_topk, tau=mem_tau, dv=mem_dv,
+                                   R=mem_private, n_exp=emax, n_live=n_exp, read0=mem_read0, addr_sg=mem_addr_sg,
+-                                  margin=mem_margin, ema=mem_ema, seed=base)
++                                  margin=mem_margin, ema=mem_ema, seed=base, life=bool(life["mem_life"]),
++                                  addr_learn=bool(life["mem_addr_learn"]), restart=life["mem_restart"],
++                                  coarse=life["mem_coarse"], coarse_heads=life["mem_coarse_heads"], nbr=life["mem_nbr"],
++                                  nbr_w=life["mem_nbr_w"])
+                 if mem_private:
+                     self.blocks[0].mem_hook = self._mem_grow
+ 
+@@ -505,7 +517,7 @@
+                                 margin=mg and mem.margin_fused)
+             M = g = None
+             if read and mem.S and not mem.ko_shared:
+-                M, g = mem.read_shared(on["w"], sel, pbar)
++                M, g = mem.read_shared(on["w"], sel, pbar, on)
+             mterm = None
+             if mg:
+                 mterm = on["margin"] if mem.margin_fused else mem.margin_loss(a_hat.detach(), sel)
+@@ -518,6 +530,9 @@
+                         d.update(rows=sel["rows"][:, :, pos].permute(2, 0, 1, 3).cpu(), w=perm(on["w"]),
+                                  g=g[pos].float().cpu() if g is not None else None)
+                         d.update({n: perm(v) for n, v in zip(("gap", "gap1", "gap2"), mem.gaps(a_hat, sel))})
++                        if "c" in sel:  # the coarse pool (probes per pool)
++                            d.update(rows_c=sel["c"]["rows"][:, :, pos].permute(2, 0, 1, 3).cpu(), w_c=perm(on["c"]["w"]),
++                                     g_c=on["c"]["g"][pos].float().cpu() if "g" in on["c"] else None)
+                         d["rows_fresh"] = d["reuse_ovl"] = None
+                         if reused:  # (probes) what fresh addressing would pick here: the reuse's set overlap
+                             rf = mem.select(a.detach(), a_hat.detach(), False)["rows"][:, :, pos].permute(2, 0, 1, 3).cpu()
+@@ -672,20 +687,36 @@
+                     passes_hist=torch.bincount(stop.flatten() + 1, minlength=K_max + 1)[1:].tolist())
+ 
+     @torch.no_grad()
+-    def think_diag(self, idx, targets, K_max=16, kmax_eval=8):
++    def think_diag(self, idx, targets, K_max=16, kmax_eval=8, chunk=0):
+         """Loop-report diagnostic: per word and pass k = 1..kmax_eval, the label "more passes will help by > 0.05
+         nats" (LM loss at k minus the best later pass) and the AUC of each uncertainty signal for it: the
+-        concept head's entropy and change (thinking) and the LM prediction's change (output)."""
++        concept head's entropy and change (thinking) and the LM prediction's change (output).
++        chunk: run the forward on this many sequences at a time (the (B, T, V) read-outs are the eval peak); the
++        per-word signals are concatenated, so the AUCs are those of the whole batch."""
+         was = self.training
+         self.eval()
+-        outs = self.run(idx, K_max, every_tick=True, raw=True)
+-        cus = self.think_u
+-        prev, ces, kls = None, [], []
+-        for k, x in enumerate(outs):
+-            lp, _ = self.pass_readout(x, prev, k)
+-            ces.append(-lp.gather(-1, targets[..., None]).squeeze(-1))
+-            kls.append((lp.exp() * (lp - prev)).sum(-1) if prev is not None else torch.zeros_like(ces[-1]))
+-            prev = lp
++        B = idx.size(0)
++        step = chunk if chunk and chunk < B else B
++        ces, kls, cus = [], [], []
++        for b0 in range(0, B, step):
++            xb, tb = idx[b0:b0 + step], targets[b0:b0 + step]
++            outs = self.run(xb, K_max, every_tick=True, raw=True)
++            prev, c1, k1 = None, [], []
++            for k, x in enumerate(outs):
++                lp, _ = self.pass_readout(x, prev, k)
++                c1.append(-lp.gather(-1, tb[..., None]).squeeze(-1))
++                k1.append((lp.exp() * (lp - prev)).sum(-1) if prev is not None else torch.zeros_like(c1[-1]))
++                prev = lp
++            del outs, prev, lp
++            ces.append(c1)
++            kls.append(k1)
++            cus.append(self.think_u)
++        if len(ces) == 1:
++            ces, kls, cus = ces[0], kls[0], cus[0]
++        else:  # (per pass: the chunks' words side by side)
++            ces = [torch.cat(t) for t in zip(*ces)]
++            kls = [torch.cat(t) for t in zip(*kls)]
++            cus = [torch.cat(t) for t in zip(*cus)]
+         ce = torch.stack(ces, 0)
+         best_later = torch.stack([ce[k + 1:].min(0).values for k in range(K_max - 1)], 0)
+         gain = ce[:-1] - best_later                                               # (K-1, B, T)
+@@ -815,6 +846,8 @@
+                     (mus, nus, M, q1, mg), sel = self._hier_step(s, read=addr, address=addr, k=k, **kw)
+                     if addr and not reuse:  # (an EMA-query copy for the frozen online pass is never carried over)
+                         prev_sel = {n: v for n, v in sel.items() if n != "q"}
++                        if "c" in prev_sel:  # (nor the coarse pool's)
++                            prev_sel["c"] = {n: v for n, v in prev_sel["c"].items() if n != "q"}
+                     cu = hier.uncertainty(mus, nus, prev_mu)
+                     if tgt is not None and c_w and k >= K - bptt:
+                         hier_preds.append((mus, nus))
+@@ -963,6 +996,11 @@
+         return self.run(idx)
+ 
+     @torch.no_grad()
+-    def tick_losses(self, idx, targets, K):
+-        return [F.cross_entropy(self.heads["lm"](x).float().flatten(0, 1), targets.flatten()).item()
+-                for x in self.run(idx, K, every_tick=True)]
++    def tick_losses(self, idx, targets, K, chunk=0):
++        """CE after each pass; chunk: this many sequences at a time (equal chunks: the mean of the chunk means)."""
++        B = idx.size(0)
++        if not chunk or chunk >= B or B % chunk:
++            return [F.cross_entropy(self.heads["lm"](x).float().flatten(0, 1), targets.flatten()).item()
++                    for x in self.run(idx, K, every_tick=True)]
++        parts = [self.tick_losses(idx[b0:b0 + chunk], targets[b0:b0 + chunk], K) for b0 in range(0, B, chunk)]
++        return [sum(t) / len(t) for t in zip(*parts)]
+--- plan_v2/baseline_mem_v3/train_lm.py	2026-10-23 22:52:06.939749800 +0300
++++ train_lm.py	2026-10-24 03:23:38.021467500 +0300
+@@ -8,9 +8,11 @@
+ One GPU job at a time: runs/gpu.lock holds the pid of the run using the GPU.
+ """
+ import argparse
++import copy
+ import json
+ import math
+ import os
++import random
+ import sys
+ import time
+ from pathlib import Path
+@@ -21,7 +23,7 @@
+ 
+ from brain_opt import BrainOpt, carry_brain_state
+ from loop_brain import LoopBrain
+-from memory import MemoryProbes
++from memory import LifeCycle, MemoryProbes
+ from neurogenesis import Neurogenesis, reset_opt_rows
+ from spiking_lm import (RoutedMLP, SpikingLM, carry_optimizer, n_params, redo_dead, remap_name, remap_snapshot,
+                         snapshot_optimizer)
+@@ -46,13 +48,47 @@
+         return False
+ 
+ 
++def pid_cmdline(pid):
++    """The command line of a live process ("" if it has none), None if no such process. Raises if it cannot be
++    queried (the caller then keeps the old pid-only rule)."""
++    if sys.platform == "win32":  # (no psutil in the venv: one CIM query, only at launch)
++        import subprocess
++        out = subprocess.run(["powershell", "-NoProfile", "-Command",
++                              f"$p = Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}'; "
++                              f"if ($p) {{ 'FOUND ' + $p.Name + ' ' + $p.CommandLine }}"],
++                             capture_output=True, text=True, timeout=60)
++        if out.returncode != 0:
++            raise OSError(out.stderr)
++        text = out.stdout.strip()
++        return text[len("FOUND "):] if text.startswith("FOUND") else None
++    try:
++        return Path(f"/proc/{int(pid)}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
++    except FileNotFoundError:
++        return None
++
++
++def lock_holder_alive(pid):
++    """The gpu.lock owner holds the GPU only if it is a live python process running train_lm.py (Windows reuses
++    pids: a stale lock once blocked a launch because its pid now belonged to bash.exe)."""
++    if not pid_alive(pid):
++        return False
++    try:
++        cmd = pid_cmdline(pid)
++    except Exception:  # (cannot tell: keep the lock, as before)
++        return True
++    return cmd is not None and "python" in cmd.lower() and "train_lm.py" in cmd
++
++
+ def claim_gpu(runs, name):
+     lock = runs / "gpu.lock"
+     if lock.exists():
+         try:
+             owner, holder = lock.read_text().split()[:2]
+-            if int(owner) != os.getpid() and pid_alive(int(owner)):
+-                sys.exit(f"GPU is in use by run {holder} (pid {owner}); one GPU job at a time.")
++            if int(owner) != os.getpid():
++                if lock_holder_alive(int(owner)):
++                    sys.exit(f"GPU is in use by run {holder} (pid {owner}); one GPU job at a time.")
++                lock.unlink()
++                print(f"stale gpu.lock removed (run {holder}, pid {owner} is not a running train_lm.py)", flush=True)
+         except ValueError:
+             pass
+     lock.write_text(f"{os.getpid()} {name}\n")
+@@ -168,6 +204,27 @@
+         torch.cuda.empty_cache()
+ 
+ 
++def get_rng_state(device):
++    """Every RNG the training loop draws from (--resume): python, numpy (the data sampler), torch CPU / CUDA."""
++    return dict(python=random.getstate(), numpy=np.random.get_state(), torch=torch.get_rng_state(),
++                cuda=torch.cuda.get_rng_state_all() if str(device).startswith("cuda") and torch.cuda.is_available() else None)
++
++
++def set_rng_state(st, device):
++    random.setstate(st["python"])
++    np.random.set_state(st["numpy"])
++    torch.set_rng_state(st["torch"].cpu())
++    if st.get("cuda") is not None and str(device).startswith("cuda") and torch.cuda.is_available():
++        torch.cuda.set_rng_state_all([s.cpu() for s in st["cuda"]])
++
++
++def save_checkpoint(path, obj):
++    """Atomic: written to a temporary file, then renamed over the old checkpoint."""
++    tmp = Path(str(path) + ".tmp")
++    torch.save(obj, tmp)
++    os.replace(tmp, path)
++
++
+ def build_opt(model, args):
+     if args.opt == "brain":
+         # maturity time constant: 1% of optimizer steps (effective batch = batch x accum)
+@@ -191,6 +248,11 @@
+     model.eval()
+     core = model.blocks[0]
+     out = {}
++    # (plan_v2/21) the same batches, run --mem-probe-batch sequences at a time: the (B, T, V) read-outs of the long
++    # loops are the eval peak; equal chunks, so a batch's loss is the mean of its chunks' losses
++    cb = getattr(args, "mem_probe_batch", 0) or args.eval_batch
++    cb = cb if cb < args.eval_batch and args.eval_batch % cb == 0 else args.eval_batch
++    chunks = lambda x, y: [(x[i:i + cb], y[i:i + cb]) for i in range(0, x.size(0), cb)]
+     with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16, enabled=args.device == "cuda"):
+         def val(K):
+             gen = np.random.RandomState(4242)
+@@ -198,20 +260,24 @@
+             for _ in range(batches):
+                 x, y = data.batch(args.eval_batch, "val", gen)
+                 model.K = K
+-                tot += model(x, y)[1].item()
++                if cb == args.eval_batch:
++                    tot += model(x, y)[1].item()
++                else:
++                    tot += sum(model(xc, yc)[1].item() for xc, yc in chunks(x, y)) / (args.eval_batch // cb)
+             return tot / batches
+         out["loss_at_K"] = {K: val(K) for K in (1, 2, 4, 6, 8, 10, 12, 16)}
+         if model.cfg.get("halt"):  # loop until sure: each word stops when its stop probability passes 0.5
+             gen = np.random.RandomState(4242)
+-            hs = [model.halt_eval(*data.batch(args.eval_batch, "val", gen)) for _ in range(batches)]
+-            out["halt"] = dict(loss=sum(h["halt_loss"] for h in hs) / batches,
+-                               passes=sum(h["halt_passes"] for h in hs) / batches,
+-                               expected_passes=sum(h["halt_expected_passes"] for h in hs) / batches,
++            hs = [model.halt_eval(xc, yc) for _ in range(batches)
++                  for xc, yc in chunks(*data.batch(args.eval_batch, "val", gen))]
++            out["halt"] = dict(loss=sum(h["halt_loss"] for h in hs) / len(hs),
++                               passes=sum(h["halt_passes"] for h in hs) / len(hs),
++                               expected_passes=sum(h["halt_expected_passes"] for h in hs) / len(hs),
+                                passes_hist=[sum(c) for c in zip(*(h["passes_hist"] for h in hs))])
+         x, y = data.batch(args.eval_batch, "val", np.random.RandomState(4242))
+         hier = getattr(model, "hier", None)
+         if getattr(model, "think", False) or hier is not None:  # does the uncertainty predict that more passes help?
+-            out["think"] = model.think_diag(x, y)
++            out["think"] = model.think_diag(x, y, chunk=cb)
+         if getattr(model, "think_in", None) is not None or (hier is not None and hier.has_inject):
+             model.think_zero = True  # usefulness: the loss the concept write-back saves
+             out["think_usefulness"] = val(args.k_mean) - out["loss_at_K"].get(args.k_mean, val(args.k_mean))
+@@ -220,13 +286,13 @@
+         if mem is not None:  # memory knock-outs: shared reads = 0, private reads = 0, one level's reads = 0
+             kos = ([("shared", "ko_shared", True)] if mem.S else []) + ([("private", "ko_private", True)] if mem.R else []) \
+                 + ([(f"level{l + 1}", "ko_levels", (l,)) for l in range(mem.L)] if mem.S else []) \
+-                + ([("read0", "read0", False)] if mem.read0 else [])  # the token-keyed read before pass 1
++                + ([("read0", "read0", False)] if mem.read0 else [])                 + ([("coarse", "ko_coarse", True)] if mem.Sc else [])  # the token-keyed read before pass 1; coarse
+             for name, attr, value in kos:
+                 old = getattr(mem, attr)
+                 setattr(mem, attr, value)
+                 out[f"loss_mem_ko_{name}"] = val(args.k_mean)
+                 setattr(mem, attr, old)
+-        out["tick_loss"] = model.tick_losses(x, y, 10)
++        out["tick_loss"] = model.tick_losses(x, y, 10, chunk=cb)
+         if core.slots:  # workspace knock-out probes
+             for mode in ("last", "all"):
+                 model.knockout = mode
+@@ -276,6 +342,12 @@
+     for key in ("balance", "freeze", "freeze_step"):
+         if key in mem.stats:
+             out[f"mem_{key}"] = mem.stats[key]
++    if "restart" in mem.stats:  # (not "mem_restart": that is a cfg key in the same record)
++        out["mem_restart_last"] = mem.stats["restart"]
++    if mem.life:  # the life cycle (plan_v2/21): phase, lambda, beta, Lambda(t), switch reason
++        st = mem.life_state
++        out["mem_life_state"] = dict(phase=st["phase"], decay=st["decay"], beta=st["beta"], Lam=st["Lam"],
++                               reason=st["reason"], t_switch=st["t_switch"], stab_run=st["stab_run"])
+     return out, alarm
+ 
+ 
+@@ -294,6 +366,19 @@
+                       ("mem_repairs_by_level", "repairs")):
+         if key in m:
+             s += f" {name} {m[key] if isinstance(m[key], int) else f(m[key])}"
++    if "mem_life_state" in m:  # (plan_v2/21)
++        lf = m["mem_life_state"]
++        s += f" | life {lf['phase']} lambda {lf['decay'] or 0:.2e} beta {lf['beta'] or 1:.4f} Lambda {lf['Lam']:.2f}"
++        if lf["reason"]:
++            s += f" (switch: {lf['reason']} at {lf['t_switch']})"
++        if "mem_vnorm_by_wcount" in m:
++            s += f" |V| by count {f(m['mem_vnorm_by_wcount'])}"
++    if "mem_restart_last" in m:
++        s += " restarted " + "/".join(str(v) for v in m["mem_restart_last"].values())
++    for key, name in (("mem_last_stab_w_c", "coarse vs last"), ("mem_stab_w_c", "coarse stab_w"),
++                      ("mem_subkeys_dead_c", "coarse dead"), ("mem_gate_mean", "gate"), ("mem_gate_mean_c", "gate_c")):
++        if key in m:
++            s += f" {name} {f(m[key])}"
+     if m.get("mem_frozen"):
+         s += " [frozen]"
+     if m.get("mem_alarm"):
+@@ -472,7 +557,8 @@
+     ap.add_argument("--mem-repair-usage", type=float, default=0.1,
+                     help="repair only rows whose write count is below this quantile")
+     ap.add_argument("--spill-gb", type=float, default=21.5,
+-                    help="VRAM spill guard: reserved GB above which (3 evals in a row) the cache is freed once")
++                    help="VRAM spill guard: on the first eval with reserved GB above this AND tok/s down by "
++                         "--spill-drop, the cache is freed")
+     ap.add_argument("--spill-drop", type=float, default=0.35,
+                     help="VRAM spill guard: a tok/s drop below the running median by this fraction counts as a spill")
+     ap.add_argument("--mem-probe-every", type=int, default=1,
+@@ -493,6 +579,41 @@
+                          "event (0 = dead re-seeds share --mem-balance-max with the splits)")
+     ap.add_argument("--mem-balance-keep", type=int, default=0,
+                     help="1 = never re-seed a key that was used since the last balancing event")
++    # memory life cycle + key restart + coarse level + neighbour writes (plan_v2/21_lifecycle_plan.md): each off by
++    # default (= as before)
++    ap.add_argument("--mem-life", type=int, default=0,
++                    help="1 = memory life cycle: decaying, rewritable rows in infancy, an adaptive switch, a ramp, "
++                         "then the freeze (replaces --mem-freeze)")
++    ap.add_argument("--mem-decay", type=float, default=1e-3, help="life cycle: row decay per step in infancy")
++    ap.add_argument("--mem-acc-beta", type=float, default=0.99,
++                    help="life cycle: MemOpt accumulator discount per step in infancy (1 = Adagrad)")
++    ap.add_argument("--mem-switch-stab", type=float, default=0.9,
++                    help="life cycle: switch when the probe stability vs the last probe eval is >= this ...")
++    ap.add_argument("--mem-switch-n", type=int, default=3, help="... on this many consecutive probe evals")
++    ap.add_argument("--mem-switch-max", type=float, default=0.9,
++                    help="life cycle: switch at the latest at this fraction of training (also at the LR decay start)")
++    ap.add_argument("--mem-ramp", type=float, default=0.05,
++                    help="life cycle: ramp length (fraction of training): decay and discount -> 0, then the freeze")
++    ap.add_argument("--mem-addr-learn", type=int, default=1,
++                    help="0 = fixed random addressing: W_q / sub-keys get no gradient, no margin loss")
++    ap.add_argument("--mem-restart", type=int, default=0,
++                    help="re-seed every sub-key unused since the last event every N steps in infancy (uncapped, band "
++                         "reset; replaces the shared-pool balancing; 0 = off)")
++    ap.add_argument("--mem-restart-zero", type=int, default=0,
++                    help="1 = a restart also clears V of the re-seeded key's band (0 = only its MemOpt state is reset: "
++                         "the band's rows are shared with the other heads' live keys)")
++    ap.add_argument("--mem-probe-batch", type=int, default=8,
++                    help="drift probes and loop-report forwards: this many sequences at a time (0 = --eval-batch); "
++                         "lowers the eval-time VRAM peak")
++    ap.add_argument("--mem-coarse", type=int, default=0,
++                    help="coarse product-key pool: S sub-keys per half per level, next to the fine pool (0 = off)")
++    ap.add_argument("--mem-coarse-heads", type=int, default=1, help="coarse pool: heads per level")
++    ap.add_argument("--mem-nbr", type=int, default=0,
++                    help="neighbour writes: the pairs ranked --mem-topk + 1 .. N are written (not read) (0 = off)")
++    ap.add_argument("--mem-nbr-w", type=float, default=0.15, help="neighbour writes: their total weight alpha")
++    ap.add_argument("--resume", default="", help="resume from this full checkpoint (runs/<name>/last.pt)")
++    ap.add_argument("--save-report-ckpts", type=int, default=0,
++                    help="1 = also save ckpt_<step>.pt at the 25 / 50 / 75 / 100%% report points")
+     ap.add_argument("--sizes", default="", help="expert sizes, e.g. 96x16,192x32,384x16 (count per size)")
+     ap.add_argument("--moe", default="", help="routed MLP: n_exp,k,hidden,shared,balance  e.g. 64,6,192,384,auxfree")
+     ap.add_argument("--concept", default="", help="next-concept planning: path to a trained concept_tok.pt")
+@@ -541,8 +662,10 @@
+     sys.stdout, sys.stderr = Tee(sys.stdout, logf), Tee(sys.stderr, logf)
+     (run / "run.pid").write_text(str(os.getpid()))
+     lock = claim_gpu(Path(args.runs), args.run_name) if args.device == "cuda" else None
+-    (run / "config.json").write_text(json.dumps(vars(args) | {"argv": sys.argv}, indent=1))
++    (run / ("config_resume.json" if args.resume else "config.json")).write_text(
++        json.dumps(vars(args) | {"argv": sys.argv}, indent=1))
+     print(f"run {args.run_name}  pid {os.getpid()}  {time.strftime('%Y-%m-%d %H:%M:%S')}", flush=True)
++    rs = torch.load(args.resume, map_location="cpu", weights_only=False) if args.resume else None
+ 
+     torch.manual_seed(args.seed)
+     np.random.seed(args.seed)
+@@ -566,7 +689,11 @@
+         final["experts"] = len(sizes)
+         start = final | parse_dims(args.start)
+         moe["hidden"] = sizes[:start["experts"]]
+-    if args.arch == "loop":
++    if rs is not None:  # --resume: the model at its grown size from the saved cfg, then its state
++        cfg = copy.deepcopy(rs["cfg"])
++        model = (LoopBrain if cfg.get("arch") == "loop" else SpikingLM)(**cfg).to(args.device)
++        model.load_state_dict(rs["state"])
++    elif args.arch == "loop":
+         # capacity 2x the average load: near-dropless once balanced (drops would compound over passes), but
+         # bounded memory: fully dropless sized every expert buffer by the busiest expert -> 28.6 GB at init
+         moe["capacity"] = args.capacity
+@@ -616,7 +743,9 @@
+                           mem_topm=args.mem_topm, mem_topk=args.mem_topk, mem_tau=args.mem_tau,
+                           mem_read0=args.mem_read0, mem_private=args.mem_private, mem_dv=args.mem_dv,
+                           mem_addr_sg=args.mem_addr_sg, mem_margin=tuple(float(v) for v in args.mem_margin.split(",")),
+-                          mem_ema=args.mem_ema, mem_max_experts=final.get("experts", 0))
++                          mem_ema=args.mem_ema, mem_max_experts=final.get("experts", 0), mem_life=args.mem_life,
++                          mem_addr_learn=args.mem_addr_learn, mem_restart=args.mem_restart, mem_coarse=args.mem_coarse,
++                          mem_coarse_heads=args.mem_coarse_heads, mem_nbr=args.mem_nbr, mem_nbr_w=args.mem_nbr_w)
+         model = LoopBrain(tok.get_vocab_size(), args.d, args.d_state, start["heads"], args.head_dim,
+                           moe=dict(moe, n_exp=start["experts"]) if not args.sizes else moe, spike=args.spike,
+                           k_mean=args.k_mean, k_min=args.k_min, k_max=args.k_max, bptt=args.bptt,
+@@ -635,6 +764,12 @@
+                                    split=args.concept_split) if args.concept else None).to(args.device)
+     model.set_homeo(args.homeo, args.target, args.homeo_mode)
+     opt = build_opt(model, args)
++    if rs is not None:  # the optimizer state (BrainOpt: per name + its step count; torch AdamW: its state_dict)
++        if args.opt == "brain":
++            opt.t = rs["opt"]["t"]
++            opt.state = {n: {k: v.to(args.device) for k, v in st.items()} for n, st in rs["opt"]["state"].items()}
++        else:
++            opt.load_state_dict(rs["opt"]["state"])
+     teacher = None
+     if args.teacher:
+         ck = torch.load(args.teacher, map_location=args.device)
+@@ -649,13 +784,16 @@
+     t0, t1 = (float(f) for f in args.neuro_t.split(","))
+     neuro = Neurogenesis(model, start, final, steps, every=args.neuro_every, where=args.neuro_where, t0=t0, t1=t1,
+                          protocol=bool(args.neuro_protocol), renew_rate=args.renew_rate) if args.neuro else None
++    if neuro is not None and rs is not None:  # (built on the grown model: its schedule comes from the checkpoint)
++        neuro.load_state_dict(rs["neuro"], args.device)
+     a0, a1 = (float(f) for f in args.anneal.split(","))
+     print(f"start {start} -> final {final}; {n_params(model)/1e6:.2f}M params (+{model.emb.weight.numel()/1e6:.2f}M emb); "
+           f"{steps} steps x {tok_per_step} tokens; grow at {grow_steps}", flush=True)
+     mem = getattr(model, "mem", None)  # memory system (plan_v2/12): None unless --mem-shared / --mem-private
+-    probes, freeze_step = None, None
++    probes, freeze_step, life = None, None, None
+     if mem is not None:
+         mem.lr, mem.clip, mem.s0_cfg = args.mem_lr, args.mem_clip, args.mem_s0
++        mem.restart_zero = bool(args.mem_restart_zero)
+         mem.balance_dead_max = args.mem_balance_dead_max
+         mem.balance_every, mem.balance_max, mem.balance_keep = (args.mem_balance_every, args.mem_balance_max,
+                                                                 bool(args.mem_balance_keep))
+@@ -664,21 +802,51 @@
+         mem.opt_reset = lambda name, sl: reset_mem_key_rows(opt, model, name, sl)  # (reads the current opt)
+         freeze_step = math.ceil(args.mem_freeze * steps)
+         if args.mem_probes:
+-            probes = MemoryProbes(data.val, args.seq, n_seq=args.mem_probes, seed=args.seed, batch=args.eval_batch,
++            probes = MemoryProbes(data.val, args.seq, n_seq=args.mem_probes, seed=args.seed,
++                                  batch=args.mem_probe_batch or args.eval_batch,
+                                   guard=args.mem_guard, repair=args.mem_repair, repair_usage=args.mem_repair_usage)
++        if args.mem_life:  # (plan_v2/21: the switch replaces the fixed --mem-freeze)
++            life = LifeCycle(mem, steps, decay=args.mem_decay, beta=args.mem_acc_beta, switch_stab=args.mem_switch_stab,
++                             switch_n=args.mem_switch_n, switch_max=args.mem_switch_max, lr_decay=args.decay,
++                             ramp=args.mem_ramp)
++        if rs is not None:
++            mem.load_host_state(rs["mem"])
++            if probes is not None:
++                probes.rng.set_state(rs["probes_rng"])
+         tables = sum(b.numel() * b.element_size() for n, b in mem.named_buffers())
+         print(f"memory: shared S={mem.S} ({mem.L * mem.S ** 2} rows), private R={mem.R} x {mem.Emax} experts, "
+-              f"tables + buffers {tables / 1e9:.2f} GB; writes from step {args.mem_write_start}, freeze at the first "
+-              f"step >= {freeze_step} with no births left", flush=True)
++              f"tables + buffers {tables / 1e9:.2f} GB; writes from step {args.mem_write_start}, "
++              + (f"life cycle on (switch at the first of: stability >= {args.mem_switch_stab} on {args.mem_switch_n} "
++                 f"probe evals, step {life.t_decay:.0f}, step {life.t_max:.0f}; ramp {life.ramp} steps)"
++                 if life is not None else f"freeze at the first step >= {freeze_step} with no births left")
++              + (f"; coarse pool S={mem.Sc} x {mem.Hc} heads" if mem.Sc else "")
++              + (f"; restart every {mem.restart} steps" if mem.restart else "")
++              + ("; fixed addressing" if not mem.addr_learn else "")
++              + (f"; neighbour writes to rank {mem.nbr} (alpha {mem.nbr_w})" if mem.nbr else ""), flush=True)
+ 
+     flops, last_grow, t_start, t_log, ema = 0.0, -10**9, time.time(), time.time(), None
+     report_steps = {round(steps * f / args.eval_every) * args.eval_every for f in (0.25, 0.5, 0.75)} | {steps}
+     tok_since, settle, n_eval = 0, False, 0
+     tok_hist, spill_run, spill_freed = [], 0, False  # VRAM spill guard
++    start_step = 0
++    if rs is not None:  # --resume (plan_v2/19): the trainer counters and every RNG, then the saved step's train step
++        tr = rs["trainer"]
++        start_step = rs["step"]
++        flops, last_grow, ema, n_eval, tok_since = tr["flops"], tr["last_grow"], tr["ema"], tr["n_eval"], tr["tok_since"]
++        tok_hist, spill_run, spill_freed, settle = list(tr["tok_hist"]), tr["spill_run"], tr["spill_freed"], tr["settle"]
++        t_start = time.time() - tr["elapsed"]
++        data.phase = tr["data_phase"]
++        if tr.get("group_passes") is not None:
++            model.group_passes = list(tr["group_passes"])
++        set_rng_state(rs["rng"], args.device)
++        print(f"RESUMED at step {start_step} from {args.resume}", flush=True)
+     with open(run / "metrics.jsonl", "a") as mlog:
+-        for step in range(steps + 1):
++        for step in range(start_step, steps + 1):
++            # (--resume: the saved step's growth, freeze, evaluation and checkpoint already happened before the save;
++            # only its schedules and its train step run)
++            first = rs is not None and step == start_step
+             # ---- growth on a fixed schedule
+-            if step in grow_steps:
++            if step in grow_steps and not first:
+                 k = grow_steps.index(step) + 1
+                 target = {key: round(start[key] + (final[key] - start[key]) * k / len(grow_steps)) for key in final}
+                 target["mlp"] = 64 * round(target["mlp"] / 64)
+@@ -706,7 +874,7 @@
+                       f"mlp={model.cfg['mlp']}  ({n_params(model)/1e6:.2f}M params)", flush=True)
+ 
+             # ---- smooth growth / renewal (neurogenesis)
+-            if neuro is not None:
++            if neuro is not None and not first:
+                 snap = snapshot_optimizer(model, opt) if args.opt == "adamw" and step % neuro.every == 0 else None
+                 if neuro.step(step):
+                     model.set_homeo(args.homeo, args.target, args.homeo_mode)
+@@ -721,14 +889,27 @@
+                 for i, idx in neuro.pop_renewed():
+                     reset_opt_rows(opt, model, i, idx)
+ 
+-            # ---- memory freeze: the first step >= --mem-freeze x steps at which no more births can happen
+-            if mem is not None and not mem.is_frozen and step >= freeze_step and (neuro is None or neuro.done()):
++            # ---- memory freeze: the first step >= --mem-freeze x steps at which no more births can happen; with
++            # --mem-life (plan_v2/21) the life cycle's switch and ramp decide it (and set this step's decay rates)
++            if life is not None and not first:
++                st0 = life.state["phase"]
++                do_freeze = life.begin_step(step, neuro is None or neuro.done())
++                if life.state["phase"] != st0:
++                    print(f"step {step}: MEMORY SWITCH ({life.state['reason']}): ramp over {life.ramp} steps, then the "
++                          f"freeze", flush=True)
++            else:
++                do_freeze = (mem is not None and not first and not mem.is_frozen and step >= freeze_step
++                             and (neuro is None or neuro.done()))
++            if do_freeze:
+                 info = probes.freeze(model) if probes is not None else (mem.freeze() or {})
++                free_cache(args.device)  # (plan_v2/19: the probes' temporaries)
+                 print(f"step {step}: MEMORY FROZEN (addressing fixed; theta <- EMA changed the first read's weights by "
+                       f"{info.get('mem_freeze_dw_l1', float('nan')):.4f} L1 (rows the same: "
+                       f"{info.get('mem_freeze_rows_same', '-')}); set overlap over all reads "
+                       f"{info.get('mem_freeze_set_overlap', float('nan')):.3f})", flush=True)
+                 mem.stats["freeze_step"] = step
++                if life is not None:
++                    life.mature()
+ 
+             # ---- schedules
+             frac = step / max(steps, 1)
+@@ -749,7 +930,7 @@
+                 if isinstance(mod, RoutedMLP):
+                     mod.noise, mod.eval_noise = noise, args.eval_route_noise
+             model.set_lam(lam)
+-            if args.spike.startswith("ngc") and last_grow >= 0 and step - last_grow <= 1000:
++            if args.spike.startswith("ngc") and last_grow >= 0 and step - last_grow <= 1000 and not first:
+                 for s in model.spikes():
+                     s.ramp_in(1.0 / 1000)  # newborn channels join the normalisation over 1000 steps
+             if data.buckets:
+@@ -758,14 +939,14 @@
+                     data.phase = phase
+                     print(f"step {step}: curriculum phase {phase} (training on the {phase + 1} easiest of "
+                           f"{len(data.buckets)} buckets)", flush=True)
+-            if (args.redo_every and args.homeo and lam > 0 and step and step % args.redo_every == 0
++            if (args.redo_every and args.homeo and lam > 0 and step and step % args.redo_every == 0 and not first
+                     and (args.homeo_mode == "full" or frac < 1 - args.decay)):  # no resets while LR decays
+                 n = redo_dead(model, opt)
+                 if n:
+                     print(f"step {step}: re-initialised {n} silent MLP units", flush=True)
+ 
+             # ---- eval / log
+-            if step % args.eval_every == 0 or step == steps:
++            if (step % args.eval_every == 0 or step == steps) and not first:
+                 val, sp = evaluate(model, data, args, track=args.spike != "analog" and lam > 0)
+                 dt = time.time() - t_log
+                 rec = dict(step=step, tokens=step * tok_per_step, flops=flops, val=val, train=ema, lr=lr, lam=lam,
+@@ -792,7 +973,9 @@
+                     if gn is not None:
+                         rec["head_group_grad_norm"] = gn
+                     if step in report_steps:
++                        free_cache(args.device)  # (plan_v2/21: the report's long loops are the eval peak)
+                         rep = loop_report(model, data, args)
++                        free_cache(args.device)
+                         rec.update(rep)
+                         print("  loop report: loss by passes " + " ".join(f"K{k}:{v:.3f}" for k, v in rep["loss_at_K"].items())
+                               + "  | after each pass " + " ".join(f"{v:.2f}" for v in rep["tick_loss"])
+@@ -828,7 +1011,17 @@
+                 mem_line = ""
+                 if mem is not None:  # drift probes, stability guard, repair (after the routing stats: own forwards)
+                     probe_now = n_eval % max(1, args.mem_probe_every) == 0 or step == steps
++                    cuda = str(args.device).startswith("cuda") and torch.cuda.is_available()
++                    res0 = None
++                    if cuda and probe_now and probes is not None:  # (plan_v2/19, 21) free the cache around the probes
++                        res0 = torch.cuda.memory_reserved()
++                        free_cache(args.device)
+                     mrec, alarm = memory_metrics(model, probes if probe_now else None)
++                    if res0 is not None:  # the reserved VRAM before / after the probes, and their own peak
++                        mrec["mem_reserved_probe_gb"] = [res0 / 1e9, torch.cuda.memory_reserved() / 1e9]
++                        free_cache(args.device)
++                    if life is not None and "mem_last_stab_w" in mrec:  # the life cycle's switch signal
++                        life.observe(mrec["mem_last_stab_w"])
+                     rec.update(mrec)
+                     mem_line = memory_line(mrec)
+                     if alarm:
+@@ -857,20 +1050,38 @@
+                       f"{rec['tok_s']/1e3:.0f}k tok/s  mem {rec['mem_gb']:.1f}GB res {rec['mem_reserved_gb']:.1f}GB  "
+                       f"{rec['elapsed']/60:.1f} min{spk}{spk_r}{mem_line}", flush=True)
+                 if str(args.device).startswith("cuda") and step:  # VRAM spill guard (Windows spills a full GPU into slow shared memory)
++                    # (plan_v2/19) act on the FIRST eval with reserved > --spill-gb AND tok/s down by > --spill-drop
+                     slow = len(tok_hist) >= 6 and rec["tok_s"] < (1 - args.spill_drop) * float(np.median(tok_hist[-12:]))
+-                    spill_run = spill_run + 1 if (rec["mem_reserved_gb"] > args.spill_gb or slow) else 0
++                    spill = rec["mem_reserved_gb"] > args.spill_gb and slow
++                    spill_run = spill_run + 1 if spill else 0
+                     if not slow:
+                         tok_hist.append(rec["tok_s"])
+-                    if spill_run >= 3:
++                    if spill:
+                         print(f"step {step}: VRAM SPILL: reserved {rec['mem_reserved_gb']:.1f} GB (limit {args.spill_gb}), "
+                               f"{rec['tok_s']/1e3:.0f}k tok/s vs median {np.median(tok_hist[-12:])/1e3:.0f}k"
+                               + (" - persists after free_cache" if spill_freed else " - freeing the cache"), flush=True)
+                         if not spill_freed:
+                             free_cache(args.device)
+-                            spill_freed, spill_run = True, 0
++                            spill_freed = True
++                    else:  # (recovered: a later spill frees the cache again)
++                        spill_freed = False
++                if args.save_report_ckpts and step in report_steps:  # (plan_v2/21: for eval_world.py)
++                    torch.save({"cfg": model.cfg, "state": model.state_dict(), "step": step}, run / f"ckpt_{step}.pt")
+                 t_log, tok_since, n_eval = time.time(), 0, n_eval + 1
+-            if args.ckpt_every and step and step % args.ckpt_every == 0 and step < steps:
+-                torch.save({"cfg": model.cfg, "state": model.state_dict(), "step": step}, run / "last.pt")
++            if args.ckpt_every and step and step % args.ckpt_every == 0 and step < steps and not first:
++                # the full checkpoint (plan_v2/19), atomic: everything --resume needs to continue with this step's
++                # train step exactly as without the stop
++                save_checkpoint(run / "last.pt", dict(
++                    cfg=model.cfg, state=model.state_dict(), step=step,
++                    opt=dict(t=opt.t, state=opt.state) if args.opt == "brain" else dict(state=opt.state_dict()),
++                    neuro=neuro.state_dict() if neuro is not None else None,
++                    mem=mem.host_state() if mem is not None else None,
++                    probes_rng=probes.rng.get_state() if probes is not None else None,
++                    trainer=dict(flops=flops, last_grow=last_grow, ema=ema, n_eval=n_eval, tok_since=tok_since,
++                                 tok_hist=list(tok_hist), spill_run=spill_run, spill_freed=spill_freed, settle=settle,
++                                 elapsed=time.time() - t_start, data_phase=data.phase,
++                                 group_passes=list(getattr(model, "group_passes", None) or []) or None),
++                    rng=get_rng_state(args.device)))
+             if step == steps:
+                 break
+ 
+--- plan_v2/baseline_mem_v3/neurogenesis.py	2026-10-23 10:50:17.414880300 +0300
++++ neurogenesis.py	2026-10-24 02:45:45.797965800 +0300
+@@ -53,6 +53,18 @@
+             if isinstance(b.mlp, MLP):
+                 b.mlp.track_util = True
+ 
++    # ---------------------------------------------------------------- checkpoint (--resume, plan_v2/19)
++    def state_dict(self):
++        """The schedule state (births, renewals, pending head births, ramp clock, scores, birth times, the newborn
++        directions): a Neurogenesis rebuilt on the grown model continues exactly (its start sizes come from here)."""
++        return {k: v for k, v in vars(self).items() if k not in ("m", "hooks", "cache")}
++
++    def load_state_dict(self, st, device=None):
++        for k, v in st.items():
++            if k in ("V", "xs"):  # (the newborn directions / input samples live on the model's device)
++                v = [t.to(device) if torch.is_tensor(t) and device is not None else t for t in v]
++            setattr(self, k, v)
++
+     # ---------------------------------------------------------------- scoring (gradient pressure)
+     def want_score(self, step):
+         return step % self.score_every == 0 and not self.routed
+--- /dev/null	2026-10-24 03:26:57.000000000 +0300
++++ test_lifecycle.py	2026-10-24 03:26:28.928036900 +0300
+@@ -0,0 +1,596 @@
++"""Tests of the memory life cycle package (plan_v2/21_lifecycle_plan.md section 7): life cycle (lazy decay, discounted
++accumulator, switch, ramp), fixed addressing, uncapped restart, coarse pool, neighbour writes, resume and the spill /
++free_cache paths. CPU only, tiny configs.
++
++    python -m pytest test_lifecycle.py -q
++
++Flags off == the code before the package (plan_v2/baseline_mem_v3), bit for bit (test 1).
++"""
++import copy
++import importlib
++import json
++import math
++import sys
++from pathlib import Path
++from types import SimpleNamespace
++
++import numpy as np
++import pytest
++import torch
++import torch.nn.functional as F
++
++from test_memory import _run_main, _tiny_data, mem_loop, tokens, train_step
++
++HERE = Path(__file__).resolve().parent
++BASE = HERE / "plan_v2" / "baseline_mem_v3"
++MODS = ("spiking_lm", "loop_brain", "brain_opt", "neurogenesis", "train_lm", "memory", "concepts")
++_BASELINE = None
++
++
++def baseline():
++    """The code before the life-cycle package (plan_v2/baseline_mem_v3) as separate module objects (as test_speed's
++    baseline(): the current modules are out of sys.modules while it imports, then put back; no bytecode written)."""
++    global _BASELINE
++    if _BASELINE is None:
++        saved = {n: sys.modules.pop(n) for n in MODS if n in sys.modules}
++        dont = sys.dont_write_bytecode
++        sys.dont_write_bytecode = True
++        sys.path.insert(0, str(BASE))
++        try:
++            _BASELINE = SimpleNamespace(**{n: importlib.import_module(n) for n in MODS[:6]})
++        finally:
++            sys.path.remove(str(BASE))
++            sys.dont_write_bytecode = dont
++            for n in MODS:
++                sys.modules.pop(n, None)
++            sys.modules.update(saved)
++        assert Path(_BASELINE.memory.__file__).parent == BASE
++    return _BASELINE
++
++
++def current():
++    import brain_opt
++    import loop_brain
++    import memory
++    import neurogenesis
++    import spiking_lm
++    import train_lm
++    return SimpleNamespace(spiking_lm=spiking_lm, loop_brain=loop_brain, brain_opt=brain_opt,
++                           neurogenesis=neurogenesis, train_lm=train_lm, memory=memory)
++
++
++MEM_ARGS = ("--concepts 2,4,8,16 --mem-shared 8 --mem-topm 4 --mem-topk 3 --mem-private 8 --mem-dv 16 "
++            "--mem-write-start 5 --mem-probes 2 --mem-repair 0.25")
++
++
++def _same_recs(ra, rb):
++    assert len(ra) == len(rb)
++    for a, b in zip(ra, rb):
++        a, b = dict(a), dict(b)
++        for k in ("tok_s", "elapsed"):  # wall-clock
++            a.pop(k), b.pop(k)
++        assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True), a["step"]
++
++
++def _same_state(sa, sb):
++    assert list(sa) == list(sb)
++    for k in sa:
++        a, b = sa[k], sb[k]
++        if torch.is_tensor(a):
++            assert torch.equal(a, b), k
++        else:  # (the memory's extra state)
++            assert repr(a) == repr(b), k
++
++
++# ---------------------------------------------------------------- test 1: all flags off == baseline_mem_v3
++def test_01a_flags_off_bit_identical_memory_step_with_growth_balancing_freeze():
++    """test_speed's trainer step with the full memory (growth, two balancing events, the freeze, accumulation)."""
++    from test_speed import _check, _drive
++    old = _drive(baseline(), new=True)
++    new = _drive(current(), new=True)
++    _check(old, new, exact=True)
++
++
++def test_01b_flags_off_bit_identical_40_steps_without_memory():
++    """test_memory's 40-step trainer step (memory off) against baseline_mem_v3."""
++    from test_memory import _drive
++    old, new = _drive(baseline()), _drive(current())
++    assert len(old["losses"]) == len(new["losses"]) == 80
++    for a, b in zip(old["losses"], new["losses"]):
++        assert torch.equal(a, b)
++    for a, b in zip(old["outs"], new["outs"]):
++        assert torch.equal(a, b)
++    assert old["cfg"] == new["cfg"]
++    _same_state(old["state"], new["state"])
++    assert torch.equal(old["rng"], new["rng"])
++
++
++def test_01c_flags_off_bit_identical_end_to_end_with_memory(tmp_path):
++    """train_lm.main with the memory on (the new flags at their defaults), old file vs new file: metrics and
++    final.pt identical (growth, the freeze, probes, repair, the loop report)."""
++    data = _tiny_data(tmp_path / "data")
++    extra = (MEM_ARGS + " --mem-freeze 0.5 --eval-every 10 --mem-readdr-every 2 --mem-readdr-start 1").split()
++    _, ra, ca = _run_main(baseline().train_lm, tmp_path / "runs_old", "old", data, extra)
++    _, rb, cb = _run_main(current().train_lm, tmp_path / "runs_new", "new", data, extra)
++    assert len(ra) == 5 and ra[-1]["mem_frozen"] == 1
++    _same_recs(ra, rb)
++    assert ca["cfg"] == cb["cfg"]
++    _same_state(ca["state"], cb["state"])
++
++
++# ---------------------------------------------------------------- helpers
++def small_mem(dtype=torch.float64, **kw):
++    from memory import Memory
++    torch.manual_seed(0)
++    cfg = dict(d=8, ds=64, L=2, H=1, S=8, m=4, km=3, dv=4, life=True)
++    cfg.update(kw)
++    mem = Memory(**cfg).to(dtype)
++    mem.s0_cfg, mem.lr, mem.clip = "1.0", 0.05, 10.0
++    return mem
++
++
++def _touched(G):
++    return (G != 0).any(1).nonzero().squeeze(1)
++
++
++def LoopBrainFromCfg(m):
++    from loop_brain import LoopBrain
++    m2 = LoopBrain(**copy.deepcopy(m.cfg)).double()
++    m2.load_state_dict(m.state_dict())
++    return m2
++
++
++# ---------------------------------------------------------------- test 2: lazy decay == global decay
++@pytest.mark.parametrize("beta_sched", [False, True])
++def test_02_lazy_decay_equals_eager_global_decay(beta_sched):
++    """Random reads / writes over 200 steps under a lambda (and beta) schedule: the lazy reads (MemRead with the
++    per-row factors) and the effective values / accumulators equal an eager V <- (1 - lambda) V, S <- beta S
++    reference to 1e-6; settle() keeps the effective values."""
++    from memory import MemRead, _anchor, S_FLOOR
++    mem = small_mem()
++    n = mem.V.size(0)
++    Ve, Se = mem.V.clone(), None
++    gen = torch.Generator().manual_seed(1)
++    for t in range(200):
++        lam = 0.02 * (1 + math.sin(t / 15))
++        beta = 0.9 + 0.09 * math.cos(t / 20) if beta_sched else 1.0
++        rows = torch.randint(0, n, (5, 3), generator=gen)
++        w = torch.softmax(torch.randn(5, 3, generator=gen, dtype=torch.float64), -1)
++        c = torch.randn(5, 4, generator=gen, dtype=torch.float64)
++        f = mem._factors(rows)
++        r = MemRead.apply(_anchor("cpu", True), w * f, mem.V, mem.G, rows, w)
++        (r * c).sum().backward()
++        ve = Ve.clone().requires_grad_(True)
++        re = F.embedding_bag(rows, ve, per_sample_weights=w, mode="sum")
++        g, = torch.autograd.grad((re * c).sum(), ve)
++        assert torch.allclose(r, re, atol=1e-6, rtol=0)
++        assert torch.allclose(mem.G, g, atol=1e-12, rtol=0)                   # G in current (decayed) units
++        # one optimizer step: lazy (Lambda, Psi) vs eager (every row)
++        mem.life_advance(lam, beta)
++        mem._row_adagrad(mem.V, mem.G, mem.S_acc, mem.wcount, 0, _touched(mem.G))
++        act = (g != 0).any(1)
++        Ve = Ve * (1 - lam)
++        Se = torch.full((n,), 1.0, dtype=torch.float64) if Se is None else Se * beta
++        Se = torch.where(act, torch.clamp(Se + (g * g).mean(1), min=S_FLOOR * 1.0), Se)
++        dv = -mem.lr * g / Se.sqrt()[:, None]
++        dv = dv * (mem.clip / dv.norm(dim=1, keepdim=True).clamp(min=1e-30)).clamp(max=1.0)
++        Ve = torch.where(act[:, None], Ve + dv, Ve)
++        eff = mem.V * torch.exp(mem.lam_r - mem.lam_now)[:, None]
++        assert torch.allclose(eff, Ve, atol=1e-6, rtol=0), t
++        seff = mem.S_acc * torch.exp(mem.psi_r - mem.psi_now)
++        assert torch.allclose(seff, Se, atol=1e-6, rtol=1e-6), t
++        assert mem.G.abs().sum() == 0
++    assert mem.life_state["Lam"] > 2.0                                          # (real decay happened)
++    eff = mem.V * torch.exp(mem.lam_r - mem.lam_now)[:, None]
++    mem.settle()
++    assert torch.allclose(mem.V, eff, atol=1e-12) and torch.equal(mem.lam_r, mem.lam_now.expand_as(mem.lam_r))
++    assert mem._factors(torch.arange(4)) is None                                # mature: no factors
++
++
++# ---------------------------------------------------------------- test 3: the discounted accumulator
++def test_03_accumulator_beta1_is_adagrad_bit_for_bit_and_the_floor_holds():
++    from memory import S_FLOOR
++    a, b = small_mem(life=True), small_mem(life=False)
++    assert torch.equal(a.V, b.V)
++    gen = torch.Generator().manual_seed(2)
++    for t in range(30):
++        G = torch.zeros_like(a.G)
++        rows = torch.randint(0, a.V.size(0), (6,), generator=gen)
++        G[rows] = torch.randn(6, a.dv, generator=gen, dtype=G.dtype)
++        a.G.copy_(G)
++        b.G.copy_(G)
++        a.life_advance(0.0, 1.0)                                                 # lambda = 0, beta = 1
++        a._row_adagrad(a.V, a.G, a.S_acc, a.wcount, 0, _touched(G))
++        b._row_adagrad(b.V, b.G, b.S_acc, b.wcount, 0, _touched(G))
++        assert torch.equal(a.V, b.V) and torch.equal(a.S_acc, b.S_acc) and torch.equal(a.wcount, b.wcount)
++    # beta < 1: the eager formula; a strong discount hits the floor
++    m = small_mem()
++    G = torch.zeros_like(m.G)
++    G[3] = 0.01
++    m.G.copy_(G)
++    m.life_advance(0.0, 0.5)
++    m._row_adagrad(m.V, m.G, m.S_acc, m.wcount, 0, _touched(G))               # first write: S0 = 1, + g^2
++    assert m.S_acc[3].item() == pytest.approx(1.0 + 1e-4)
++    for _ in range(3):
++        m.life_advance(0.0, 0.5)
++    m.G[3] = 0.01
++    m._row_adagrad(m.V, m.G, m.S_acc, m.wcount, 0, torch.tensor([3]))
++    assert m.S_acc[3].item() == pytest.approx((1.0 + 1e-4) * 0.125 + 1e-4)     # B = beta^3, no floor yet
++    for _ in range(10):
++        m.life_advance(0.0, 0.5)
++    m.G[3] = 0.01
++    m._row_adagrad(m.V, m.G, m.S_acc, m.wcount, 0, torch.tensor([3]))
++    assert m.S_acc[3].item() == pytest.approx(S_FLOOR * 1.0)                   # the floor
++
++
++# ---------------------------------------------------------------- test 4: the switch and the ramp
++def _life(steps=1000, restart=100, **kw):
++    from memory import LifeCycle
++    mem = small_mem(restart=restart)
++    return LifeCycle(mem, steps, **kw), mem
++
++
++def test_04_switch_triggers_ramp_and_freeze_condition():
++    # (a) stability >= 0.9 on 3 consecutive probe evals (a dip resets the run)
++    lc, mem = _life()
++    for t, s in ((100, 0.95), (200, 0.95), (300, 0.5), (400, 0.92), (500, 0.93)):
++        assert not lc.begin_step(t, True)
++        lc.observe(s)
++    assert mem.life_state["phase"] == "infancy"
++    lc.begin_step(550, True)
++    lc.observe(0.97)
++    assert mem.life_state["phase"] == "infancy"                                 # (switches at the next step)
++    lc.begin_step(551, True)
++    st = mem.life_state
++    assert st["phase"] == "ramp" and st["reason"] == "stab" and st["t_switch"] == 551
++    # the ramp: lambda, 1 - beta linear to 0, the restart interval 100 -> 1000
++    for k in range(0, 50):
++        assert not lc.begin_step(551 + k, True)
++        assert st["decay"] == pytest.approx(1e-3 * (1 - k / 50))
++        assert 1 - st["beta"] == pytest.approx(0.01 * (1 - k / 50))
++        assert st["restart_every"] == round(100 * (1 + 9 * k / 50))
++    assert not lc.begin_step(601, False)                                        # births left: no freeze yet
++    assert lc.begin_step(601, True) and st["decay"] == 0.0 and st["beta"] == 1.0
++    lc.mature()
++    assert st["phase"] == "mature" and st["restart_every"] == 0
++    # (b) the learning-rate decay start; births must be done
++    lc, mem = _life()
++    for t in range(0, 800):
++        lc.begin_step(t, t >= 700)
++    assert mem.life_state["phase"] == "infancy"
++    lc.begin_step(800, False)
++    assert mem.life_state["phase"] == "infancy"
++    lc.begin_step(805, True)
++    assert mem.life_state["reason"] == "lr_decay" and mem.life_state["t_switch"] == 805
++    # (c) the safety cap
++    lc, mem = _life(lr_decay=0.05)
++    for t in range(0, 901):
++        lc.begin_step(t, True)
++    assert mem.life_state["reason"] == "max" and mem.life_state["t_switch"] == 900
++    # the rates reach the memory: after_step advances Lambda by -log(1 - lambda)
++    lam0 = mem.life_state["Lam"]
++    mem.write_on = False
++    mem.after_step(1e-3, [])
++    assert mem.life_state["Lam"] - lam0 == pytest.approx(-math.log1p(-mem.life_state["decay"]))
++
++
++# ---------------------------------------------------------------- test 5: fixed addressing
++def test_05_addr_learn_0_no_grad_online_equals_ema_norm_stats_update():
++    from brain_opt import BrainOpt
++    m = mem_loop(mem_addr_learn=0)
++    mem = m.mem
++    assert mem.lam_m == 0.0 and all(not p.requires_grad for p in mem.keys.parameters())
++    opt = BrainOpt(m, lr=3e-3)
++    x = tokens()
++    nm0 = mem.norm_m.clone()
++    for i in range(3):
++        train_step(m, opt, x, offset=i % 2)
++        assert all(p.grad is None for p in mem.keys.parameters())
++    assert mem.margin_stats is None                                             # no margin loss
++    assert torch.equal(mem.keys.wq, mem.wq_ema) and torch.equal(mem.keys.k1, mem.k1_ema)
++    assert torch.equal(mem.keys.k2, mem.k2_ema)
++    assert not torch.equal(mem.norm_m, nm0)                                     # the norm statistics update
++    a_hat = torch.randn(mem.L, 7, mem.ain, dtype=torch.float64)
++    sel = mem.select(a_hat, a_hat, False)
++    on = mem.online(a_hat, sel)
++    q1, q2 = mem._queries(a_hat, mem.wq_ema)
++    ref = mem._key_scores(q1, mem.k1_ema, sel["i"]) + mem._key_scores(q2, mem.k2_ema, sel["j"])
++    assert torch.equal(on["sig"], ref)                                          # online == EMA addressing
++    mem.freeze()
++    nm1 = mem.norm_m.clone()
++    train_step(m, opt, x)
++    assert torch.equal(mem.norm_m, nm1)                                         # ... until the freeze
++    m2 = LoopBrainFromCfg(m)
++    assert all(not p.requires_grad for p in m2.mem.keys.parameters())
++
++
++# ---------------------------------------------------------------- test 6: the restart
++def _restart_mem():
++    from brain_opt import BrainOpt
++    m = mem_loop(mem_restart=4, mem_life=1, mem_addr_learn=0, mem_coarse=5)
++    opt = BrainOpt(m, lr=3e-3)
++    x = tokens()
++    for i in range(2):
++        train_step(m, opt, x, offset=i % 2)
++    return m, opt, x
++
++
++def test_06_restart_uncapped_distinct_slots_band_reset_deterministic():
++    m, opt, x = _restart_mem()
++    mem = m.mem
++    assert mem.nres == 1024 and mem.qres.shape[-2] == 1024 and mem.stats.get("restart") is None
++    S = mem.S
++    g = torch.Generator().manual_seed(5)
++    mem.qres.copy_(F.normalize(torch.randn(mem.qres.shape, generator=g, dtype=mem.qres.dtype), dim=-1))
++    mem.qres_c.copy_(F.normalize(torch.randn(mem.qres_c.shape, generator=g, dtype=mem.qres.dtype), dim=-1))
++    mem.win.fill_(1.0)
++    mem.win_c.fill_(1.0)
++    mem.win[0, 0, 0, 1:] = 0                                                    # 7 of 8 dead: uncapped
++    mem.win[2, 1, 1, [2, 5]] = 0
++    mem.win_c[3, 0, 0, 4] = 0
++    mem.V.add_(1.0)
++    mem.life_advance(1e-2, 0.9)
++    mem.opt_reset = None
++    before = copy.deepcopy(mem)
++    twin, zero = copy.deepcopy(mem), copy.deepcopy(mem)
++    st = mem.restart_keys()
++    assert st == {"dead": 9, "dead_c": 1}
++    k1, k1b = mem.keys.k1.detach(), before.keys.k1.detach()
++    changed = (k1 != k1b).any(-1)
++    assert changed[0, 0, 1:].all() and not changed[0, 0, 0] and changed.sum() == 7
++    assert ((mem.keys.k2 != before.keys.k2).any(-1)).sum() == 2
++    assert ((mem.keys.k1_c != before.keys.k1_c).any(-1)).sum() == 1
++    assert torch.equal(mem.keys.k1, mem.k1_ema) and torch.equal(mem.keys.k1_c, mem.k1_c_ema)
++    # distinct reservoir slots: each new key's nearest reservoir entry, all different within the codebook
++    res = mem.qres[0, 0, 0]                                                     # (nres, 64)
++    near = (F.normalize(mem.keys.k1[0, 0, 1:].detach(), dim=-1) @ res.t()).argmax(-1)
++    assert len(set(near.tolist())) == 7
++    # the band reset: the dead keys' bands (the coarse one at its offset) and nothing else: their MemOpt state, V
++    # kept (with its pending decay applied: the effective values do not change; other heads' live keys share them)
++    z = lambda n: torch.zeros(n, dtype=torch.long)
++    rows = torch.cat([mem._bands(z(7), z(7), torch.arange(1, 8)).flatten(),
++                      mem._bands(torch.tensor([2, 2]), torch.tensor([1, 1]), torch.tensor([2, 5])).flatten(),
++                      mem._bands(torch.tensor([3]), torch.tensor([0]), torch.tensor([4]), mem.Sc,
++                                 mem.L * S * S).flatten()])
++    reset = torch.zeros(mem.V.size(0), dtype=torch.bool)
++    reset[rows] = True
++    f = torch.exp(before.lam_r - before.lam_now)[:, None]
++    assert torch.allclose(mem.V[reset], (before.V * f)[reset], rtol=0, atol=1e-12) and (mem.V[reset] != 0).all()
++    assert (mem.wcount[reset] == 0).all()
++    assert (mem.S_acc[reset] == mem._s0[0]).all() and mem._s0[0] > 0
++    assert (mem.lam_r[reset] == mem.lam_now).all() and (mem.psi_r[reset] == mem.psi_now).all()
++    for t in ("V", "wcount", "S_acc", "lam_r", "psi_r"):
++        assert torch.equal(getattr(mem, t)[~reset], getattr(before, t)[~reset]), t
++    assert (mem.win == 0).all() and (mem.win_c == 0).all()
++    # deterministic with mem.gen
++    twin.restart_keys()
++    assert torch.equal(twin.keys.k1, mem.keys.k1) and torch.equal(twin.keys.k1_c, mem.keys.k1_c)
++    assert torch.equal(twin.V, mem.V) and torch.equal(twin.gen.get_state(), mem.gen.get_state())
++    # --mem-restart-zero: the same re-seeds, and the bands' V cleared too
++    zero.restart_zero = True
++    zero.restart_keys()
++    assert torch.equal(zero.keys.k1, mem.keys.k1) and (zero.V[reset] == 0).all()
++    assert torch.equal(zero.V[~reset], mem.V[~reset]) and torch.equal(zero.S_acc, mem.S_acc)
++    assert torch.equal(zero.wcount, mem.wcount) and torch.equal(zero.lam_r, mem.lam_r)
++
++
++def test_06b_restart_schedule_and_none_when_mature():
++    m, opt, x = _restart_mem()
++    mem = m.mem
++    for i in range(2):                                                          # steps 3, 4: the event at 4
++        train_step(m, opt, x)
++    assert mem.life_state["last_restart"] == 4 and "restart" in mem.stats
++    mem.freeze()
++    k1 = mem.keys.k1.detach().clone()
++    mem.win.zero_()
++    for i in range(5):
++        train_step(m, opt, x)
++    assert mem.life_state["last_restart"] == 4 and torch.equal(mem.keys.k1, k1)
++
++
++# ---------------------------------------------------------------- test 7: the coarse pool
++def test_07_coarse_pool_offsets_zero_init_and_probes():
++    from memory import MemoryProbes
++    from brain_opt import BrainOpt
++    m0, m = mem_loop(), mem_loop(mem_coarse=5, mem_coarse_heads=2)
++    mem = m.mem
++    n0, nc = mem.L * mem.S ** 2, mem.L * mem.Sc ** 2
++    assert mem.V.size(0) == n0 + nc and torch.equal(mem.V[:n0], m0.mem.V)
++    a_hat = torch.randn(mem.L, 30, mem.ain, dtype=torch.float64)
++    sel = mem.select(a_hat, a_hat, False)
++    assert sel["rows"].max() < n0 and sel["c"]["rows"].min() >= n0 and sel["c"]["rows"].max() < n0 + nc
++    assert sel["c"]["rows"].shape == (mem.L, 2, 30, mem.km)
++    x = tokens()
++    m0.eval(), m.eval()
++    with torch.no_grad():
++        assert torch.equal(m0(x), m(x))                                         # zero-init W_o^c: no change
++    opt = BrainOpt(m, lr=3e-3)
++    l0 = train_step(m0, BrainOpt(m0, lr=3e-3), x)
++    l1 = train_step(m, opt, x)
++    assert torch.equal(l0, l1) and m.mem.w_o_c.abs().sum() > 0                 # then W_o^c learns
++    train_step(m, opt, x)
++    assert m.mem.wcount[n0:].sum() > 0                                          # the coarse rows are written
++    val = np.random.RandomState(0).randint(1, 50, 600).astype(np.uint16)
++    pr = MemoryProbes(val, 16, n_seq=2, n_pos=4, K=4)
++    pr.measure(m)
++    met, _ = pr.measure(m)
++    assert 0 <= met["mem_last_stab_w_c"] <= 1 and "mem_last_stab_w" in met and "mem_subkeys_dead_c" in met
++    assert m.cfg["mem_coarse"] == 5 and "mem_coarse" not in m0.cfg
++    m2 = LoopBrainFromCfg(m)
++    m2.eval(), m.eval()
++    with torch.no_grad():
++        assert torch.equal(m2(x), m(x))
++
++
++# ---------------------------------------------------------------- test 8: neighbour writes
++def test_08_neighbour_writes_backward_only():
++    from memory import MemRead, _anchor
++    g = torch.Generator().manual_seed(3)
++    V = torch.randn(40, 5, generator=g, dtype=torch.float64)
++    rows = torch.randint(0, 40, (6, 3), generator=g)
++    xrows = torch.randint(0, 40, (6, 2), generator=g)
++    w = torch.softmax(torch.randn(6, 3, generator=g, dtype=torch.float64), -1).requires_grad_(True)
++    xw = 0.15 * torch.softmax(torch.randn(6, 2, generator=g, dtype=torch.float64), -1)
++    c = torch.randn(6, 5, generator=g, dtype=torch.float64)
++    G0, G1 = torch.zeros_like(V), torch.zeros_like(V)
++    r0 = MemRead.apply(_anchor("cpu", True), w, V, G0, rows)
++    dw0, = torch.autograd.grad((r0 * c).sum(), w)
++    r1 = MemRead.apply(_anchor("cpu", True), w, V, G1, rows, None, xrows, xw)
++    dw1, = torch.autograd.grad((r1 * c).sum(), w)
++    assert torch.equal(r0, r1) and torch.equal(dw0, dw1)                       # forward and dw unchanged
++    ref = torch.zeros_like(V).index_add_(0, xrows.flatten(), (xw[..., None] * c[:, None]).reshape(-1, 5))
++    assert torch.allclose(G1 - G0, ref, atol=1e-14)                            # G += alpha omega^n g
++    # in the model: the forward and every parameter gradient are unchanged; more rows are written
++    m0, m = mem_loop(), mem_loop(mem_nbr=8)
++    x = tokens()
++    outs = []
++    w_o = torch.randn_like(m0.mem.w_o) * 0.1                                    # (zero-init W_o: no write yet)
++    for mm in (m0, m):
++        mm.mem.w_o.data.copy_(w_o)
++        mm.train()
++        mm.K, mm.aux_k_fixed, mm.group_offset = 4, 2, 0
++        _, loss = mm(x[:, :-1], x[:, 1:])
++        (loss + mm.aux_loss()).backward()
++        outs.append(loss.detach())
++    assert torch.equal(outs[0], outs[1])
++    t0, t1 = m0.mem.G.ne(0).any(1), m.mem.G.ne(0).any(1)
++    assert not (t0 & ~t1).any() and t1.sum() > t0.sum()
++    for (n, p), (_, q) in zip(m0.named_parameters(), m.named_parameters()):
++        assert (p.grad is None) == (q.grad is None) and (p.grad is None or torch.allclose(p.grad, q.grad, atol=1e-12)), n
++    a_hat = torch.randn(m.mem.L, 9, m.mem.ain, dtype=torch.float64)
++    sel = m.mem.select(a_hat, a_hat, False)
++    on = m.mem.online(a_hat, sel)
++    km = m.mem.km
++    assert sel["nrows"].shape[-1] == 8 - km and on["wn"].shape[-1] == 8 - km
++    assert torch.allclose(on["wn"].sum(-1), torch.full_like(on["wn"][..., 0], 0.15))
++    assert torch.equal(on["wn"][..., :1] > 0, torch.ones_like(on["wn"][..., :1], dtype=torch.bool))
++    assert (on["wn"][..., 0] >= on["wn"][..., -1]).all()                       # rank km + 1 weighs the most
++
++
++# ---------------------------------------------------------------- test 9: resume
++class _Stop(Exception):
++    pass
++
++
++LIFE_ARGS = (MEM_ARGS + " --eval-every 10 --mem-life 1 --mem-addr-learn 0 --mem-restart 3 --mem-coarse 6 --mem-nbr 8 "
++             "--mem-switch-max 0.45 --mem-ramp 0.25 --neuro-t 0.05,0.3 --ckpt-every 20")
++
++
++def test_09_resume_is_bit_identical(tmp_path, monkeypatch):
++    """40 straight steps == 20 + save + resume + 20 (train_lm.main, CPU): growth before the cut, the switch at 18
++    and the ramp across the cut (freeze at 28), restart events every 3 steps and probe evals on both sides."""
++    tl = current().train_lm
++    data = _tiny_data(tmp_path / "data")
++    extra = LIFE_ARGS.split()
++    run_a, ra, ca = _run_main(tl, tmp_path / "runs_a", "a", data, extra)
++    save = tl.save_checkpoint
++
++    def crash(path, obj):  # the run "dies" right after writing last.pt at step 20
++        save(path, obj)
++        raise _Stop
++
++    monkeypatch.setattr(tl, "save_checkpoint", crash)
++    with pytest.raises(_Stop):
++        _run_main(tl, tmp_path / "runs_b", "b", data, extra)
++    monkeypatch.setattr(tl, "save_checkpoint", save)
++    last = tmp_path / "runs_b" / "b" / "last.pt"
++    assert last.exists() and not Path(str(last) + ".tmp").exists()
++    run_b, rb, cb = _run_main(tl, tmp_path / "runs_b", "b", data, extra + ["--resume", str(last)])
++    log = (run_b / "train.log").read_text()
++    assert "RESUMED at step 20" in log and "MEMORY SWITCH (max)" in log and "MEMORY FROZEN" in log
++    assert len(ra) == len(rb) == 5
++    assert ra[2]["mem_life_state"]["phase"] == "ramp" and ra[3]["mem_life_state"]["phase"] == "mature"
++    assert ra[2]["births"] == ra[4]["births"] > 0 and "mem_last_stab_w" in ra[3]
++    assert all("mem_restart_last" in r for r in ra[1:])                        # (events every 3 steps; tiny
++    # pools: every key is used, so nothing is re-seeded here, but each event draws from mem.gen; test 6: re-seeds)
++    _same_recs(ra, rb)
++    assert ca["cfg"] == cb["cfg"]
++    _same_state(ca["state"], cb["state"])
++
++
++# ---------------------------------------------------------------- test 10: spill guard / free_cache / checkpoint helpers
++def test_10_free_cache_rng_and_atomic_save_on_cpu(tmp_path):
++    import random
++    tl = current().train_lm
++    tl.free_cache("cpu")                                                        # a no-op on the CPU
++    st = tl.get_rng_state("cpu")
++    a = (torch.rand(3), np.random.rand(), random.random())
++    tl.set_rng_state(st, "cpu")
++    b = (torch.rand(3), np.random.rand(), random.random())
++    assert torch.equal(a[0], b[0]) and a[1:] == b[1:]
++    tl.save_checkpoint(tmp_path / "x.pt", {"a": 1})
++    tl.save_checkpoint(tmp_path / "x.pt", {"a": 2})
++    assert torch.load(tmp_path / "x.pt")["a"] == 2 and not (tmp_path / "x.pt.tmp").exists()
++
++
++def test_10b_report_checkpoints_and_life_logging(tmp_path):
++    data = _tiny_data(tmp_path / "data")
++    extra = (LIFE_ARGS.replace("--ckpt-every 20", "--ckpt-every 0") + " --save-report-ckpts 1").split()
++    run, recs, ck = _run_main(current().train_lm, tmp_path / "runs", "r", data, extra)
++    names = sorted(p.name for p in run.glob("ckpt_*.pt"))
++    assert names == ["ckpt_10.pt", "ckpt_20.pt", "ckpt_30.pt", "ckpt_40.pt"]
++    from loop_brain import LoopBrain
++    c = torch.load(run / "ckpt_20.pt", weights_only=False)
++    m = LoopBrain(**c["cfg"])
++    m.load_state_dict(c["state"])
++    assert m.mem.life_state["phase"] == "ramp"
++    for r in recs:
++        assert {"phase", "decay", "beta", "Lam", "reason"} <= set(r["mem_life_state"])
++        assert len(r["mem_vnorm_by_wcount"]) == 3 and "mem_gate_mean" in r
++    assert recs[-1]["mem_life_state"]["phase"] == "mature" and recs[-1]["mem_frozen"] == 1
++
++
++# ---------------------------------------------------------------- gpu.lock: a reused pid is not a holder
++def test_11_stale_gpu_lock_with_a_reused_non_python_pid(tmp_path, capsys):
++    """A lock whose pid now belongs to a non-python process (Windows reuses pids) is stale: removed and replaced;
++    a live python train_lm.py process still holds the GPU; a dead pid is stale too."""
++    import os
++    import subprocess
++    tl = current().train_lm
++    other = subprocess.Popen(["ping", "-n", "60", "127.0.0.1"] if sys.platform == "win32" else ["sleep", "60"],
++                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
++    holder = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", "train_lm.py"])
++    try:
++        lock = tmp_path / "gpu.lock"
++        lock.write_text(f"{other.pid} old_run\n")
++        assert tl.pid_alive(other.pid) and not tl.lock_holder_alive(other.pid)
++        tl.claim_gpu(tmp_path, "new_run")
++        assert lock.read_text().split() == [str(os.getpid()), "new_run"]
++        assert "stale gpu.lock removed" in capsys.readouterr().out
++        lock.write_text(f"{holder.pid} busy_run\n")
++        assert tl.lock_holder_alive(holder.pid)
++        with pytest.raises(SystemExit):
++            tl.claim_gpu(tmp_path, "new_run")
++        assert lock.read_text().split()[0] == str(holder.pid)
++    finally:
++        other.kill()
++        holder.kill()
++        other.wait()
++        holder.wait()
++    lock.write_text(f"{other.pid} dead_run\n")
++    tl.claim_gpu(tmp_path, "new_run")
++    assert lock.read_text().split()[0] == str(os.getpid())
++
++
++# ---------------------------------------------------------------- the eval peak: chunked report forwards
++def test_12_chunked_loop_report_forwards_equal_the_full_batch():
++    """--mem-probe-batch: think_diag / tick_losses on chunks of the batch give the full batch's numbers (dropless
++    routing here; float64), the neighbour weights are not built in eval, and the probes run in small batches."""
++    from memory import MemoryProbes
++    m = mem_loop(mem_nbr=8)
++    m.eval()
++    x = tokens(4, 17, seed=7)
++    xi, y = x[:, :-1], x[:, 1:]
++    full, part = m.think_diag(xi, y, K_max=6, kmax_eval=4), m.think_diag(xi, y, K_max=6, kmax_eval=4, chunk=2)
++    for k in full:
++        a, b = np.asarray(full[k], dtype=float), np.asarray(part[k], dtype=float)
++        assert np.allclose(a, b, rtol=1e-9, atol=1e-12, equal_nan=True), k
++    assert np.allclose(m.tick_losses(xi, y, 5), m.tick_losses(xi, y, 5, chunk=2), rtol=1e-6)   # (fp32 CE)
++    a_hat = torch.randn(m.mem.L, 9, m.mem.ain, dtype=torch.float64)
++    sel = m.mem.select(a_hat, a_hat, False)
++    assert "wn" not in m.mem.online(a_hat, sel)                                 # (eval: no neighbour weights)
++    val = np.random.RandomState(0).randint(1, 50, 600).astype(np.uint16)
++    p8, p1 = MemoryProbes(val, 16, n_seq=2, n_pos=4, K=4), MemoryProbes(val, 16, n_seq=2, n_pos=4, K=4, batch=1)
++    r8, r1 = p8.run(m, "B"), p1.run(m, "B")
++    for a, b in zip(r8["reads"], r1["reads"]):
++        assert a["rows"].device.type == "cpu" and torch.allclose(a["w"], b["w"], atol=1e-9)

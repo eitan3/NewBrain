@@ -1,0 +1,14 @@
+{
+ "peak_allocated_gb": 20.27970816,
+ "peak_reserved_gb": 21.487419392,
+ "cap_gb": 22.983166918656003,
+ "margin_gb": 2.0,
+ "K": 16,
+ "worst_route": 1,
+ "steps": 20,
+ "minutes": 2.0613956610361734,
+ "error": null,
+ "workdir": "C:\\Eitan\\Python\\NewBrain\\runs\\_gpu_check_fastmem_c\\worst",
+ "verdict": "REFUSE",
+ "suggest": "over by 0.5 GB; add: --vram-ckpt-concept 1 (-0.9 GB, ~0.5% time) (est. -0.9 GB)"
+}

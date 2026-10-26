@@ -1,0 +1,70 @@
+--- a/fruit-fly-sim-wave27c/train_lm.py
++++ b/fruit-fly-sim-wave27c/train_lm.py
+@@ -133,13 +133,24 @@
+ 
+ 
+ class Data:
+-    def __init__(self, path, seq, device, curriculum=False):
++    def __init__(self, path, seq, device, curriculum=False, mode="random"):
+         # token id width: uint16 unless the cache's meta.json says otherwise (large vocabularies: uint32)
+         meta = path / "meta.json"
+-        dt = np.dtype(json.loads(meta.read_text()).get("dtype", "uint16")) if meta.exists() else np.uint16
++        mj = json.loads(meta.read_text()) if meta.exists() else {}
++        dt = np.dtype(mj.get("dtype", "uint16"))
+         self.train = np.memmap(path / "train.bin", dtype=dt, mode="r")
+         self.val = np.memmap(path / "val.bin", dtype=dt, mode="r")
+         self.seq, self.dev = seq, device
++        # --data-mode stream (world_change_mix): train.bin = S streams of L tokens (stream-major); batch row b of
++        # micro-batch c reads stream g*B + b, sequence (c // G) mod n_seq (G = S // B stream groups), i.e. every row
++        # continues its own stream across micro-batches and optimizer steps. self.ctr = micro-batch counter (set
++        # from the step in the train loop, so --resume continues the streams exactly).
++        self.mode, self.ctr = mode, 0
++        if mode == "stream":
++            st = mj["train"]
++            self.S, self.L, self.n_seq = int(st["streams"]), int(st["stream_len"]), int(st["seqs_per_stream"])
++            assert mj["seq"] == seq, f"stream data was built for --seq {mj['seq']}"
++            assert self.S * self.L == len(self.train)
+         # difficulty buckets (build_curriculum.py); phase k trains on the k+1 easiest buckets
+         self.buckets = sorted(path.glob("curr_*.bin")) if curriculum else []
+         self.buckets = [np.memmap(p, dtype=dt, mode="r") for p in self.buckets]
+@@ -161,6 +172,13 @@
+             which = gen.choice(len(sizes), B, p=sizes / sizes.sum())
+             rows = [self.buckets[w][i:i + self.seq + 1] for w in which
+                     for i in [gen.randint(0, len(self.buckets[w]) - self.seq - 1)]]
++        elif split == "train" and self.mode == "stream":
++            assert self.S % B == 0, f"--batch {B} must divide the {self.S} streams"
++            G = self.S // B
++            g, j = self.ctr % G, (self.ctr // G) % self.n_seq
++            self.ctr += 1
++            rows = [self.train[s * self.L + j * self.seq: s * self.L + j * self.seq + self.seq + 1]
++                    for s in range(g * B, (g + 1) * B)]
+         else:
+             d = self.train if split == "train" else self.val
+             rows = [d[i:i + self.seq + 1] for i in gen.randint(0, len(d) - self.seq - 1, B)]
+@@ -899,6 +917,8 @@
+     ap.add_argument("--run-name", required=True)
+     ap.add_argument("--runs", default=str(HERE.parent / "runs"))
+     ap.add_argument("--data", default=str(HERE.parent / "data" / "ts4k"))
++    ap.add_argument("--data-mode", default="random", choices=["random", "stream"],
++                    help="stream: each batch row continues its own stream across steps (world_change_mix layout)")
+     ap.add_argument("--tokenizer", default="", help="tokenizer.json path (default: <data>/tokenizer.json)")
+     ap.add_argument("--mixer", default="ssd", choices=["ssd", "attn"])
+     ap.add_argument("--spike", default="analog", choices=["analog", "graded", "ternary", "binary", "ngc", "ngc4"])
+@@ -1434,7 +1454,8 @@
+         torch.cuda.set_per_process_memory_fraction(args.mem_fraction)
+     from tokenizers import Tokenizer
+     tok = Tokenizer.from_file(args.tokenizer or str(Path(args.data) / "tokenizer.json"))
+-    data = Data(Path(args.data), args.seq, args.device, curriculum=bool(args.curriculum))
++    data = Data(Path(args.data), args.seq, args.device, curriculum=bool(args.curriculum), mode=args.data_mode)
++    assert args.data_mode != "stream" or not args.curriculum, "--data-mode stream has no curriculum buckets"
+     curr_at = [float(f) for f in args.curriculum.split(",")] if args.curriculum else []
+ 
+     final = dict(layers=args.layers, heads=args.heads, mlp=args.mlp)
+@@ -2028,6 +2049,7 @@
+             if gate_opt is not None:
+                 gate_opt.zero_grad(set_to_none=True)
+             micro = []
++            data.ctr = step * args.accum  # (stream mode: micro-batch c = step * accum + i; a no-op for random windows)
+             for _ in range(args.accum):
+                 x, y = data.batch(args.batch)  # two draws of 16 == one draw of 32 (same numpy stream)
+                 if bm is not None and near_cap():

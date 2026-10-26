@@ -1,0 +1,58 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+C:\Eitan\Python\NewBrain\.venv\Lib\site-packages\torch\profiler\profiler.py:224: UserWarning: Warning: Profiler clears events at the end of each cycle.Only events from the current cycle will be reported.To keep events across cycles, set acc_events=True.
+  _warn_once(
+gaps: {'kernel_span_s': 2.434108197, 'idle_s': 0.5476382560000137, 'idle_after_sync_s': 0.0, 'idle_gaps_over_100us_s': 0.3697412430000015, 'n_syncs': 186}
+wall 2.519 s (no profiler 2.202 s), GPU kernels 1.568 s (62%), 68445 kernels
+op groups (s): {'elementwise': 0.5226, 'gemm': 0.3059, 'copy_cast': 0.2078, 'index_scatter_gather': 0.1986, 'topk_sort': 0.1477, 'reduction': 0.1144, 'softmax': 0.0646, 'conv': 0.0065}
+regions (device s, inclusive):
+  R:run_total                 0.885  x4
+  R:core_pass                 0.291  x24
+  R:routed_mlp                0.185  x24
+  R:mem_select                0.177  x16
+  R:pass_readout              0.157  x24
+  R:mem_online                0.155  x40
+  opt_step                    0.093  x1
+  R:mem_private               0.075  x20
+  R:concept_loss              0.060  x96
+  R:ssd_mixer                 0.058  x24
+  R:mem_read_shared           0.053  x40
+  R:concept_heads             0.039  x48
+  mem_after_step              0.035  x1
+  R:rmsnorm                   0.033  x344
+  R:ssd_scan                  0.018  x24
+  R:expert_spike              0.014  x24
+  R:spike                     0.014  x48
+  R:shared_mlp                0.011  x24
+  R:router_scores             0.011  x24
+  forward                     0.010  x4
+  R:mem_prep                  0.010  x40
+  R:ws_write                  0.007  x24
+  R:ws_read                   0.006  x24
+  R:concept_targets           0.003  x4
+  clip                        0.002  x1
+  R:halt_head                 0.002  x24
+  R:concept_mem_block         0.000  x20
+  backward                    0.000  x4
+  apply_balance               0.000  x1
+top kernels:
+     146.2 ms x 4411  _ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_kernel_impl_nocastINS0_13BinaryFunctorIfffNS0_15binary_
+      87.3 ms x 4567  _ZN2at6native29vectorized_elementwise_kernelILi4ENS0_15CUDAFunctor_addIfEESt5arrayIPcLy3EEEEviT0_T1_
+      79.1 ms x 3391  _ZN2at6native29vectorized_elementwise_kernelILi4ENS0_13BinaryFunctorIfffNS0_15binary_internal10MulFunctorIfEEE
+      65.7 ms x 2383  _ZN2at6native27unrolled_elementwise_kernelIZZZNS0_23direct_copy_kernel_cudaERNS_18TensorIteratorBaseEENKUlvE1_
+      62.5 ms x 1557  _ZN2at6native13reduce_kernelILi512ELi1ENS0_8ReduceOpIfNS0_14func_wrapper_tIfZNS0_11sum_functorIfffEclERNS_14Te
+      60.0 ms x  726  _ZN2at6native24vectorized_gather_kernelILi16ExEEvPcS2_PT0_ixxxxb
+      55.3 ms x  164  _ZN2at6native19indexFuncLargeIndexIfxjLi2ELi2ELin2ELb1ENS0_44_GLOBAL__N__516f300d_11_Indexing_cu_2a2c434e9Redu
+      46.0 ms x 1079  _ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_kernel_impl_nocastIZZZNS0_23direct_copy_kernel_cudaERNS
+      44.7 ms x  112  _ZN7cutlass7Kernel2I42cutlass_80_simt_sgemm_128x32_8x5_tn_align1EEvNT_6ParamsE
+      41.2 ms x 2590  _ZN2at6native29vectorized_elementwise_kernelILi4EZNS0_25bfloat16_copy_kernel_cudaERNS_18TensorIteratorBaseEEUl
+      40.3 ms x 2599  _ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_kernel_impl_nocastINS0_13BinaryFunctorIfffNS0_15binary_
+      39.0 ms x  240  _ZN2at6native6mbtopk29computeBlockwiseWithinKCountsIjfEEvPT_PsPjS6_jibS6_PT0_S6_S4_j
+      37.1 ms x   48  _ZN2at6native43_GLOBAL__N__c5dc35cd_10_SoftMax_cu_0af7be2119cunn_SoftMaxForwardILi4EfffNS1_25LogSoftMaxForward
+      34.3 ms x  240  _ZN2at6native6mbtopk23computeBlockDigitCountsIfjjLi2EEEvNS_4cuda6detail10TensorInfoIKT_T0_EEjPjjS8_iijT1_PSB_P
+      34.0 ms x  116  _ZN7cutlass7Kernel2I68cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_256x128_32x3_tn_align8EEvNT_6ParamsE
+      32.1 ms x  140  _ZN2at6native48_GLOBAL__N__c89fc21b_15_EmbeddingBag_cu_2708711340EmbeddingBag_updateOutputKernel_sum_meanIfxEE
+      27.0 ms x   24  _ZN2at6native43_GLOBAL__N__c5dc35cd_10_SoftMax_cu_0af7be2120cunn_SoftMaxBackwardILi4EfffNS1_26LogSoftMaxBackwa
+      26.3 ms x  275  _ZN7cutlass7Kernel2I67cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x256_32x4_nt_align8EEvNT_6ParamsE
+      24.5 ms x   24  _ZN7cutlass7Kernel2I67cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_256x64_32x4_nn_align8EEvNT_6ParamsE
+      23.1 ms x  242  _ZN7cutlass7Kernel2I67cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_32x1_nn_align8EEvNT_6ParamsE
+syncs: {'aten::item': {'count': 78, 'cpu_ms': 159.9683000000001}, 'aten::_local_scalar_dense': {'count': 78, 'cpu_ms': 159.61289999999963}, 'cudaMemcpyAsync': {'count': 1264, 'cpu_ms': 122.37869999999694}, 'cudaStreamSynchronize': {'count': 184, 'cpu_ms': 167.49930000000072}, 'aten::nonzero': {'count': 15, 'cpu_ms': 7.420799999999799}, 'cudaDeviceSynchronize': {'count': 2, 'cpu_ms': 26.33380000000028}}

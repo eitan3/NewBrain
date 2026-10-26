@@ -1,0 +1,15 @@
+loaded step 7000: heads 35 -> 36, experts 740 -> 768, params 137.73M
+W1024 15:03:15.505000 51748 Lib\site-packages\torch\utils\flop_counter.py:29] triton not found; flop counting will not work for triton kernels
+C:\Eitan\Python\NewBrain\.venv\Lib\site-packages\torch\_inductor\cudagraph_trees.py:2582: UserWarning: Unable to hit fast path of CUDAGraphs because of pending, uninvoked backwards. Consider running with torch.no_grad() or using torch.compiler.cudagraph_mark_step_begin() before each model invocation
+  warnings.warn(
+C:\Eitan\Python\NewBrain\.venv\Lib\site-packages\torch\_inductor\cudagraph_trees.py:2582: UserWarning: Unable to hit fast path of CUDAGraphs because of pending, uninvoked backwards. Consider running with torch.no_grad() or using torch.compiler.cudagraph_mark_step_begin() before each model invocation
+  warnings.warn(
+ERROR RuntimeError('Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "C:\\Eitan\\Python\\NewBrain\\fruit-fly-sim\\spiking_lm.py", line 111, in forward\n    return (xf * torch.rsqrt(xf.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight).to(x.dtype)\nGradient addition node due to multiple use of tensor around:. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.')
+{
+ "mode": "norm_cg",
+ "K": 6,
+ "batch": 8,
+ "accum": 4,
+ "nohomeo": false,
+ "error": "RuntimeError('Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File \"C:\\\\Eitan\\\\Python\\\\NewBrain\\\\fruit-fly-sim\\\\spiking_lm.py\", line 111, in forward\\n    return (xf * torch.rsqrt(xf.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight).to(x.dtype)\\nGradient addition node due to multiple use of tensor around:. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.')"
+}

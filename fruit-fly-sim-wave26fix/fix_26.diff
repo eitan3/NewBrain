@@ -1,0 +1,138 @@
+--- /c/Eitan/Python/NewBrain/runs/world_wave26_12k/code_snapshot/wave_v21.py	2026-10-25 12:38:30.999427100 +0200
++++ wave_v21.py	2026-10-25 14:08:54.954582400 +0200
+@@ -33,6 +33,8 @@
+ D UPDATE (after_step, PART 3): the factored second-moment update, per memory row, wd 0, no cross-row coupling.
+ SWEEP: 8 global + 24 live-strip places per step.
+ """
++import contextlib
++import functools
+ import math
+ 
+ import torch
+@@ -46,6 +48,28 @@
+ from wave_write import SpecPolicy
+ 
+ LOW = torch.iinfo(torch.int64).min
++
++
++@contextlib.contextmanager
++def ieee_fp32():
++    """(fix F6) the memory's GEMMs at fp32 'ieee': the trainer's TF32 setting is saved on the host and restored on exit,
++    so the brain's matmul precision is unchanged."""
++    tf32, prec = torch.backends.cuda.matmul.allow_tf32, torch.get_float32_matmul_precision()
++    torch.backends.cuda.matmul.allow_tf32 = False
++    torch.set_float32_matmul_precision("highest")
++    try:
++        yield
++    finally:
++        torch.set_float32_matmul_precision(prec)
++        torch.backends.cuda.matmul.allow_tf32 = tf32
++
++
++def _ieee(fn):
++    @functools.wraps(fn)
++    def wrap(*a, **k):
++        with ieee_fp32():
++            return fn(*a, **k)
++    return wrap
+ INF = float("inf")
+ 
+ V21_DEFAULTS = dict(
+@@ -81,10 +105,11 @@
+     def backward(ctx, gr, gs):
+         Xr, Xs = ctx.saved_tensors
+         D, E, sh, gb = ctx.D, ctx.E, ctx.sh, ctx.gb
+-        if gb is not None:
+-            gb[:E].baddbmm_(Xr.transpose(1, 2), gr)
+-            gb[sh].addmm_(Xs.t(), gs)
+-        return gr + torch.bmm(gr, D[:E].transpose(1, 2)), gs + gs @ D[sh].t(), None, None, None, None
++        with ieee_fp32():                                              # (fix F6: runs inside the trainer's backward)
++            if gb is not None:
++                gb[:E].baddbmm_(Xr.transpose(1, 2), gr)
++                gb[sh].addmm_(Xs.t(), gs)
++            return gr + torch.bmm(gr, D[:E].transpose(1, 2)), gs + gs @ D[sh].t(), None, None, None, None
+ 
+ 
+ class WaveV21Memory(MemoryBase):
+@@ -393,6 +418,7 @@
+         y_g_full = y_g.new_zeros(N, d).index_put((GT,), y_g * gvalid[:, None].float())
+         y_p_full = y_p.new_zeros(K, d).index_put((PR,), y_p * vp[PR][:, None].float())
+         rec["y_raw"] = (vg[:, None].float() * y_g_full[tok]).detach(), (vp[:, None].float() * y_p_full).detach()
++        rec["y_g_tok"] = y_g_full.detach()          # (fix F1: the token-level global read, pre-keep; no scatter over tok)
+         kp = keep[tok][:, None] if keep is not None else 1.0
+         y_pair = kp * (vg[:, None].float() * y_g_full[tok] + vp[:, None].float() * y_p_full)
+         if self._live and torch.is_grad_enabled():
+@@ -410,6 +436,7 @@
+         r3 = o.new_zeros(7 * N + 1, d).index_put((S,), o)
+         return r3
+ 
++    @_ieee
+     def __call__(self, xf, buf, x, side, e_k, p_k, t_k, slot_k, counts, N, E, C, n_keep, call=None):
+         k = int(call or 0)
+         with torch.autocast(xf.device.type, enabled=False):
+@@ -494,6 +521,7 @@
+         self._sel = True
+         return self._sel
+ 
++    @_ieee
+     @torch.no_grad()
+     def after_backward(self):
+         rec, rows, samp = self._cache, self._rows, self._samp
+@@ -521,7 +549,7 @@
+         Epad = torch.cat([Ep * vg[:, None].float(), Ep.new_zeros(1, self.d)])
+         e_g = Epad[pslot].sum(1)                                          # (N, d)
+         y_g_raw, y_p_raw = rec["y_raw"]
+-        yg_tok = torch.zeros(N, self.d, device=Ep.device).index_put((tok,), y_g_raw)
++        yg_tok = rec["y_g_tok"]                      # (fix F1: was index_put over the repeated tok -> zero rows won)
+         cosz = lambda a_, b_: torch.where(a_.norm(dim=-1) > 1e-6, F.cosine_similarity(a_, b_, dim=-1),
+                                           torch.zeros_like(a_[:, 0]))
+         h_g = cosz(yg_tok[GT], -e_g[GT])
+@@ -610,6 +638,9 @@
+             return
+         wt, strength = wt[ok], strength[ok]
+         scale = self.kappa.clamp(min=1e-6) * self.content
++        # (fix F2: a "zero" target = 1e-6 x the micro-batch's largest |E_pair|; dL/dy of a mean loss is ~1 / N per pair,
++        # so an absolute 1e-6 floor dropped real targets)
++        tiny = 1e-6 * Ep.norm(dim=-1).amax().clamp(min=1e-30)
+         nrm = lambda v: v / v.norm(dim=-1, keepdim=True).clamp(min=1e-12)
+         # global: tokens that read the global sheet; entry 0 with its keys
+         gpos = torch.full((N,), -1, dtype=torch.long, device=Ep.device).index_put(
+@@ -619,11 +650,10 @@
+         if bool(gw.any()):
+             tg_ = wt[gw]
+             gi = gpos[tg_]
+-            yg = rec["y_raw"][0]
+-            yg_tok = torch.zeros(N, self.d, device=Ep.device).index_put((dec["tok"],), yg)[tg_]
++            yg_tok = rec["y_g_tok"][tg_]                 # (fix F1)
+             w = h_g[gi].clamp(min=0) * (rec["c_g"][gi] >= 0.5).float()
+             tgt = nrm(nrm(-e_g[tg_]) + w[:, None] * nrm(yg_tok))
+-            good = e_g[tg_].norm(dim=-1) >= 1e-6
++            good = e_g[tg_].norm(dim=-1) > tiny
+             c0 = rec["codes"].take(tg_)
+             out_codes.append(Codes(c0.loc[:, :1], c0.loc_s[:, :1], c0.code[..., :1], c0.code_w[..., :1],
+                                    c0.code_d[..., :1], c0.feats, c0.code_e[:, :1]))
+@@ -648,7 +678,7 @@
+             yp = rec["y_raw"][1][spos]
+             w = h_p[prpos].clamp(min=0) * (rec["c_p"][prpos] >= 0.5).float()
+             tgt = nrm(nrm(-Ei) + w[:, None] * nrm(yp))
+-            good = Ei.norm(dim=-1) >= 1e-6
++            good = Ei.norm(dim=-1) > tiny
+             cp = rec["cp"].take(prpos)
+             out_codes.append(cp)
+             out_tg.append(tgt * scale)
+@@ -757,6 +787,7 @@
+         self.null_n[sheet] += seen.long()
+ 
+     # ------------------------------------------------------------------ the step end
++    @_ieee
+     def after_step(self, step, refit_every=0):
+         on = self.active
+         self.n_opt += 1
+@@ -839,6 +870,7 @@
+ 
+     # ------------------------------------------------------------------ growth, train-only, logs
+     @torch.no_grad()
++    @_ieee
+     def on_grow(self, src, E0, split=True):
+         """Children copy the parent (owner decision 3): the strip's key + chain bytes and load, Wld_p, P_e, Ph, Pinit,
+         the D row and R / Cv / n_d, the gate rows Wp / Wg / bp_b / bg_b and their AdamW moments."""
